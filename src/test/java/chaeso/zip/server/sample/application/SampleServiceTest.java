@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import chaeso.zip.server.sample.application.dto.CreateSampleCommand;
 import chaeso.zip.server.sample.application.dto.SampleResponse;
 import chaeso.zip.server.sample.domain.Sample;
 import chaeso.zip.server.sample.domain.SampleNotFoundException;
@@ -27,14 +28,14 @@ class SampleServiceTest {
   private SampleRepository sampleRepository;
 
   @InjectMocks
-  private SampleService sampleService;
+  private SampleServiceImpl sampleService;
 
   @Test
   @DisplayName("샘플을 생성하면 저장 후 응답을 반환한다")
   void create() {
     given(sampleRepository.save(any(Sample.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-    SampleResponse response = sampleService.create("채소");
+    SampleResponse response = sampleService.create(new CreateSampleCommand("채소"));
 
     assertThat(response.name()).isEqualTo("채소");
   }

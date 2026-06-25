@@ -43,7 +43,7 @@ public class SampleController {
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public ApiResponse<SampleResponse> create(@Valid @RequestBody CreateSampleRequest request) {
-    return ApiResponse.success(sampleService.create(request.name()));
+    return ApiResponse.success(sampleService.create(request.toCommand()));
   }
 
   @Operation(summary = "샘플 단건 조회", description = "식별자로 샘플을 조회한다.")

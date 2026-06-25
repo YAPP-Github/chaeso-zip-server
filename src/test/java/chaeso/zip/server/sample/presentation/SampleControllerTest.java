@@ -1,12 +1,13 @@
 package chaeso.zip.server.sample.presentation;
 
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import chaeso.zip.server.sample.application.SampleService;
+import chaeso.zip.server.sample.application.dto.CreateSampleCommand;
 import chaeso.zip.server.sample.application.dto.SampleResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -37,7 +38,7 @@ class SampleControllerTest {
   @Test
   @DisplayName("샘플 생성 요청이 성공하면 201 과 공통 응답 포맷을 반환한다")
   void create_success() throws Exception {
-    given(sampleService.create(anyString()))
+    given(sampleService.create(any(CreateSampleCommand.class)))
         .willReturn(new SampleResponse(1L, "채소", LocalDateTime.now(), LocalDateTime.now()));
 
     mockMvc.perform(post("/api/v1/samples")
