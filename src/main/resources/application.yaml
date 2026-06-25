@@ -8,9 +8,12 @@ spring:
     password: ${DB_PASSWORD:postgres}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:10}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     properties:
       hibernate:
         format_sql: true
