@@ -1,3 +1,19 @@
 spring:
   application:
     name: chaeso-zip
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/chaeso_zip}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
