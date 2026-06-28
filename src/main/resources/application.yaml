@@ -28,3 +28,18 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
   default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENV:prod}
+  traces-sample-rate: ${SENTRY_TRACES:0.1}
+  send-default-pii: false
