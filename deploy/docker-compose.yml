@@ -1,0 +1,78 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: ${APP_IMAGE_REPO}:${IMAGE_TAG}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    ports:
+      - "80:${APP_PORT}"
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
+      DB_USERNAME: ${DB_USER}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SENTRY_ENV: prod
+      SENTRY_RELEASE: ${IMAGE_TAG}
+    mem_limit: 768m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /actuator/health HTTP/1.0\r\n\r\n' >&3; grep -q UP <&3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+  alloy:
+    image: grafana/alloy:latest
+    profiles: ["monitoring"]
+    restart: always
+    command: ["run", "/etc/alloy/config.alloy"]
+    volumes:
+      - /opt/app/config.alloy:/etc/alloy/config.alloy:ro
+    mem_limit: 128m
+    logging: *default-logging
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["embedded"]
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 384m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  redis:
+    image: redis:7-alpine
+    profiles: ["embedded"]
+    restart: always
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    mem_limit: 128m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:
+  redisdata:
