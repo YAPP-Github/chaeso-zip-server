@@ -10,7 +10,8 @@ import jakarta.validation.constraints.Size;
  */
 @Schema(description = "샘플 생성 요청")
 public record CreateSampleRequest(
-    @Schema(description = "샘플 이름", example = "채소", maxLength = 100)
+    @Schema(description = "샘플 이름", example = "채소", maxLength = 100,
+        requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "이름은 필수입니다.")
     @Size(max = 100, message = "이름은 100자를 초과할 수 없습니다.")
     String name) {

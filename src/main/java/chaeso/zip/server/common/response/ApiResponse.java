@@ -2,6 +2,7 @@ package chaeso.zip.server.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +25,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ApiResponse<T> {
 
+  @Schema(description = "요청 성공 여부", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
   private final boolean success;
+
+  @Schema(description = "성공 시 응답 본문. 실패 시 null", nullable = true)
   private final T data;
+
+  @Schema(description = "실패 시 에러 정보. 성공 시 null", nullable = true)
   private final ErrorResponse error;
 
   public static <T> ApiResponse<T> success(T data) {

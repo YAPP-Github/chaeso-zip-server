@@ -9,13 +9,13 @@ import java.time.LocalDateTime;
  */
 @Schema(description = "샘플 응답")
 public record SampleResponse(
-    @Schema(description = "샘플 식별자", example = "1")
+    @Schema(description = "샘플 식별자", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     Long id,
-    @Schema(description = "샘플 이름", example = "채소")
+    @Schema(description = "샘플 이름", example = "채소", requiredMode = Schema.RequiredMode.REQUIRED)
     String name,
-    @Schema(description = "생성 시각")
+    @Schema(description = "생성 시각", requiredMode = Schema.RequiredMode.REQUIRED)
     LocalDateTime createdAt,
-    @Schema(description = "수정 시각")
+    @Schema(description = "수정 시각", requiredMode = Schema.RequiredMode.REQUIRED)
     LocalDateTime updatedAt) {
 
   public static SampleResponse from(Sample sample) {
