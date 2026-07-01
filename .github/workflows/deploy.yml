@@ -57,3 +57,58 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Deploy & verify (auto-rollback)
         run: bash .github/scripts/ssm-deploy.sh "${{ github.sha }}"
+
+  notify:
+    name: Deploy result → Discord
+    needs: [build-push, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Send deploy result to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BUILD_RESULT: ${{ needs.build-push.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          
+          # deploy 성공 = 전체 성공(build-push 성공 전제). 그 외는 취소/실패로 판정.
+          if [ "$DEPLOY_RESULT" = "success" ]; then
+            COLOR=3066993;  STATUS="✅ 배포 성공"
+          elif [ "$BUILD_RESULT" = "cancelled" ] || [ "$DEPLOY_RESULT" = "cancelled" ]; then
+            COLOR=9807270;  STATUS="🚫 배포 취소"
+          else
+            COLOR=15158332; STATUS="❌ 배포 실패"
+          fi
+
+          payload=$(jq -n \
+            --arg title "${STATUS} — chaeso-zip" \
+            --arg url "$RUN_URL" \
+            --arg sha "${SHA:0:7}" \
+            --arg branch "$BRANCH" \
+            --arg actor "$ACTOR" \
+            --arg repo "$REPO" \
+            --argjson color "$COLOR" \
+            '{
+              embeds: [{
+                title: $title,
+                url: $url,
+                color: $color,
+                fields: [
+                  { name: "커밋", value: $sha, inline: true },
+                  { name: "브랜치", value: $branch, inline: true },
+                  { name: "실행자", value: $actor, inline: true }
+                ],
+                footer: { text: $repo }
+              }]
+            }')
+
+          curl -sfSL -X POST -H "Content-Type: application/json" \
+            -d "$payload" "$WEBHOOK"
