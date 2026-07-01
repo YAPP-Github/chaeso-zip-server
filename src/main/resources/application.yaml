@@ -45,3 +45,7 @@ sentry:
   environment: ${SENTRY_ENV:prod}
   traces-sample-rate: ${SENTRY_TRACES:0.1}
   send-default-pii: false
+  logging:
+    minimum-event-level: error
+    minimum-breadcrumb-level: info
+  exception-resolver-order: 2147483647
