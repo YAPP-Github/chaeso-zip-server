@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 표현 계층 슬라이스 테스트 컨벤션. {@code @WebMvcTest} 는 {@code @RestControllerAdvice}(GlobalExceptionHandler)
  * 도 함께 로드하므로 공통 응답/검증 에러 포맷까지 검증할 수 있다.
  */
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(SampleController.class)
 class SampleControllerTest {
 

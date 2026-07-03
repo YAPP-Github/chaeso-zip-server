@@ -34,6 +34,13 @@ dependencies {
     implementation libs.springdoc.openapi.ui
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
+    implementation libs.spring.boot.starter.security
+    implementation libs.spring.boot.starter.data.redis
+    implementation libs.spring.boot.starter.mail
+    implementation libs.jjwt.api
+    runtimeOnly libs.jjwt.impl
+    runtimeOnly libs.jjwt.jackson
+    testImplementation libs.spring.security.test
     compileOnly libs.lombok
     runtimeOnly libs.postgresql
     annotationProcessor libs.lombok
