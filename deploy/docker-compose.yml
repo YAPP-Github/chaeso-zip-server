@@ -29,7 +29,7 @@ services:
       retries: 3
       start_period: 60s
   alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.2.1
     profiles: ["monitoring"]
     restart: always
     command: ["run", "/etc/alloy/config.alloy"]
