@@ -12,8 +12,7 @@ import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 
 /**
- * 자체 JWT(Access/Refresh) 발급 및 검증(HS256, 시계 오차 30초 허용).
- * access/refresh 는 {@code type} 클레임으로 구분해 혼용 방지. sub = userId(uuid), role claim 없음.
+ * 토큰 종류를 클레임으로 구분해 Access 토큰과 Refresh 토큰의 혼용을 막는다.
  */
 @Component
 public class JwtTokenProvider {
@@ -60,13 +59,25 @@ public class JwtTokenProvider {
 
   public UserPrincipal parseAccess(String token) {
     Claims claims = parse(token, TYPE_ACCESS);
-    return new UserPrincipal(UUID.fromString(claims.getSubject()));
+    return new UserPrincipal(parseUserId(claims));
   }
 
   public RefreshTokenInfo parseRefresh(String token) {
     Claims claims = parse(token, TYPE_REFRESH);
     return new RefreshTokenInfo(
-        UUID.fromString(claims.getSubject()), claims.get(CLAIM_FAMILY, String.class), claims.getId());
+        parseUserId(claims), claims.get(CLAIM_FAMILY, String.class), claims.getId());
+  }
+
+  private UUID parseUserId(Claims claims) {
+    String subject = claims.getSubject();
+    if (subject == null) {
+      throw new JwtException("토큰 subject가 없습니다.");
+    }
+    try {
+      return UUID.fromString(subject);
+    } catch (IllegalArgumentException e) {
+      throw new JwtException("토큰 subject가 UUID 형식이 아닙니다.", e);
+    }
   }
 
   private Claims parse(String token, String expectedType) {
