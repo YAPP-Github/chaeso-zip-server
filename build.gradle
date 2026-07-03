@@ -40,10 +40,11 @@ dependencies {
     implementation libs.jjwt.api
     runtimeOnly libs.jjwt.impl
     runtimeOnly libs.jjwt.jackson
-    testImplementation libs.spring.security.test
     compileOnly libs.lombok
     runtimeOnly libs.postgresql
     annotationProcessor libs.lombok
+    testImplementation libs.spring.security.test
+    testImplementation libs.embedded.redis
     testImplementation libs.spring.boot.starter.test
     testImplementation libs.spring.restdocs.mockmvc
     testImplementation libs.archunit.junit5
