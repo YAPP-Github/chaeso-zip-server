@@ -28,6 +28,9 @@ public class JwtTokenProvider {
   private final Duration refreshTtl;
 
   public JwtTokenProvider(JwtProperties properties) {
+    if (properties.secret() == null || properties.secret().isBlank()) {
+      throw new IllegalArgumentException("JWT_SECRET 환경변수가 주입되지 않았습니다. .env 설정 혹은 구동 환경변수를 확인해 주세요.");
+    }
     this.key = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
     this.accessTtl = properties.accessTtl();
     this.refreshTtl = properties.refreshTtl();
@@ -71,25 +74,29 @@ public class JwtTokenProvider {
   private UUID parseUserId(Claims claims) {
     String subject = claims.getSubject();
     if (subject == null) {
-      throw new JwtException("토큰 subject가 없습니다.");
+      throw new InvalidTokenException("토큰 subject가 없습니다.");
     }
     try {
       return UUID.fromString(subject);
     } catch (IllegalArgumentException e) {
-      throw new JwtException("토큰 subject가 UUID 형식이 아닙니다.", e);
+      throw new InvalidTokenException("토큰 subject가 UUID 형식이 아닙니다.", e);
     }
   }
 
   private Claims parse(String token, String expectedType) {
-    Claims claims = Jwts.parser()
-        .verifyWith(key)
-        .clockSkewSeconds(CLOCK_SKEW_SECONDS)
-        .build()
-        .parseSignedClaims(token)
-        .getPayload();
-    if (!expectedType.equals(claims.get(CLAIM_TYPE, String.class))) {
-      throw new JwtException("토큰 타입이 올바르지 않습니다. 기대: " + expectedType);
+    try {
+      Claims claims = Jwts.parser()
+          .verifyWith(key)
+          .clockSkewSeconds(CLOCK_SKEW_SECONDS)
+          .build()
+          .parseSignedClaims(token)
+          .getPayload();
+      if (!expectedType.equals(claims.get(CLAIM_TYPE, String.class))) {
+        throw new InvalidTokenException("토큰 타입이 올바르지 않습니다. 기대: " + expectedType);
+      }
+      return claims;
+    } catch (JwtException e) {
+      throw new InvalidTokenException("유효하지 않은 토큰입니다: " + e.getMessage(), e);
     }
-    return claims;
   }
 }

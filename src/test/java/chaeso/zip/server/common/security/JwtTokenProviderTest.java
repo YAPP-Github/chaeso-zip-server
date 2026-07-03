@@ -3,7 +3,7 @@ package chaeso.zip.server.common.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.jsonwebtoken.JwtException;
+
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +52,7 @@ class JwtTokenProviderTest {
     JwtTokenProvider provider = provider(Duration.ofMinutes(30));
     String refresh = provider.createRefreshToken(USER_ID, "fam", "jti");
 
-    assertThatThrownBy(() -> provider.parseAccess(refresh)).isInstanceOf(JwtException.class);
+    assertThatThrownBy(() -> provider.parseAccess(refresh)).isInstanceOf(InvalidTokenException.class);
   }
 
   @Test
@@ -61,7 +61,7 @@ class JwtTokenProviderTest {
     JwtTokenProvider provider = provider(Duration.ofMinutes(30));
     String token = provider.createAccessToken(USER_ID) + "x";
 
-    assertThatThrownBy(() -> provider.parseAccess(token)).isInstanceOf(JwtException.class);
+    assertThatThrownBy(() -> provider.parseAccess(token)).isInstanceOf(InvalidTokenException.class);
   }
 
   @Test
@@ -78,7 +78,7 @@ class JwtTokenProviderTest {
         .compact();
 
     assertThatThrownBy(() -> provider.parseAccess(token))
-        .isInstanceOf(JwtException.class);
+        .isInstanceOf(InvalidTokenException.class);
   }
 
   @Test
@@ -87,6 +87,6 @@ class JwtTokenProviderTest {
     JwtTokenProvider provider = provider(Duration.ofSeconds(-60));
     String token = provider.createAccessToken(USER_ID);
 
-    assertThatThrownBy(() -> provider.parseAccess(token)).isInstanceOf(JwtException.class);
+    assertThatThrownBy(() -> provider.parseAccess(token)).isInstanceOf(InvalidTokenException.class);
   }
 }

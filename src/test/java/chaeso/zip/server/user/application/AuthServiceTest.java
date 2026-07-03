@@ -25,9 +25,12 @@ import chaeso.zip.server.user.domain.AuthIdentityRepository;
 import chaeso.zip.server.user.domain.AuthProvider;
 import chaeso.zip.server.user.domain.EmploymentStatus;
 import chaeso.zip.server.user.domain.Occupation;
+import chaeso.zip.server.common.security.RefreshTokenInfo;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserErrorCode;
 import chaeso.zip.server.user.domain.UserRepository;
+import chaeso.zip.server.common.security.InvalidTokenException;
+import java.util.UUID;
 import java.sql.SQLException;
 import java.util.Optional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -46,6 +49,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
+
+  private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   @Mock
   private UserRepository userRepository;
@@ -345,5 +350,72 @@ class AuthServiceTest {
     assertThatThrownBy(callable)
         .isInstanceOfSatisfying(BusinessException.class,
             exception -> assertThat(exception.getErrorCode()).isEqualTo(expectedErrorCode));
+  }
+
+  @Test
+  @DisplayName("유효한 refresh면 회전하여 새 토큰을 발급한다")
+  void reissue_success() {
+    User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
+    given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
+    given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
+    given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("new-access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("new-refresh");
+
+    TokenResponse response = authService.reissue("refresh");
+
+    assertThat(response.accessToken()).isEqualTo("new-access");
+    assertThat(response.refreshToken()).isEqualTo("new-refresh");
+    then(refreshTokenStore).should().save(any(), eq("fam-1"), anyString());
+  }
+
+  @Test
+  @DisplayName("저장된 jti와 다르면(재사용) 유저 전체 세션을 무효화하고 예외를 던진다")
+  void reissue_reuseDetected() {
+    given(jwtTokenProvider.parseRefresh("stale")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-old"));
+    given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-current"));
+
+    assertThatThrownBy(() -> authService.reissue("stale"))
+        .isInstanceOf(BusinessException.class)
+        .extracting(e -> ((BusinessException) e).getErrorCode())
+        .isEqualTo(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+    then(refreshTokenStore).should().deleteAllForUser(USER_ID);
+  }
+
+  @Test
+  @DisplayName("Redis에 family가 없으면(만료/로그아웃) 예외를 던진다")
+  void reissue_missingFamily() {
+    given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
+    given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.reissue("refresh")).isInstanceOf(BusinessException.class);
+  }
+
+  @Test
+  @DisplayName("서명이 깨진 refresh면 INVALID 예외를 던진다")
+  void reissue_invalidToken() {
+    given(jwtTokenProvider.parseRefresh("bad")).willThrow(new InvalidTokenException("invalid"));
+
+    assertThatThrownBy(() -> authService.reissue("bad")).isInstanceOf(BusinessException.class);
+  }
+
+  @Test
+  @DisplayName("로그아웃하면 해당 family를 삭제한다")
+  void logout_deletesFamily() {
+    given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
+
+    authService.logout("refresh");
+
+    then(refreshTokenStore).should().deleteFamily(USER_ID, "fam-1");
+  }
+
+  @Test
+  @DisplayName("이미 무효한 토큰으로 로그아웃하면 멱등하게 무시한다")
+  void logout_invalidTokenIgnored() {
+    given(jwtTokenProvider.parseRefresh("bad")).willThrow(new InvalidTokenException("invalid"));
+
+    authService.logout("bad");
+
+    then(refreshTokenStore).should(never()).deleteFamily(any(), anyString());
   }
 }

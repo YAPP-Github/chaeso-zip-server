@@ -3,7 +3,9 @@ package chaeso.zip.server.user.application;
 import chaeso.zip.server.common.exception.BusinessException;
 import chaeso.zip.server.common.mail.VerificationMailSender;
 import chaeso.zip.server.common.security.EmailVerificationCodeStore;
+import chaeso.zip.server.common.security.InvalidTokenException;
 import chaeso.zip.server.common.security.JwtTokenProvider;
+import chaeso.zip.server.common.security.RefreshTokenInfo;
 import chaeso.zip.server.common.security.RefreshTokenStore;
 import chaeso.zip.server.user.application.dto.LoginCommand;
 import chaeso.zip.server.user.application.dto.SignupCommand;
@@ -146,7 +148,7 @@ public class AuthService {
         try {
           verificationCodeStore.clearVerified(email);
         } catch (RuntimeException exception) {
-          log.warn("가입 완료 후 이메일 인증 상태 정리에 실패했습니다. TTL 만료를 기다립니다.", exception);
+          log.warn("Failed to clear email verification status after signup commit. Waiting for TTL expiration.", exception);
         }
       }
     });
@@ -163,5 +165,40 @@ public class AuthService {
 
   private String generateCode() {
     return String.format("%0" + CODE_LENGTH + "d", secureRandom.nextInt(CODE_UPPER_BOUND));
+  }
+
+  public TokenResponse reissue(String refreshToken) {
+    RefreshTokenInfo info;
+    try {
+      info = jwtTokenProvider.parseRefresh(refreshToken);
+    } catch (InvalidTokenException e) {
+      throw new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    String storedJti = refreshTokenStore.findJti(info.userId(), info.familyId())
+        .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN));
+
+    if (!storedJti.equals(info.jti())) {
+      refreshTokenStore.deleteAllForUser(info.userId());
+      log.warn("Refresh token reuse detected. userId={}, familyId={}", info.userId(), info.familyId());
+      throw new BusinessException(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+    }
+
+    User user = userRepository.findById(info.userId())
+        .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN));
+    String newJti = UUID.randomUUID().toString();
+    refreshTokenStore.save(user.getId(), info.familyId(), newJti);
+    return new TokenResponse(
+        jwtTokenProvider.createAccessToken(user.getId()),
+        jwtTokenProvider.createRefreshToken(user.getId(), info.familyId(), newJti));
+  }
+
+  public void logout(String refreshToken) {
+    try {
+      RefreshTokenInfo info = jwtTokenProvider.parseRefresh(refreshToken);
+      refreshTokenStore.deleteFamily(info.userId(), info.familyId());
+    } catch (InvalidTokenException e) {
+      // 이미 무효한 토큰이면 멱등 처리 -> 별도 동작 X
+    }
   }
 }

@@ -1,6 +1,6 @@
 package chaeso.zip.server.common.security;
 
-import io.jsonwebtoken.JwtException;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         UserPrincipal principal = jwtTokenProvider.parseAccess(token);
         var authentication = new UsernamePasswordAuthenticationToken(principal, null, List.of());
         SecurityContextHolder.getContext().setAuthentication(authentication);
-      } catch (JwtException e) {
+      } catch (InvalidTokenException e) {
         SecurityContextHolder.clearContext();
       }
     }
