@@ -19,6 +19,9 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+  mail:
+    host: localhost
+    port: 1025
 
 jwt:
   secret: test-secret-0123456789-0123456789-0123456789
@@ -28,3 +31,7 @@ jwt:
 app:
   cors:
     allowed-origins: http://localhost:3000
+  email-verification:
+    from: no-reply@test
+    code-ttl: PT5M
+    verified-ttl: PT30M
