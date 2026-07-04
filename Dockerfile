@@ -18,6 +18,9 @@ RUN ./gradlew clean bootJar --no-daemon -x test
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# Set TimeZone UTC
+ENV TZ=UTC
+
 # Run as non-root user
 RUN groupadd --system spring && useradd --system --gid spring spring
 USER spring:spring

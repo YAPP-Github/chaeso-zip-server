@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,7 +29,7 @@ public class User extends BaseTimeEntity {
   @UuidGenerator
   private UUID id;
 
-  @Column(nullable = false, unique = true)
+  @Column(nullable = false)
   private String email;
 
   @Column(name = "email_verified", nullable = false)
@@ -84,7 +85,7 @@ public class User extends BaseTimeEntity {
     this.termsAgreed = termsAgreed;
     this.termsVersion = termsVersion;
     this.marketingAgreed = marketingAgreed;
-    this.marketingAgreedAt = marketingAgreed ? LocalDateTime.now() : null;
+    this.marketingAgreedAt = marketingAgreed ? LocalDateTime.now(ZoneOffset.UTC) : null;
   }
 
   /** 이메일 인증을 마친 뒤 가입할 때 사용한다 */
@@ -97,7 +98,7 @@ public class User extends BaseTimeEntity {
 
   /** 로그인 성공 시 마지막 로그인 시각/수단을 갱신한다(파생 캐시) */
   public void recordLogin(AuthProvider provider) {
-    this.lastLoginAt = LocalDateTime.now();
+    this.lastLoginAt = LocalDateTime.now(ZoneOffset.UTC);
     this.lastLoginProvider = provider;
   }
 }
