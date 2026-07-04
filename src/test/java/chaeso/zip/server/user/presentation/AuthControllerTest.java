@@ -105,6 +105,21 @@ class AuthControllerTest {
   }
 
   @Test
+  @DisplayName("비밀번호 검증 오류 응답에는 입력한 비밀번호를 노출하지 않는다")
+  void signup_invalidPassword_redactsRejectedValue() throws Exception {
+    String password = "a".repeat(65);
+
+    mockMvc.perform(post("/api/v1/auth/signup")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new SignupRequest(
+                "user@chaeso.zip", password, "닉", EmploymentStatus.EMPLOYEE,
+                null, null, true, "v1.0", false))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.fieldErrors[0].field").value("password"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].value").value(""));
+  }
+
+  @Test
   @DisplayName("로그인 성공 시 토큰을 반환한다")
   void login_success() throws Exception {
     given(authService.login(any(LoginCommand.class)))

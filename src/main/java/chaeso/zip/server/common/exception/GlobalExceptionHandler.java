@@ -4,6 +4,7 @@ import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.common.response.ErrorResponse;
 import chaeso.zip.server.common.response.ErrorResponse.FieldError;
 import java.util.List;
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -79,8 +80,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return bindingResult.getFieldErrors().stream()
         .map(error -> FieldError.of(
             error.getField(),
-            error.getRejectedValue() == null ? "" : error.getRejectedValue().toString(),
+            rejectedValue(error.getField(), error.getRejectedValue()),
             error.getDefaultMessage()))
         .toList();
+  }
+
+  private String rejectedValue(String field, Object value) {
+    String normalizedField = field.toLowerCase(Locale.ROOT);
+    if (normalizedField.contains("password") || normalizedField.contains("token")) {
+      return "";
+    }
+    return value == null ? "" : value.toString();
   }
 }
