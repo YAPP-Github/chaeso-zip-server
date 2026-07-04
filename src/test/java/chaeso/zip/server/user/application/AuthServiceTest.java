@@ -358,6 +358,8 @@ class AuthServiceTest {
     User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
     given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
     given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
+    given(refreshTokenStore.rotate(eq(USER_ID), eq("fam-1"), eq("jti-1"), anyString()))
+        .willReturn(RefreshTokenStore.RotateResult.ROTATED);
     given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
     given(jwtTokenProvider.createAccessToken(any())).willReturn("new-access");
     given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("new-refresh");
@@ -366,7 +368,23 @@ class AuthServiceTest {
 
     assertThat(response.accessToken()).isEqualTo("new-access");
     assertThat(response.refreshToken()).isEqualTo("new-refresh");
-    then(refreshTokenStore).should().save(any(), eq("fam-1"), anyString());
+    then(refreshTokenStore).should().rotate(eq(USER_ID), eq("fam-1"), eq("jti-1"), anyString());
+  }
+
+  @Test
+  @DisplayName("새 토큰 생성에 실패하면 refresh 상태를 회전하지 않는다")
+  void reissue_tokenCreationFails_doesNotRotate() {
+    User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
+    given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
+    given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
+    given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+    given(jwtTokenProvider.createAccessToken(USER_ID)).willThrow(new IllegalStateException("signing failed"));
+
+    assertThatThrownBy(() -> authService.reissue("refresh"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("signing failed");
+
+    then(refreshTokenStore).should(never()).rotate(any(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -379,6 +397,7 @@ class AuthServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(e -> ((BusinessException) e).getErrorCode())
         .isEqualTo(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+    then(refreshTokenStore).should().deleteFamily(USER_ID, "fam-1");
     then(refreshTokenStore).should().deleteAllForUser(USER_ID);
   }
 

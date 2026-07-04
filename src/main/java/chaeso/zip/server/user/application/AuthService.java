@@ -177,20 +177,34 @@ public class AuthService {
 
     String storedJti = refreshTokenStore.findJti(info.userId(), info.familyId())
         .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN));
-
     if (!storedJti.equals(info.jti())) {
-      refreshTokenStore.deleteAllForUser(info.userId());
-      log.warn("Refresh token reuse detected. userId={}, familyId={}", info.userId(), info.familyId());
-      throw new BusinessException(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+      revokeSessionsForReuse(info);
     }
 
-    User user = userRepository.findById(info.userId())
+    userRepository.findById(info.userId())
         .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN));
     String newJti = UUID.randomUUID().toString();
-    refreshTokenStore.save(user.getId(), info.familyId(), newJti);
-    return new TokenResponse(
-        jwtTokenProvider.createAccessToken(user.getId()),
-        jwtTokenProvider.createRefreshToken(user.getId(), info.familyId(), newJti));
+    TokenResponse tokens = new TokenResponse(
+        jwtTokenProvider.createAccessToken(info.userId()),
+        jwtTokenProvider.createRefreshToken(info.userId(), info.familyId(), newJti));
+
+    RefreshTokenStore.RotateResult rotation =
+        refreshTokenStore.rotate(info.userId(), info.familyId(), info.jti(), newJti);
+    if (rotation == RefreshTokenStore.RotateResult.MISSING) {
+      throw new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN);
+    }
+    if (rotation == RefreshTokenStore.RotateResult.REUSE) {
+      revokeSessionsForReuse(info);
+    }
+
+    return tokens;
+  }
+
+  private void revokeSessionsForReuse(RefreshTokenInfo info) {
+    refreshTokenStore.deleteFamily(info.userId(), info.familyId());
+    refreshTokenStore.deleteAllForUser(info.userId());
+    log.warn("Refresh token reuse detected. userId={}, familyId={}", info.userId(), info.familyId());
+    throw new BusinessException(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
   }
 
   public void logout(String refreshToken) {
@@ -198,7 +212,7 @@ public class AuthService {
       RefreshTokenInfo info = jwtTokenProvider.parseRefresh(refreshToken);
       refreshTokenStore.deleteFamily(info.userId(), info.familyId());
     } catch (InvalidTokenException e) {
-      // 이미 무효한 토큰이면 멱등 처리 -> 별도 동작 X
+      // 이미 무효화된 토큰도 로그아웃 성공으로 처리한다.
     }
   }
 }
