@@ -8,6 +8,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -65,15 +66,24 @@ class JwtTokenProviderTest {
   }
 
   @Test
+  @DisplayName("빈 토큰은 InvalidTokenException으로 변환한다")
+  void blankToken_throwsInvalidTokenException() {
+    JwtTokenProvider provider = provider(Duration.ofMinutes(30));
+
+    assertThatThrownBy(() -> provider.parseAccess(" "))
+        .isInstanceOf(InvalidTokenException.class);
+  }
+
+  @Test
   @DisplayName("UUID 형식이 아닌 subject는 JWT 파싱 예외로 통일한다")
   void malformedSubject_throwsJwtException() {
     JwtTokenProvider provider = provider(Duration.ofMinutes(30));
-    Date now = new Date();
+    Instant issuedAt = Instant.parse("2026-01-01T00:00:00Z");
     String token = Jwts.builder()
         .subject("not-a-uuid")
         .claim("type", "access")
-        .issuedAt(now)
-        .expiration(new Date(now.getTime() + Duration.ofMinutes(30).toMillis()))
+        .issuedAt(Date.from(issuedAt))
+        .expiration(Date.from(issuedAt.plus(Duration.ofDays(3650))))
         .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
         .compact();
 

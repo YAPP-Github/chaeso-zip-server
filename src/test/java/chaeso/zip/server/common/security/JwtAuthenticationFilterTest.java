@@ -68,4 +68,15 @@ class JwtAuthenticationFilterTest {
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
+
+  @Test
+  @DisplayName("Bearer 값이 비어 있으면 예외 없이 미인증으로 처리한다")
+  void emptyBearer_noAuthentication() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.addHeader("Authorization", "Bearer ");
+
+    filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
 }

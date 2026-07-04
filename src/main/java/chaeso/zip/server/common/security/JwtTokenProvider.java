@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -37,25 +38,25 @@ public class JwtTokenProvider {
   }
 
   public String createAccessToken(UUID userId) {
-    Date now = new Date();
+    Instant now = Instant.now();
     return Jwts.builder()
         .subject(userId.toString())
         .claim(CLAIM_TYPE, TYPE_ACCESS)
-        .issuedAt(now)
-        .expiration(new Date(now.getTime() + accessTtl.toMillis()))
+        .issuedAt(Date.from(now))
+        .expiration(Date.from(now.plus(accessTtl)))
         .signWith(key)
         .compact();
   }
 
   public String createRefreshToken(UUID userId, String familyId, String jti) {
-    Date now = new Date();
+    Instant now = Instant.now();
     return Jwts.builder()
         .subject(userId.toString())
         .id(jti)
         .claim(CLAIM_FAMILY, familyId)
         .claim(CLAIM_TYPE, TYPE_REFRESH)
-        .issuedAt(now)
-        .expiration(new Date(now.getTime() + refreshTtl.toMillis()))
+        .issuedAt(Date.from(now))
+        .expiration(Date.from(now.plus(refreshTtl)))
         .signWith(key)
         .compact();
   }
@@ -95,7 +96,7 @@ public class JwtTokenProvider {
         throw new InvalidTokenException("토큰 타입이 올바르지 않습니다. 기대: " + expectedType);
       }
       return claims;
-    } catch (JwtException e) {
+    } catch (JwtException | IllegalArgumentException e) {
       throw new InvalidTokenException("유효하지 않은 토큰입니다: " + e.getMessage(), e);
     }
   }
