@@ -1,5 +1,8 @@
 package chaeso.zip.server.user.application;
 
+import static chaeso.zip.server.support.AuthFixtures.loginCommand;
+import static chaeso.zip.server.support.AuthFixtures.signupCommand;
+import static chaeso.zip.server.support.AuthFixtures.user;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,14 +20,11 @@ import chaeso.zip.server.common.security.EmailVerificationCodeStore;
 import chaeso.zip.server.common.security.JwtTokenProvider;
 import chaeso.zip.server.common.security.RefreshTokenStore;
 import chaeso.zip.server.user.application.dto.LoginCommand;
-import chaeso.zip.server.user.application.dto.SignupCommand;
 import chaeso.zip.server.user.application.dto.TokenResponse;
 import chaeso.zip.server.user.application.dto.UserResponse;
 import chaeso.zip.server.user.domain.AuthIdentity;
 import chaeso.zip.server.user.domain.AuthIdentityRepository;
 import chaeso.zip.server.user.domain.AuthProvider;
-import chaeso.zip.server.user.domain.EmploymentStatus;
-import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.common.security.RefreshTokenInfo;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserErrorCode;
@@ -144,16 +144,7 @@ class AuthServiceTest {
     given(passwordEncoder.encode("rawPw")).willReturn("hashed");
     given(userRepository.saveAndFlush(any(User.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-    UserResponse response = authService.signup(new SignupCommand(
-        "user@chaeso.zip",
-        "rawPw",
-        "채소러버",
-        EmploymentStatus.EMPLOYEE,
-        "채소컴퍼니",
-        Occupation.DEVELOPMENT,
-        true,
-        "v1.0",
-        false));
+    UserResponse response = authService.signup(signupCommand());
 
     assertThat(response.email()).isEqualTo("user@chaeso.zip");
     assertThat(response.nickname()).isEqualTo("채소러버");
@@ -166,16 +157,7 @@ class AuthServiceTest {
   void signup_emailNotVerified() {
     given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(false);
 
-    assertBusinessError(() -> authService.signup(new SignupCommand(
-        "user@chaeso.zip",
-        "rawPw",
-        "닉",
-        EmploymentStatus.EMPLOYEE,
-        null,
-        null,
-        true,
-        "v1.0",
-        false)), UserErrorCode.EMAIL_NOT_VERIFIED);
+    assertBusinessError(() -> authService.signup(signupCommand()), UserErrorCode.EMAIL_NOT_VERIFIED);
     then(userRepository).should(never()).saveAndFlush(any());
   }
 
@@ -185,16 +167,7 @@ class AuthServiceTest {
     given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
     given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(true);
 
-    assertBusinessError(() -> authService.signup(new SignupCommand(
-        "user@chaeso.zip",
-        "rawPw",
-        "닉",
-        EmploymentStatus.EMPLOYEE,
-        null,
-        null,
-        true,
-        "v1.0",
-        false)), UserErrorCode.EMAIL_ALREADY_EXISTS);
+    assertBusinessError(() -> authService.signup(signupCommand()), UserErrorCode.EMAIL_ALREADY_EXISTS);
   }
 
   @Test
@@ -226,15 +199,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("로그인에 성공하면 access/refresh 토큰을 발급하고 마지막 로그인 기록을 남긴다")
   void login_success() {
-    User user = User.create(
-        "user@chaeso.zip",
-        "채소러버",
-        EmploymentStatus.EMPLOYEE,
-        null,
-        Occupation.DEVELOPMENT,
-        true,
-        "v1.0",
-        false);
+    User user = user();
     AuthIdentity identity = AuthIdentity.createLocal(user.getId(), "hashed");
     given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
     given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
@@ -243,7 +208,7 @@ class AuthServiceTest {
     given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
     given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
 
-    TokenResponse response = authService.login(new LoginCommand("user@chaeso.zip", "rawPw"));
+    TokenResponse response = authService.login(loginCommand());
 
     assertThat(response.accessToken()).isEqualTo("access");
     assertThat(response.refreshToken()).isEqualTo("refresh");
@@ -260,15 +225,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("비밀번호가 일치하지 않으면 로그인 시 인증 예외가 발생한다")
   void login_wrongPassword() {
-    User user = User.create(
-        "user@chaeso.zip",
-        "닉",
-        EmploymentStatus.EMPLOYEE,
-        null,
-        null,
-        true,
-        "v1.0",
-        false);
+    User user = user();
     AuthIdentity identity = AuthIdentity.createLocal(user.getId(), "hashed");
     given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
     given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
@@ -290,19 +247,6 @@ class AuthServiceTest {
         UserErrorCode.INVALID_CREDENTIALS);
   }
 
-  private SignupCommand signupCommand() {
-    return new SignupCommand(
-        "user@chaeso.zip",
-        "rawPw",
-        "채소러버",
-        EmploymentStatus.EMPLOYEE,
-        null,
-        null,
-        true,
-        "v1.0",
-        false);
-  }
-
   private void assertBusinessError(ThrowingCallable callable, UserErrorCode expectedErrorCode) {
     assertThatThrownBy(callable)
         .isInstanceOfSatisfying(BusinessException.class,
@@ -312,7 +256,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("유효한 refresh면 회전하여 새 토큰을 발급한다")
   void reissue_success() {
-    User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
+    User user = user();
     given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
     given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
     given(refreshTokenStore.rotate(eq(USER_ID), eq("fam-1"), eq("jti-1"), anyString()))
@@ -331,7 +275,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("새 토큰 생성에 실패하면 refresh 상태를 회전하지 않는다")
   void reissue_tokenCreationFails_doesNotRotate() {
-    User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
+    User user = user();
     given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
     given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
     given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));

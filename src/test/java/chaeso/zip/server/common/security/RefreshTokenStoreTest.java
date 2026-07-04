@@ -2,6 +2,7 @@ package chaeso.zip.server.common.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import chaeso.zip.server.support.AuthFixtures;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -46,9 +47,7 @@ class RefreshTokenStoreTest {
         template.afterPropertiesSet();
         template.getConnectionFactory().getConnection().serverCommands().flushAll();
 
-        JwtProperties props = new JwtProperties(
-                "test-secret-0123456789-0123456789-0123456789", Duration.ofMinutes(30), Duration.ofDays(14));
-        store = new RefreshTokenStore(template, props);
+        store = new RefreshTokenStore(template, AuthFixtures.jwtProperties());
     }
 
     @Test

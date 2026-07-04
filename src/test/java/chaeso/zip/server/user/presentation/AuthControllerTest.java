@@ -1,5 +1,6 @@
 package chaeso.zip.server.user.presentation;
 
+import static chaeso.zip.server.support.SignupRequestBuilder.aSignupRequest;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -13,11 +14,9 @@ import chaeso.zip.server.user.application.dto.SignupCommand;
 import chaeso.zip.server.user.application.dto.TokenResponse;
 import chaeso.zip.server.user.application.dto.UserResponse;
 import chaeso.zip.server.user.domain.EmploymentStatus;
-import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.user.presentation.dto.LoginRequest;
 import chaeso.zip.server.user.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.user.presentation.dto.SendVerificationCodeRequest;
-import chaeso.zip.server.user.presentation.dto.SignupRequest;
 import chaeso.zip.server.user.presentation.dto.VerifyEmailCodeRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
@@ -72,9 +71,7 @@ class AuthControllerTest {
 
     mockMvc.perform(post("/api/v1/auth/signup")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new SignupRequest(
-                "user@chaeso.zip", "P@ssw0rd!", "채소러버", EmploymentStatus.EMPLOYEE, "채소컴퍼니", Occupation.DEVELOPMENT,
-                true, "v1.0", false))))
+            .content(objectMapper.writeValueAsString(aSignupRequest().build())))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.email").value("user@chaeso.zip"));
@@ -85,8 +82,7 @@ class AuthControllerTest {
   void signup_termsNotAgreed() throws Exception {
     mockMvc.perform(post("/api/v1/auth/signup")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new SignupRequest(
-                "user@chaeso.zip", "P@ssw0rd!", "닉", EmploymentStatus.EMPLOYEE, null, null, false, "v1.0", false))))
+            .content(objectMapper.writeValueAsString(aSignupRequest().termsAgreed(false).build())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("C-001"));
@@ -97,8 +93,7 @@ class AuthControllerTest {
   void signup_invalidEmail() throws Exception {
     mockMvc.perform(post("/api/v1/auth/signup")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new SignupRequest(
-                "not-an-email", "P@ssw0rd!", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false))))
+            .content(objectMapper.writeValueAsString(aSignupRequest().email("not-an-email").build())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("C-001"));
@@ -107,13 +102,9 @@ class AuthControllerTest {
   @Test
   @DisplayName("비밀번호 검증 오류 응답에는 입력한 비밀번호를 노출하지 않는다")
   void signup_invalidPassword_redactsRejectedValue() throws Exception {
-    String password = "a".repeat(65);
-
     mockMvc.perform(post("/api/v1/auth/signup")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new SignupRequest(
-                "user@chaeso.zip", password, "닉", EmploymentStatus.EMPLOYEE,
-                null, null, true, "v1.0", false))))
+            .content(objectMapper.writeValueAsString(aSignupRequest().password("a".repeat(65)).build())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.fieldErrors[0].field").value("password"))
         .andExpect(jsonPath("$.error.fieldErrors[0].value").value(""));

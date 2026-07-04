@@ -2,8 +2,8 @@ package chaeso.zip.server.common.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import chaeso.zip.server.support.AuthFixtures;
 import jakarta.servlet.FilterChain;
-import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,10 +23,7 @@ class JwtAuthenticationFilterTest {
 
   @BeforeEach
   void setUp() {
-    jwtTokenProvider = new JwtTokenProvider(new JwtProperties(
-        "test-secret-0123456789-0123456789-0123456789",
-        Duration.ofMinutes(30),
-        Duration.ofDays(14)));
+    jwtTokenProvider = new JwtTokenProvider(AuthFixtures.jwtProperties());
     filter = new JwtAuthenticationFilter(jwtTokenProvider);
   }
 

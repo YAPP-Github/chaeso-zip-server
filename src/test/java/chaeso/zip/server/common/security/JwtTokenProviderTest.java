@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 
+import chaeso.zip.server.support.AuthFixtures;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
@@ -16,11 +17,11 @@ import org.junit.jupiter.api.Test;
 
 class JwtTokenProviderTest {
 
-  private static final String SECRET = "test-secret-0123456789-0123456789-0123456789";
+  private static final String SECRET = AuthFixtures.JWT_SECRET;
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   private JwtTokenProvider provider(Duration accessTtl) {
-    return new JwtTokenProvider(new JwtProperties(SECRET, accessTtl, Duration.ofDays(14)));
+    return new JwtTokenProvider(AuthFixtures.jwtProperties(accessTtl, Duration.ofDays(14)));
   }
 
   @Test
