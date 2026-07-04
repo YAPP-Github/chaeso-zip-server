@@ -44,8 +44,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -110,43 +108,32 @@ class AuthServiceTest {
   @Test
   @DisplayName("저장된 코드와 일치하면 인증완료 처리한다")
   void verifySignupCode_success() {
-    given(verificationCodeStore.findCode("user@chaeso.zip")).willReturn(Optional.of("123456"));
+    given(verificationCodeStore.verifyCode("user@chaeso.zip", "123456")).willReturn(true);
 
     authService.verifySignupCode("user@chaeso.zip", "123456");
 
-    then(verificationCodeStore).should().markVerified("user@chaeso.zip");
+    then(verificationCodeStore).should().verifyCode("user@chaeso.zip", "123456");
   }
 
   @Test
   @DisplayName("코드가 일치하지 않으면 예외가 발생한다")
   void verifySignupCode_mismatch() {
-    given(verificationCodeStore.findCode("user@chaeso.zip")).willReturn(Optional.of("123456"));
+    given(verificationCodeStore.verifyCode("user@chaeso.zip", "000000")).willReturn(false);
 
     assertBusinessError(
         () -> authService.verifySignupCode("user@chaeso.zip", "000000"),
         UserErrorCode.VERIFICATION_CODE_INVALID);
-    then(verificationCodeStore).should(never()).markVerified(any());
+    then(verificationCodeStore).should().verifyCode("user@chaeso.zip", "000000");
   }
 
   @Test
   @DisplayName("이메일 인증코드 확인 시 이메일을 정규화해 저장된 코드를 조회한다")
   void verifySignupCode_normalizesEmail() {
-    given(verificationCodeStore.findCode("user@chaeso.zip")).willReturn(Optional.of("123456"));
+    given(verificationCodeStore.verifyCode("user@chaeso.zip", "123456")).willReturn(true);
 
     authService.verifySignupCode("  User@Chaeso.Zip  ", "123456");
 
-    then(verificationCodeStore).should().findCode("user@chaeso.zip");
-    then(verificationCodeStore).should().markVerified("user@chaeso.zip");
-  }
-
-  @Test
-  @DisplayName("저장된 코드가 없으면(만료) 예외가 발생한다")
-  void verifySignupCode_expired() {
-    given(verificationCodeStore.findCode("user@chaeso.zip")).willReturn(Optional.empty());
-
-    assertBusinessError(
-        () -> authService.verifySignupCode("user@chaeso.zip", "123456"),
-        UserErrorCode.VERIFICATION_CODE_INVALID);
+    then(verificationCodeStore).should().verifyCode("user@chaeso.zip", "123456");
   }
 
   @Test
@@ -224,28 +211,7 @@ class AuthServiceTest {
   }
 
   @Test
-  @DisplayName("가입 인증 상태는 DB 트랜잭션 커밋 이후에 삭제한다")
-  void signup_clearsVerificationAfterCommit() {
-    given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
-    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
-    given(userRepository.saveAndFlush(any(User.class))).willAnswer(invocation -> invocation.getArgument(0));
-    given(passwordEncoder.encode("rawPw")).willReturn("hashed");
-    TransactionSynchronizationManager.initSynchronization();
-
-    try {
-      authService.signup(signupCommand());
-
-      then(verificationCodeStore).should(never()).clearVerified(any());
-      TransactionSynchronizationManager.getSynchronizations()
-          .forEach(TransactionSynchronization::afterCommit);
-      then(verificationCodeStore).should().clearVerified("user@chaeso.zip");
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
-  }
-
-  @Test
-  @DisplayName("커밋 후 인증 상태 정리에 실패해도 완료된 회원가입은 실패 처리하지 않는다")
+  @DisplayName("인증 상태 정리에 실패해도 완료된 회원가입은 실패 처리하지 않는다")
   void signup_verificationCleanupFailureIgnored() {
     given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
     given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
@@ -253,17 +219,8 @@ class AuthServiceTest {
     given(passwordEncoder.encode("rawPw")).willReturn("hashed");
     willThrow(new IllegalStateException("redis unavailable"))
         .given(verificationCodeStore).clearVerified("user@chaeso.zip");
-    TransactionSynchronizationManager.initSynchronization();
 
-    try {
-      authService.signup(signupCommand());
-
-      assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
-          .forEach(TransactionSynchronization::afterCommit))
-          .doesNotThrowAnyException();
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
+    assertThatCode(() -> authService.signup(signupCommand())).doesNotThrowAnyException();
   }
 
   @Test
@@ -360,7 +317,7 @@ class AuthServiceTest {
     given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
     given(refreshTokenStore.rotate(eq(USER_ID), eq("fam-1"), eq("jti-1"), anyString()))
         .willReturn(RefreshTokenStore.RotateResult.ROTATED);
-    given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
     given(jwtTokenProvider.createAccessToken(any())).willReturn("new-access");
     given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("new-refresh");
 
@@ -377,12 +334,27 @@ class AuthServiceTest {
     User user = User.create("user@chaeso.zip", "닉", EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false);
     given(jwtTokenProvider.parseRefresh("refresh")).willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
     given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
-    given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
     given(jwtTokenProvider.createAccessToken(USER_ID)).willThrow(new IllegalStateException("signing failed"));
 
     assertThatThrownBy(() -> authService.reissue("refresh"))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("signing failed");
+
+    then(refreshTokenStore).should(never()).rotate(any(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("탈퇴한 사용자는 refresh 토큰을 재발급할 수 없다")
+  void reissue_deletedUser_rejected() {
+    given(jwtTokenProvider.parseRefresh("refresh"))
+        .willReturn(new RefreshTokenInfo(USER_ID, "fam-1", "jti-1"));
+    given(refreshTokenStore.findJti(USER_ID, "fam-1")).willReturn(Optional.of("jti-1"));
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.empty());
+
+    assertBusinessError(
+        () -> authService.reissue("refresh"),
+        UserErrorCode.INVALID_REFRESH_TOKEN);
 
     then(refreshTokenStore).should(never()).rotate(any(), anyString(), anyString(), anyString());
   }
@@ -397,7 +369,6 @@ class AuthServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(e -> ((BusinessException) e).getErrorCode())
         .isEqualTo(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
-    then(refreshTokenStore).should().deleteFamily(USER_ID, "fam-1");
     then(refreshTokenStore).should().deleteAllForUser(USER_ID);
   }
 

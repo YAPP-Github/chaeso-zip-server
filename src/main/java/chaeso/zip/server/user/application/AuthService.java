@@ -27,8 +27,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -62,12 +60,9 @@ public class AuthService {
 
   public void verifySignupCode(String email, String code) {
     String normalized = normalizeEmail(email);
-    String storedCode = verificationCodeStore.findCode(normalized)
-        .orElseThrow(() -> new BusinessException(UserErrorCode.VERIFICATION_CODE_INVALID));
-    if (!storedCode.equals(code)) {
+    if (!verificationCodeStore.verifyCode(normalized, code)) {
       throw new BusinessException(UserErrorCode.VERIFICATION_CODE_INVALID);
     }
-    verificationCodeStore.markVerified(normalized);
   }
 
   @Transactional
@@ -83,7 +78,7 @@ public class AuthService {
     User user = saveUser(command, email);
     authIdentityRepository.save(
         AuthIdentity.createLocal(user.getId(), passwordEncoder.encode(command.rawPassword())));
-    clearVerificationAfterCommit(email);
+    clearVerification(email);
     return UserResponse.from(user);
   }
 
@@ -137,21 +132,12 @@ public class AuthService {
     return false;
   }
 
-  private void clearVerificationAfterCommit(String email) {
-    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+  private void clearVerification(String email) {
+    try {
       verificationCodeStore.clearVerified(email);
-      return;
+    } catch (RuntimeException exception) {
+      log.warn("Failed to clear email verification status after signup. Waiting for TTL expiration.", exception);
     }
-    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-      @Override
-      public void afterCommit() {
-        try {
-          verificationCodeStore.clearVerified(email);
-        } catch (RuntimeException exception) {
-          log.warn("Failed to clear email verification status after signup commit. Waiting for TTL expiration.", exception);
-        }
-      }
-    });
   }
 
   private TokenResponse issueTokens(User user) {
@@ -181,7 +167,7 @@ public class AuthService {
       revokeSessionsForReuse(info);
     }
 
-    userRepository.findById(info.userId())
+    userRepository.findByIdAndDeletedAtIsNull(info.userId())
         .orElseThrow(() -> new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN));
     String newJti = UUID.randomUUID().toString();
     TokenResponse tokens = new TokenResponse(
@@ -201,7 +187,6 @@ public class AuthService {
   }
 
   private void revokeSessionsForReuse(RefreshTokenInfo info) {
-    refreshTokenStore.deleteFamily(info.userId(), info.familyId());
     refreshTokenStore.deleteAllForUser(info.userId());
     log.warn("Refresh token reuse detected. userId={}, familyId={}", info.userId(), info.familyId());
     throw new BusinessException(UserErrorCode.REFRESH_TOKEN_REUSE_DETECTED);

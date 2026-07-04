@@ -53,21 +53,31 @@ class EmailVerificationCodeStoreTest {
     }
 
     @Test
-    @DisplayName("인증완료로 마킹하면 코드는 삭제되고 인증완료 상태가 된다")
-    void markVerified_clearsCodeAndSetsVerified() {
+    @DisplayName("저장된 코드와 일치하면 코드를 소비하고 인증완료 상태로 전환한다")
+    void verifyCode_matchingCode_consumesCodeAndMarksVerified() {
         store.saveCode("user@chaeso.zip", "123456");
 
-        store.markVerified("user@chaeso.zip");
-
+        assertThat(store.verifyCode("user@chaeso.zip", "123456")).isTrue();
         assertThat(store.findCode("user@chaeso.zip")).isEmpty();
         assertThat(store.isVerified("user@chaeso.zip")).isTrue();
+    }
+
+    @Test
+    @DisplayName("재발송으로 교체된 이전 코드는 인증에 사용할 수 없다")
+    void verifyCode_replacedCode_doesNotConsumeCurrentCode() {
+        store.saveCode("user@chaeso.zip", "123456");
+        store.saveCode("user@chaeso.zip", "654321");
+
+        assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
+        assertThat(store.findCode("user@chaeso.zip")).contains("654321");
+        assertThat(store.isVerified("user@chaeso.zip")).isFalse();
     }
 
     @Test
     @DisplayName("인증완료 상태를 지우면 더 이상 인증완료가 아니다")
     void clearVerified() {
         store.saveCode("user@chaeso.zip", "123456");
-        store.markVerified("user@chaeso.zip");
+        store.verifyCode("user@chaeso.zip", "123456");
 
         store.clearVerified("user@chaeso.zip");
 
