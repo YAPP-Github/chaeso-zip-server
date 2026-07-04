@@ -50,8 +50,26 @@ class OpenApiContractTest {
     assertThat(unique)
         .as("operationId 가 중복되면 codegen 메서드명이 _1 처럼 불안정해진다: %s", operationIds)
         .hasSameSizeAs(operationIds);
+    assertAuthOperationsArePublic(spec);
 
     writeSnapshot(spec);
+  }
+
+  private void assertAuthOperationsArePublic(JsonNode spec) {
+    List<JsonNode> authOperations = new ArrayList<>();
+    spec.path("paths").properties().forEach(entry -> {
+      if (entry.getKey().startsWith("/api/v1/auth/")) {
+        entry.getValue().forEach(authOperations::add);
+      }
+    });
+
+    assertThat(authOperations).hasSize(6);
+    assertThat(authOperations)
+        .allSatisfy(operation -> {
+          assertThat(operation.has("security")).isTrue();
+          assertThat(operation.path("security").isArray()).isTrue();
+          assertThat(operation.path("security")).isEmpty();
+        });
   }
 
   private List<String> collectOperationIds(JsonNode spec) {
