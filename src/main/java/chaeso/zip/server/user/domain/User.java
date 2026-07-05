@@ -30,11 +30,7 @@ public class User extends BaseEntity {
   @Column(nullable = false, length = 50)
   private String nickname;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "employment_status", nullable = false, length = 30)
-  private EmploymentStatus employmentStatus;
-
-  @Column(name = "company_name")
+  @Column(name = "company_name", nullable = false)
   private String companyName;
 
   @Column(name = "profile_image_url", length = 500)
@@ -66,12 +62,11 @@ public class User extends BaseEntity {
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
-  private User(String email, String nickname, EmploymentStatus employmentStatus, String companyName,
-      Occupation occupation, boolean termsAgreed, String termsVersion, boolean marketingAgreed) {
+  private User(String email, String nickname, String companyName, Occupation occupation,
+      boolean termsAgreed, String termsVersion, boolean marketingAgreed) {
     this.email = email;
     this.emailVerified = true;
     this.nickname = nickname;
-    this.employmentStatus = employmentStatus;
     this.companyName = companyName;
     this.occupation = occupation;
     this.termsAgreed = termsAgreed;
@@ -81,11 +76,8 @@ public class User extends BaseEntity {
   }
 
   /** 이메일 인증을 마친 뒤 가입할 때 사용한다 */
-  public static User create(String email, String nickname, EmploymentStatus employmentStatus,
-      String companyName, Occupation occupation, boolean termsAgreed, String termsVersion,
-      boolean marketingAgreed) {
-    return new User(email, nickname, employmentStatus, companyName, occupation, termsAgreed,
-        termsVersion, marketingAgreed);
+  public static User create(String email, String nickname, String companyName, Occupation occupation, boolean termsAgreed, String termsVersion, boolean marketingAgreed) {
+    return new User(email, nickname, companyName, occupation, termsAgreed, termsVersion, marketingAgreed);
   }
 
   /** 로그인 성공 시 마지막 로그인 시각/수단을 갱신한다(파생 캐시) */

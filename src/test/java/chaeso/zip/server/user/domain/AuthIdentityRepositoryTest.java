@@ -25,7 +25,7 @@ class AuthIdentityRepositoryTest {
     @DisplayName("저장하면 uuid 식별자가 채워지고 (userId, provider) 로 조회된다")
     void saveAndFindByUserIdAndProvider() {
         User user = userRepository.save(User.create("user@chaeso.zip", "채소러버",
-                EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false));
+                "채소컴퍼니", Occupation.DEVELOPMENT, true, "v1.0", false));
 
         AuthIdentity saved = authIdentityRepository.save(AuthIdentity.createLocal(user.getId(), "hashed"));
 
@@ -41,11 +41,11 @@ class AuthIdentityRepositoryTest {
     @DisplayName("같은 유저에 같은 provider 를 중복 저장하면 제약 위반 예외가 발생한다")
     void duplicateUserProvider_throws() {
         User user = userRepository.save(User.create("dup2@chaeso.zip", "닉",
-                EmploymentStatus.EMPLOYEE, null, null, true, "v1.0", false));
+                "채소컴퍼니", Occupation.DEVELOPMENT, true, "v1.0", false));
         authIdentityRepository.save(AuthIdentity.createLocal(user.getId(), "hashed-1"));
+        AuthIdentity duplicateIdentity = AuthIdentity.createLocal(user.getId(), "hashed-2");
 
-        assertThatThrownBy(() ->
-                authIdentityRepository.saveAndFlush(AuthIdentity.createLocal(user.getId(), "hashed-2")))
+        assertThatThrownBy(() -> authIdentityRepository.saveAndFlush(duplicateIdentity))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

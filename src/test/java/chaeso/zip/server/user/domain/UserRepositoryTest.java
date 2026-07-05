@@ -1,10 +1,12 @@
 package chaeso.zip.server.user.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.common.config.JpaAuditingConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
@@ -17,8 +19,7 @@ class UserRepositoryTest {
   private UserRepository userRepository;
 
   private static User newUser(String email) {
-    return User.create(email, "채소러버", EmploymentStatus.EMPLOYEE, "채소컴퍼니", Occupation.DEVELOPMENT,
-        true, "v1.0", false);
+    return User.create(email, "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT, true, "v1.0", false);
   }
 
   @Test
@@ -39,5 +40,15 @@ class UserRepositoryTest {
 
     assertThat(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).isPresent();
     assertThat(userRepository.existsByEmailAndDeletedAtIsNull("USER@CHAESO.ZIP")).isTrue();
+  }
+
+  @Test
+  @DisplayName("회사명 없이 회원을 저장할 수 없다")
+  void saveWithoutCompanyName() {
+    User user = User.create("user@chaeso.zip", "채소러버", null, Occupation.DEVELOPMENT, true,
+        "v1.0", false);
+
+    assertThatThrownBy(() -> userRepository.saveAndFlush(user))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 }
