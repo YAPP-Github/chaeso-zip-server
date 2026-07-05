@@ -41,7 +41,7 @@ public class AuthIdentity {
     @Column(name = "provider_uid")
     private String providerUid;
 
-    @Column(name = "password_hash", length = 100)
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "last_login_at")

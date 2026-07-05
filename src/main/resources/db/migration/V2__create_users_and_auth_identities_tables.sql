@@ -25,7 +25,7 @@ create table auth_identities (
     user_id       uuid         not null references users(id),
     provider      varchar(20)  not null,
     provider_uid  varchar(255),
-    password_hash varchar(100),
+    password_hash varchar(255),
     last_login_at timestamp,
     created_at    timestamp    not null,
     constraint uq_auth_identities_user_provider unique (user_id, provider)
