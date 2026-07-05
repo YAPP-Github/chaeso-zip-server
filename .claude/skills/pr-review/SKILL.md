@@ -61,7 +61,8 @@ CI 파이프라인(`.github/workflows/claude-review.yml`)이 호출하든 동일
 - `@Transactional` 경계: 읽기 전용은 `readOnly = true`, 쓰기 작업 누락 여부, 클래스/메서드 범위
 - 영속성 컨텍스트 밖에서 지연 로딩 접근(LazyInitializationException) 위험
 - 양방향 연관관계의 연관관계 편의 메서드 / 무한 순환(`toString`, 직렬화) 위험
-- 엔티티 식별자 전략, `equals`/`hashCode` 구현 적절성
+- 엔티티 PK는 **UUID 타입** (`BaseEntity` 참조). `Long`/`IDENTITY` 전략 사용은 컨벤션 위반
+- `equals`/`hashCode` 구현 적절성
 
 ### 4. Flyway 마이그레이션
 
