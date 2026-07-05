@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,7 +55,7 @@ public class SampleController {
   })
   @GetMapping("/{id}")
   public ApiResponse<SampleResponse> getById(
-      @Parameter(description = "샘플 식별자", example = "1") @PathVariable Long id) {
+      @Parameter(description = "샘플 식별자", example = "550e8400-e29b-41d4-a716-446655440000") @PathVariable UUID id) {
     return ApiResponse.success(sampleService.getById(id));
   }
 
