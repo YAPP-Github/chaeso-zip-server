@@ -1,5 +1,6 @@
 package chaeso.zip.server.user.domain;
 
+import chaeso.zip.server.auth.domain.AuthProvider;
 import chaeso.zip.server.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 회원 프로필 애그리거트 루트. 로그인 방법(provider/password_hash)은 {@link AuthIdentity}로 분리한다.
+ * 회원 프로필 애그리거트 루트. 로그인 방법(provider/password_hash)은 auth 도메인으로 분리한다.
  */
 @Getter
 @Entity
