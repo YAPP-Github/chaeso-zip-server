@@ -31,4 +31,13 @@ class UserRepositoryTest {
     assertThat(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).isPresent();
     assertThat(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).isTrue();
   }
+
+  @Test
+  @DisplayName("이메일은 대소문자와 관계없이 조회하고 존재 여부를 확인한다")
+  void findByEmailIgnoringCase() {
+    userRepository.save(newUser("User@Chaeso.Zip"));
+
+    assertThat(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).isPresent();
+    assertThat(userRepository.existsByEmailAndDeletedAtIsNull("USER@CHAESO.ZIP")).isTrue();
+  }
 }
