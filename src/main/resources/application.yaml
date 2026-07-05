@@ -51,3 +51,8 @@ sentry:
     minimum-event-level: error
     minimum-breadcrumb-level: info
   exception-resolver-order: 2147483647
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-ttl: ${JWT_ACCESS_TTL:PT30M}
+  refresh-ttl: ${JWT_REFRESH_TTL:P14D}
