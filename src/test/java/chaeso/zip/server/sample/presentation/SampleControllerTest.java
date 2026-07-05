@@ -11,6 +11,7 @@ import chaeso.zip.server.sample.application.dto.CreateSampleCommand;
 import chaeso.zip.server.sample.application.dto.SampleResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,7 @@ class SampleControllerTest {
   @DisplayName("샘플 생성 요청이 성공하면 201 과 공통 응답 포맷을 반환한다")
   void create_success() throws Exception {
     given(sampleService.create(any(CreateSampleCommand.class)))
-        .willReturn(new SampleResponse(1L, "채소", LocalDateTime.now(), LocalDateTime.now()));
+        .willReturn(new SampleResponse(UUID.randomUUID(), "채소", LocalDateTime.now(), LocalDateTime.now()));
 
     mockMvc.perform(post("/api/v1/samples")
             .contentType(MediaType.APPLICATION_JSON)

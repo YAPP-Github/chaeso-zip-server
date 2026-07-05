@@ -11,6 +11,7 @@ import chaeso.zip.server.sample.domain.Sample;
 import chaeso.zip.server.sample.domain.SampleNotFoundException;
 import chaeso.zip.server.sample.domain.SampleRepository;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,9 +44,10 @@ class SampleServiceTest {
   @Test
   @DisplayName("존재하지 않는 샘플을 조회하면 예외가 발생한다")
   void getById_notFound() {
-    given(sampleRepository.findById(1L)).willReturn(Optional.empty());
+    UUID id = UUID.randomUUID();
+    given(sampleRepository.findById(id)).willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> sampleService.getById(1L))
+    assertThatThrownBy(() -> sampleService.getById(id))
         .isInstanceOf(SampleNotFoundException.class);
   }
 }

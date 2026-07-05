@@ -3,6 +3,7 @@ package chaeso.zip.server.sample.application;
 import chaeso.zip.server.sample.application.dto.CreateSampleCommand;
 import chaeso.zip.server.sample.application.dto.SampleResponse;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 샘플 애플리케이션 서비스. 유스케이스 진입점(인터페이스)으로, 구현은 {@link SampleServiceImpl} 가 담당한다.
@@ -23,7 +24,7 @@ public interface SampleService {
   /**
    * 식별자로 샘플을 단건 조회한다.
    */
-  SampleResponse getById(Long id);
+  SampleResponse getById(UUID id);
 
   /**
    * 전체 샘플 목록을 조회한다.

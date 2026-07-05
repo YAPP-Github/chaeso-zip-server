@@ -6,6 +6,7 @@ import chaeso.zip.server.sample.domain.Sample;
 import chaeso.zip.server.sample.domain.SampleNotFoundException;
 import chaeso.zip.server.sample.domain.SampleRepository;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,7 @@ public class SampleServiceImpl implements SampleService {
   }
 
   @Override
-  public SampleResponse getById(Long id) {
+  public SampleResponse getById(UUID id) {
     Sample sample = sampleRepository.findById(id)
         .orElseThrow(() -> new SampleNotFoundException(id));
     return SampleResponse.from(sample);
