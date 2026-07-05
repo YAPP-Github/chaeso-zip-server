@@ -1,33 +1,25 @@
 package chaeso.zip.server.user.domain;
 
-import chaeso.zip.server.common.entity.BaseTimeEntity;
+import chaeso.zip.server.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UuidGenerator;
 
 /**
  * 회원 프로필 애그리거트 루트. 로그인 방법(provider/password_hash)은 {@link AuthIdentity}로 분리한다.
- * PK 는 앱이 생성하는 uuid라 BaseEntity(Long)는 쓰지 않고, created_at/updated_at 체크만 진행
  */
 @Getter
 @Entity
 @Table(name = "users")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User extends BaseTimeEntity {
-
-  @Id
-  @UuidGenerator
-  private UUID id;
+public class User extends BaseEntity {
 
   @Column(nullable = false)
   private String email;
