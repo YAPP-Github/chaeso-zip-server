@@ -14,7 +14,7 @@ services:
         required: false
     ports:
       - "80:${APP_PORT}"
-      - "127.0.0.1:${MANAGEMENT_PORT}:8081"
+      - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"
     env_file: .env
     environment:
       DB_URL: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
