@@ -14,6 +14,7 @@ services:
         required: false
     ports:
       - "80:${APP_PORT}"
+      - "127.0.0.1:${MANAGEMENT_PORT}:8081"
     env_file: .env
     environment:
       DB_URL: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
@@ -25,7 +26,7 @@ services:
     mem_limit: 768m
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /actuator/health HTTP/1.0\r\n\r\n' >&3; grep -q UP <&3"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8081; echo -e 'GET /actuator/health HTTP/1.0\r\n\r\n' >&3; grep -q UP <&3"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -49,7 +50,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - /data/postgres:/var/lib/postgresql/data
     mem_limit: 384m
     logging: *default-logging
     healthcheck:
@@ -64,7 +65,7 @@ services:
     restart: always
     command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
     volumes:
-      - redisdata:/data
+      - /data/redis:/data
     mem_limit: 128m
     logging: *default-logging
     healthcheck:
@@ -72,7 +73,3 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
-
-volumes:
-  pgdata:
-  redisdata:
