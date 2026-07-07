@@ -56,3 +56,7 @@ jwt:
   secret: ${JWT_SECRET}
   access-ttl: ${JWT_ACCESS_TTL:PT30M}
   refresh-ttl: ${JWT_REFRESH_TTL:P14D}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
