@@ -77,11 +77,19 @@ public class JwtTokenProvider {
   public RefreshTokenInfo parseRefresh(String token) {
     try {
       Claims claims = parse(token, TYPE_REFRESH);
-      return new RefreshTokenInfo(
-          parseUserId(claims), claims.get(CLAIM_FAMILY, String.class), claims.getId());
+      String familyId = claims.get(CLAIM_FAMILY, String.class);
+      String jti = claims.getId();
+      if (isBlank(familyId) || isBlank(jti)) {
+        throw new InvalidTokenException("Refresh Token 식별자가 없습니다.");
+      }
+      return new RefreshTokenInfo(parseUserId(claims), familyId, jti);
     } catch (JwtException exception) {
       throw new InvalidTokenException("유효하지 않은 토큰입니다.", exception);
     }
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   private Claims parse(String token, String expectedType) {

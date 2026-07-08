@@ -73,6 +73,38 @@ class JwtTokenProviderTest {
   }
 
   @Test
+  @DisplayName("refresh 토큰 familyId가 없으면 파싱할 수 없다")
+  void refreshWithoutFamilyIdIsRejected() {
+    JwtTokenProvider provider = JwtTestFixture.provider();
+    String token = Jwts.builder()
+        .subject(USER_ID.toString())
+        .id("jti-1")
+        .claim("type", "refresh")
+        .expiration(Date.from(FIXED_NOW.plus(Duration.ofDays(14))))
+        .signWith(JwtTestFixture.signingKey())
+        .compact();
+
+    assertThatThrownBy(() -> provider.parseRefresh(token))
+        .isInstanceOf(InvalidTokenException.class);
+  }
+
+  @Test
+  @DisplayName("refresh 토큰 jti가 없으면 파싱할 수 없다")
+  void refreshWithoutJtiIsRejected() {
+    JwtTokenProvider provider = JwtTestFixture.provider();
+    String token = Jwts.builder()
+        .subject(USER_ID.toString())
+        .claim("familyId", "family-1")
+        .claim("type", "refresh")
+        .expiration(Date.from(FIXED_NOW.plus(Duration.ofDays(14))))
+        .signWith(JwtTestFixture.signingKey())
+        .compact();
+
+    assertThatThrownBy(() -> provider.parseRefresh(token))
+        .isInstanceOf(InvalidTokenException.class);
+  }
+
+  @Test
   @DisplayName("refresh 토큰은 access 인증에 사용할 수 없다")
   void refreshCannotBeParsedAsAccess() {
     JwtTokenProvider provider = JwtTestFixture.provider();
