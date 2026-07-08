@@ -76,6 +76,8 @@ jwt:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  consent:
+    terms-version: ${TERMS_VERSION:v1.0}
   email-verification:
     from: ${EMAIL_VERIFICATION_FROM:no-reply@localhost}
     code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT5M}

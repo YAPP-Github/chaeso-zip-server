@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.common.config.JpaAuditingConfig;
-import chaeso.zip.server.user.domain.Occupation;
+import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -27,8 +27,7 @@ class AuthIdentityRepositoryTest {
     @Test
     @DisplayName("저장하면 uuid 식별자가 채워지고 (userId, provider) 로 조회된다")
     void saveAndFindByUserIdAndProvider() {
-        User user = userRepository.save(User.create("user@chaeso.zip", "채소러버",
-                "채소컴퍼니", Occupation.DEVELOPMENT, true, "v1.0", false));
+        User user = userRepository.save(UserFixture.user("user@chaeso.zip"));
 
         AuthIdentity saved = authIdentityRepository.save(AuthIdentity.createLocal(user.getId(), "hashed"));
 
@@ -43,8 +42,7 @@ class AuthIdentityRepositoryTest {
     @Test
     @DisplayName("같은 유저에 같은 provider 를 중복 저장하면 제약 위반 예외가 발생한다")
     void duplicateUserProvider_throws() {
-        User user = userRepository.save(User.create("dup2@chaeso.zip", "닉",
-                "채소컴퍼니", Occupation.DEVELOPMENT, true, "v1.0", false));
+        User user = userRepository.save(UserFixture.user("dup2@chaeso.zip"));
         authIdentityRepository.save(AuthIdentity.createLocal(user.getId(), "hashed-1"));
         AuthIdentity duplicateIdentity = AuthIdentity.createLocal(user.getId(), "hashed-2");
 
