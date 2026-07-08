@@ -1,8 +1,10 @@
 package chaeso.zip.server.auth.infrastructure.security;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import static chaeso.zip.server.auth.infrastructure.jwt.JwtTestFixture.USER_ID;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTestFixture;
@@ -85,5 +87,22 @@ class JwtAuthenticationFilterTest {
     filter.doFilter(tamperedRequest, new MockHttpServletResponse(), new MockFilterChain());
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  @DisplayName("토큰 검증 중 예상하지 못한 예외는 숨기지 않고 전파한다")
+  void unexpectedTokenProviderExceptionPropagates() {
+    JwtTokenProvider failingProvider = mock(JwtTokenProvider.class);
+    given(failingProvider.parseAccess("valid-looking-token"))
+        .willThrow(new IllegalStateException("JWT infrastructure failure"));
+    JwtAuthenticationFilter failingFilter = new JwtAuthenticationFilter(failingProvider);
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.addHeader("Authorization", "Bearer valid-looking-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    MockFilterChain filterChain = new MockFilterChain();
+
+    assertThatThrownBy(() -> failingFilter.doFilter(request, response, filterChain))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("JWT infrastructure failure");
   }
 }

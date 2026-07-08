@@ -1,6 +1,7 @@
 package chaeso.zip.server.auth.infrastructure.security;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
+import chaeso.zip.server.auth.domain.InvalidTokenException;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -47,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       var authentication = UsernamePasswordAuthenticationToken.authenticated(
           principal, null, List.of());
       SecurityContextHolder.getContext().setAuthentication(authentication);
-    } catch (RuntimeException exception) {
+    } catch (InvalidTokenException exception) {
       log.debug("Access token rejected: {}", exception.getMessage());
       SecurityContextHolder.clearContext();
     }
