@@ -19,3 +19,12 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+
+jwt:
+  secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVm
+  access-ttl: PT30M
+  refresh-ttl: P14D
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000

@@ -43,6 +43,13 @@ class OpenApiContractTest {
 
     assertThat(spec.path("openapi").asText()).startsWith("3.");
     assertThat(spec.path("paths").isObject()).isTrue();
+    JsonNode bearerAuth = spec.path("components")
+        .path("securitySchemes")
+        .path("bearerAuth");
+    assertThat(bearerAuth.path("type").asText()).isEqualTo("http");
+    assertThat(bearerAuth.path("scheme").asText()).isEqualTo("bearer");
+    assertThat(bearerAuth.path("bearerFormat").asText()).isEqualTo("JWT");
+    assertThat(spec.path("security").get(0).has("bearerAuth")).isTrue();
 
     List<String> operationIds = collectOperationIds(spec);
     assertThat(operationIds).isNotEmpty();

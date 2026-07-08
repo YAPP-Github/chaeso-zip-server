@@ -1,9 +1,12 @@
-package chaeso.zip.server.user.domain;
+package chaeso.zip.server.auth.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.common.config.JpaAuditingConfig;
+import chaeso.zip.server.user.domain.Occupation;
+import chaeso.zip.server.user.domain.User;
+import chaeso.zip.server.user.domain.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

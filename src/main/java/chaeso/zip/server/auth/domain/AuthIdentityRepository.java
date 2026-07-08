@@ -1,4 +1,4 @@
-package chaeso.zip.server.user.domain;
+package chaeso.zip.server.auth.domain;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
