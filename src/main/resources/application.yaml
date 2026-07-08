@@ -20,6 +20,22 @@ spring:
         default_batch_fetch_size: 100
     open-in-view: false
     show-sql: ${JPA_SHOW_SQL:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
 
 springdoc:
   api-docs:
@@ -60,3 +76,7 @@ jwt:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  email-verification:
+    from: ${EMAIL_VERIFICATION_FROM:no-reply@localhost}
+    code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT5M}
+    verified-ttl: ${EMAIL_VERIFICATION_VERIFIED_TTL:PT30M}

@@ -32,6 +32,8 @@ dependencies {
     implementation libs.spring.boot.starter.web
     implementation libs.spring.boot.starter.validation
     implementation libs.spring.boot.starter.security
+    implementation libs.spring.boot.starter.data.redis
+    implementation libs.spring.boot.starter.mail
     implementation libs.springdoc.openapi.ui
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
@@ -46,6 +48,7 @@ dependencies {
     testImplementation libs.spring.security.test
     testImplementation libs.archunit.junit5
     testRuntimeOnly libs.h2
+    testImplementation libs.embedded.redis
     testCompileOnly libs.lombok
     testRuntimeOnly libs.junit.platform.launcher
     testAnnotationProcessor libs.lombok
