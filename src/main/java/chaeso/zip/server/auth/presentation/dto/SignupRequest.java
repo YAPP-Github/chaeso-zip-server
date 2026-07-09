@@ -14,8 +14,8 @@ import jakarta.validation.constraints.Size;
  */
 @Schema(description = "회원가입 요청 (이메일 인증 완료 후 제출)")
 public record SignupRequest(
-    @Schema(description = "이메일(사전 인증 완료 필요)", example = "user@chaeso.zip", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank @Email String email,
+    @Schema(description = "이메일(사전 인증 완료 필요)", example = "user@chaeso.zip", maxLength = 255, requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank @Email @Size(max = 255, message = "이메일은 255자 이하로 입력해 주세요") String email,
 
     @Schema(description = "비밀번호(8~64자, 영·숫자·특수문자 각 1자 이상)", example = "P@ssw0rd!", minLength = 8, maxLength = 64, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank

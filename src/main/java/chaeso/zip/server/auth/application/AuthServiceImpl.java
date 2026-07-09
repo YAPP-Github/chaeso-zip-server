@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class AuthServiceImpl implements AuthService {
 
   private static final int CODE_UPPER_BOUND = 1_000_000;
@@ -52,7 +51,12 @@ public class AuthServiceImpl implements AuthService {
     }
     String code = generateCode();
     verificationCodeStore.saveCode(normalized, code);
-    verificationMailSender.sendVerificationCode(normalized, code);
+    try {
+      verificationMailSender.sendVerificationCode(normalized, code);
+    } catch (RuntimeException exception) {
+      verificationCodeStore.releaseSendSlot(normalized);
+      throw exception;
+    }
   }
 
   @Override

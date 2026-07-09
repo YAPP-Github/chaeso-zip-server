@@ -85,4 +85,9 @@ public class EmailVerificationCodeStore {
     Boolean acquired = redis.opsForValue().setIfAbsent(COOLDOWN_PREFIX + email, "1", sendCooldown);
     return Boolean.TRUE.equals(acquired);
   }
+
+  /** 메일 발송 실패 시 쿨다운 슬롯을 되돌려 즉시 재요청을 허용한다. */
+  public void releaseSendSlot(String email) {
+    redis.delete(COOLDOWN_PREFIX + email);
+  }
 }

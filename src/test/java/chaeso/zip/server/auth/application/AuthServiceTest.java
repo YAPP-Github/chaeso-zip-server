@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.MailSendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -80,6 +82,19 @@ class AuthServiceTest {
 
     verify(verificationCodeStore).saveCode(eq("user@chaeso.zip"), anyString());
     verify(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
+  }
+
+  @Test
+  @DisplayName("메일 발송이 실패하면 쿨다운 슬롯을 해제해 즉시 재요청을 허용한다")
+  void sendSignupVerificationCode_mailFailureReleasesCooldown() {
+    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
+    given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
+    willThrow(new MailSendException("smtp down"))
+        .given(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
+
+    assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
+        .isInstanceOf(MailSendException.class);
+    verify(verificationCodeStore).releaseSendSlot("user@chaeso.zip");
   }
 
   @Test
