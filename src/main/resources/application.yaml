@@ -82,3 +82,5 @@ app:
     from: ${EMAIL_VERIFICATION_FROM:no-reply@localhost}
     code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT5M}
     verified-ttl: ${EMAIL_VERIFICATION_VERIFIED_TTL:PT30M}
+    max-verify-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+    send-cooldown: ${EMAIL_VERIFICATION_SEND_COOLDOWN:PT1M}

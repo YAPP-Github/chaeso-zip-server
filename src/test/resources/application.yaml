@@ -48,3 +48,5 @@ app:
     from: no-reply@test.com
     code-ttl: PT5M
     verified-ttl: PT30M
+    max-verify-attempts: 5
+    send-cooldown: PT1M
