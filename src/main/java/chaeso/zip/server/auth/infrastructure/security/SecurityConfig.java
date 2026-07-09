@@ -34,7 +34,10 @@ public class SecurityConfig {
 
   private static final String[] PUBLIC_PATHS = {
       "/swagger-ui/**",
-      "/v3/api-docs/**"
+      "/v3/api-docs/**",
+      "/api/v1/auth/signup",
+      "/api/v1/auth/signup/email-code",
+      "/api/v1/auth/signup/email-code/verify"
   };
 
   private final JwtTokenProvider jwtTokenProvider;
