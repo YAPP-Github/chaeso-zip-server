@@ -1,6 +1,8 @@
 package chaeso.zip.server.auth.presentation;
 
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
+import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
@@ -83,6 +85,18 @@ public interface AuthApiDocs {
       }
       """;
 
+  String INVALID_CREDENTIALS_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-003",
+          "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
   @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
       description = "가입할 이메일로 6자리 인증코드를 발송한다. 이미 가입된 이메일이면 409.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발송 성공")
@@ -122,4 +136,15 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
   ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request);
+
+  @Operation(operationId = "login", summary = "로컬 로그인",
+      description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그인 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "이메일 또는 비밀번호 불일치(AUTH-003)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "INVALID_CREDENTIALS", value = INVALID_CREDENTIALS_EXAMPLE)))
+  ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request);
 }

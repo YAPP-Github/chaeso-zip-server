@@ -37,7 +37,8 @@ public class SecurityConfig {
       "/v3/api-docs/**",
       "/api/v1/auth/signup",
       "/api/v1/auth/signup/email-code",
-      "/api/v1/auth/signup/email-code/verify"
+      "/api/v1/auth/signup/email-code/verify",
+      "/api/v1/auth/login"
   };
 
   private final JwtTokenProvider jwtTokenProvider;

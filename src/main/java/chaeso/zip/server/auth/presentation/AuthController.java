@@ -1,7 +1,9 @@
 package chaeso.zip.server.auth.presentation;
 
 import chaeso.zip.server.auth.application.AuthService;
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
+import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
@@ -44,5 +46,11 @@ public class AuthController implements AuthApiDocs {
   @ResponseStatus(HttpStatus.CREATED)
   public ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request) {
     return ApiResponse.success(authService.signup(request.toCommand()));
+  }
+
+  @Override
+  @PostMapping("/login")
+  public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+    return ApiResponse.success(authService.login(request.toCommand()));
   }
 }
