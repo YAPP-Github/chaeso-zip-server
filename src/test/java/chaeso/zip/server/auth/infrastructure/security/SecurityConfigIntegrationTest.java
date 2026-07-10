@@ -3,6 +3,7 @@ package chaeso.zip.server.auth.infrastructure.security;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest(SecurityConfigIntegrationTest.SecurityProbeController.class)
@@ -51,6 +53,16 @@ class SecurityConfigIntegrationTest {
     String protectedApi() {
       return "protected";
     }
+
+    @PostMapping("/api/v1/auth/signup/email-code")
+    String signupEmailCodeProbe() {
+      return "ok";
+    }
+
+    @PostMapping("/api/v1/auth/login")
+    String nonPublicAuthProbe() {
+      return "ok";
+    }
   }
 
   @Test
@@ -72,6 +84,21 @@ class SecurityConfigIntegrationTest {
     mockMvc.perform(get("/api/v1/security/protected")
             .header("Authorization", "Bearer valid-access-token"))
         .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("회원가입 공개 경로는 토큰 없이 접근할 수 있다")
+  void signupPathIsPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/signup/email-code"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("허용 목록에 없는 auth 경로는 토큰 없이 접근하면 401을 반환한다")
+  void nonListedAuthPathRequiresAuthentication() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/login"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("C-004"));
   }
 
   @Test

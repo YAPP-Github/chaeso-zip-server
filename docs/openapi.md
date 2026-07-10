@@ -41,12 +41,51 @@ String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노
 ### 에러 응답
 - 어디서나 날 수 있는 **500은 자동으로 모든 API에 부착**됩니다 (`CommonResponsesCustomizer`).
 - 도메인별 4xx(400/404 등)는 컨트롤러에 직접 선언합니다.
+- 모든 에러 응답은 공통 래퍼 `ApiResponse<Void>` 형태입니다.
+- 프론트는 비즈니스 에러를 `error.code` 기준으로 매핑합니다. 예: `AUTH-002`.
+- 입력값 검증 실패는 `C-001`과 `error.fieldErrors[]`로 내려갑니다.
+- 서버 `error.message`와 `fieldErrors[].reason`은 fallback 문구입니다. 최종 사용자 표시 문구는 프론트에서 `error.code` 또는 `fieldErrors[].field` 기준으로 매핑할 수 있습니다.
+- 각 API는 발생 가능한 4xx 응답과 대표 `@ExampleObject`를 선언합니다.
 
 ```java
 @ApiResponses({
     @ApiResponse(responseCode = "404", description = "샘플 없음",
         content = @Content(schema = @Schema(implementation = ApiResponse.class)))
 })
+```
+
+검증 실패 예시:
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "C-001",
+    "message": "입력값이 올바르지 않습니다.",
+    "fieldErrors": [
+      {
+        "field": "email",
+        "value": "",
+        "reason": "이메일을 입력해 주세요"
+      }
+    ]
+  }
+}
+```
+
+비즈니스 에러 예시:
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "AUTH-002",
+    "message": "이미 사용 중인 이메일입니다.",
+    "fieldErrors": []
+  }
+}
 ```
 
 ### 참고할 정답 예시

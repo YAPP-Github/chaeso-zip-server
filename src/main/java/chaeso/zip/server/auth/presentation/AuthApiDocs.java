@@ -1,0 +1,125 @@
+package chaeso.zip.server.auth.presentation;
+
+import chaeso.zip.server.auth.application.dto.UserResponse;
+import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
+import chaeso.zip.server.auth.presentation.dto.SignupRequest;
+import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
+import chaeso.zip.server.common.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestBody;
+
+/** 회원가입/인증 API 문서 정의. 구현은 {@link AuthController}. */
+@Tag(name = "Auth", description = "회원가입/이메일 인증 API")
+public interface AuthApiDocs {
+
+  String VALIDATION_ERROR_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "C-001",
+          "message": "입력값이 올바르지 않습니다.",
+          "fieldErrors": [
+            {
+              "field": "email",
+              "value": "",
+              "reason": "이메일을 입력해 주세요"
+            }
+          ]
+        }
+      }
+      """;
+
+  String EMAIL_ALREADY_EXISTS_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-002",
+          "message": "이미 사용 중인 이메일입니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  String EMAIL_NOT_VERIFIED_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-006",
+          "message": "이메일 인증이 필요합니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  String VERIFICATION_CODE_INVALID_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-007",
+          "message": "인증 코드가 올바르지 않거나 만료되었습니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  String VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-008",
+          "message": "인증 코드는 잠시 후 다시 요청해 주세요.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
+      description = "가입할 이메일로 6자리 인증코드를 발송한다. 이미 가입된 이메일이면 409.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발송 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 사용 중인 이메일",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "인증번호 재발송 쿨다운(AUTH-008)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VERIFICATION_CODE_SEND_COOLDOWN",
+              value = VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE)))
+  ApiResponse<Void> sendSignupCode(@Valid @RequestBody SendVerificationCodeRequest request);
+
+  @Operation(operationId = "verifySignupCode", summary = "회원가입 이메일 인증코드 확인",
+      description = "발송된 코드를 검증하고 인증완료 상태로 전환한다.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "인증 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "코드 불일치/만료 또는 형식 오류",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = {
+              @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
+              @ExampleObject(name = "VERIFICATION_CODE_INVALID", value = VERIFICATION_CODE_INVALID_EXAMPLE)
+          }))
+  ApiResponse<Void> verifySignupCode(@Valid @RequestBody VerifyEmailCodeRequest request);
+
+  @Operation(operationId = "signup", summary = "회원가입 최종 제출",
+      description = "이메일 인증 완료 후 로컬 계정을 생성한다. 인증 미완료 시 400, 이메일 중복 시 409.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 또는 이메일 미인증",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = {
+              @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
+              @ExampleObject(name = "EMAIL_NOT_VERIFIED", value = EMAIL_NOT_VERIFIED_EXAMPLE)
+          }))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 사용 중인 이메일",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
+  ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request);
+}

@@ -19,6 +19,20 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+  mail:
+    host: localhost
+    port: 1025
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+management:
+  health:
+    redis:
+      enabled: false
+    mail:
+      enabled: false
 
 jwt:
   secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVm
@@ -28,3 +42,11 @@ jwt:
 app:
   cors:
     allowed-origins: http://localhost:3000
+  consent:
+    terms-version: v1.0
+  email-verification:
+    from: no-reply@test.com
+    code-ttl: PT5M
+    verified-ttl: PT30M
+    max-verify-attempts: 5
+    send-cooldown: PT1M

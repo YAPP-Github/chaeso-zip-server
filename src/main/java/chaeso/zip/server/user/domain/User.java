@@ -31,7 +31,7 @@ public class User extends BaseEntity {
   @Column(nullable = false, length = 50)
   private String nickname;
 
-  @Column(name = "company_name", nullable = false)
+  @Column(name = "company_name", nullable = false, length = 50)
   private String companyName;
 
   @Column(name = "profile_image_url", length = 500)
@@ -64,21 +64,27 @@ public class User extends BaseEntity {
   private LocalDateTime deletedAt;
 
   private User(String email, String nickname, String companyName, Occupation occupation,
-      boolean termsAgreed, String termsVersion, boolean marketingAgreed) {
+      boolean termsAgreed, boolean marketingAgreed, ConsentVersions consentVersions) {
+    if (!termsAgreed) {
+      throw new IllegalArgumentException("Required terms must be agreed.");
+    }
+
     this.email = email;
     this.emailVerified = true;
     this.nickname = nickname;
     this.companyName = companyName;
     this.occupation = occupation;
     this.termsAgreed = termsAgreed;
-    this.termsVersion = termsVersion;
+    this.termsVersion = consentVersions.termsVersion();
     this.marketingAgreed = marketingAgreed;
     this.marketingAgreedAt = marketingAgreed ? LocalDateTime.now(ZoneOffset.UTC) : null;
   }
 
   /** 이메일 인증을 마친 뒤 가입할 때 사용한다 */
-  public static User create(String email, String nickname, String companyName, Occupation occupation, boolean termsAgreed, String termsVersion, boolean marketingAgreed) {
-    return new User(email, nickname, companyName, occupation, termsAgreed, termsVersion, marketingAgreed);
+  public static User create(String email, String nickname, String companyName, Occupation occupation,
+      boolean termsAgreed, boolean marketingAgreed, ConsentVersions consentVersions) {
+    return new User(email, nickname, companyName, occupation, termsAgreed, marketingAgreed,
+        consentVersions);
   }
 
   /** 로그인 성공 시 마지막 로그인 시각/수단을 갱신한다(파생 캐시) */
