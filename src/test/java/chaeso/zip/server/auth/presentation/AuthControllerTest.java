@@ -1,5 +1,6 @@
 package chaeso.zip.server.auth.presentation;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -9,10 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import chaeso.zip.server.auth.application.AuthService;
+import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
+import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
@@ -53,6 +57,10 @@ class AuthControllerTest {
         Occupation.DEVELOPMENT,
         true,
         false);
+  }
+
+  private static LoginRequest validLoginRequest() {
+    return new LoginRequest("user@chaeso.zip", "P@ssw0rd!");
   }
 
   @Test
@@ -148,5 +156,62 @@ class AuthControllerTest {
             .content(objectMapper.writeValueAsString(new SendVerificationCodeRequest("user@chaeso.zip"))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("AUTH-002"));
+  }
+
+  @Test
+  @DisplayName("로그인 요청이 성공하면 200과 토큰/만료 시간을 반환한다")
+  void login_success() throws Exception {
+    given(authService.login(any(LoginCommand.class)))
+        .willReturn(new TokenResponse("ACCESS", "REFRESH", 1800L, 1209600L));
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validLoginRequest())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accessToken").value("ACCESS"))
+        .andExpect(jsonPath("$.data.refreshToken").value("REFRESH"))
+        .andExpect(jsonPath("$.data.accessTokenExpiresIn").value(1800))
+        .andExpect(jsonPath("$.data.refreshTokenExpiresIn").value(1209600));
+  }
+
+  @Test
+  @DisplayName("이메일 형식이 올바르지 않으면 400과 email 필드 에러를 반환한다")
+  void login_invalidEmail() throws Exception {
+    LoginRequest request = new LoginRequest("not-an-email", "P@ssw0rd!");
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[?(@.field == 'email')]").exists());
+  }
+
+  @Test
+  @DisplayName("비밀번호가 공백이면 400과 password 필드 에러를 반환하고 rejected value는 비운다")
+  void login_blankPassword() throws Exception {
+    LoginRequest request = new LoginRequest("user@chaeso.zip", " ");
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[?(@.field == 'password')]").exists())
+        .andExpect(jsonPath("$.error.fieldErrors[?(@.field == 'password')].value").value(hasItem("")));
+  }
+
+  @Test
+  @DisplayName("자격증명이 올바르지 않으면 401과 AUTH-003을 반환한다")
+  void login_invalidCredentials() throws Exception {
+    given(authService.login(any(LoginCommand.class)))
+        .willThrow(new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validLoginRequest())))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("AUTH-003"));
   }
 }

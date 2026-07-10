@@ -59,7 +59,7 @@ class SecurityConfigIntegrationTest {
       return "ok";
     }
 
-    @PostMapping("/api/v1/auth/login")
+    @PostMapping("/api/v1/auth/non-public")
     String nonPublicAuthProbe() {
       return "ok";
     }
@@ -96,7 +96,7 @@ class SecurityConfigIntegrationTest {
   @Test
   @DisplayName("허용 목록에 없는 auth 경로는 토큰 없이 접근하면 401을 반환한다")
   void nonListedAuthPathRequiresAuthentication() throws Exception {
-    mockMvc.perform(post("/api/v1/auth/login"))
+    mockMvc.perform(post("/api/v1/auth/non-public"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error.code").value("C-004"));
   }
