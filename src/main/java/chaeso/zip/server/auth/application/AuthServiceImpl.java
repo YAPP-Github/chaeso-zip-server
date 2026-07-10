@@ -1,18 +1,25 @@
 package chaeso.zip.server.auth.application;
 
+import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
+import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
+import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
+import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
 import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,8 +41,18 @@ public class AuthServiceImpl implements AuthService {
   private final VerificationMailSender verificationMailSender;
   private final PasswordEncoder passwordEncoder;
   private final ConsentProperties consentProperties;
+  private final JwtTokenProvider jwtTokenProvider;
+  private final JwtProperties jwtProperties;
 
   private final SecureRandom secureRandom = new SecureRandom();
+
+  /** 미가입 계정으로 로그인해도 응답 시간이 달라지지 않도록, 비밀번호 비교에 대신 쓰는 해시. */
+  private String dummyPasswordHash;
+
+  @PostConstruct
+  void initDummyPasswordHash() {
+    dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+  }
 
   @Override
   public void sendSignupVerificationCode(String email) {
@@ -82,6 +99,35 @@ public class AuthServiceImpl implements AuthService {
         AuthIdentity.createLocal(user.getId(), passwordEncoder.encode(command.rawPassword())));
     verificationCodeStore.clearVerified(email);
     return UserResponse.from(user);
+  }
+
+  @Override
+  @Transactional
+  public TokenResponse login(LoginCommand command) {
+    String email = normalizeEmail(command.email());
+    User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+    AuthIdentity identity = user == null ? null
+        : authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
+            .orElse(null);
+    String passwordHash = identity == null ? null : identity.getPasswordHash();
+
+    boolean hasHash = passwordHash != null && !passwordHash.isBlank();
+    boolean passwordMatches =
+        passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
+    if (!hasHash || !passwordMatches) {
+      throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+    }
+
+    user.recordLogin(AuthProvider.LOCAL);
+
+    UUID userId = user.getId();
+    String familyId = UUID.randomUUID().toString();
+    String jti = UUID.randomUUID().toString();
+    return new TokenResponse(
+        jwtTokenProvider.createAccessToken(userId),
+        jwtTokenProvider.createRefreshToken(userId, familyId, jti),
+        jwtProperties.accessTtl().toSeconds(),
+        jwtProperties.refreshTtl().toSeconds());
   }
 
   private User saveUser(SignupCommand command, String email) {

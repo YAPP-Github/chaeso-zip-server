@@ -1,6 +1,8 @@
 package chaeso.zip.server.auth.application;
 
+import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 
 /**
@@ -16,4 +18,7 @@ public interface AuthService {
 
   /** 이메일 인증 완료를 전제로 로컬 계정을 생성한다. */
   UserResponse signup(SignupCommand command);
+
+  /** 이메일/비밀번호로 로컬 로그인하고 액세스/리프레시 토큰을 발급한다. 실패 시 예외. */
+  TokenResponse login(LoginCommand command);
 }
