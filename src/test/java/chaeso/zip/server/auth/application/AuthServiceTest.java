@@ -10,19 +10,27 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
+import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
+import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
+import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
+import java.time.Duration;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +62,12 @@ class AuthServiceTest {
   @Mock
   private PasswordEncoder passwordEncoder;
 
+  @Mock
+  private JwtTokenProvider jwtTokenProvider;
+
+  private static final JwtProperties JWT_PROPERTIES =
+      new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14));
+
   private AuthServiceImpl authService;
 
   @BeforeEach
@@ -64,7 +78,23 @@ class AuthServiceTest {
         verificationCodeStore,
         verificationMailSender,
         passwordEncoder,
-        new ConsentProperties("v1.0"));
+        new ConsentProperties("v1.0"),
+        jwtTokenProvider,
+        JWT_PROPERTIES);
+  }
+
+  private static LoginCommand loginCommand() {
+    return new LoginCommand("user@chaeso.zip", "P@ssw0rd!");
+  }
+
+  /** 로그인 성공 경로(유저/LOCAL 인증정보 조회, 비밀번호 일치)를 stub 하고 검증용 User를 반환한다. */
+  private User stubValidLocalLogin() {
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
+        .willReturn(Optional.of(AuthIdentity.createLocal(null, "ENCODED")));
+    given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(true);
+    return user;
   }
 
   private static SignupCommand command(String email) {
@@ -172,5 +202,114 @@ class AuthServiceTest {
     assertThat(captor.getValue().getProvider()).isEqualTo(AuthProvider.LOCAL);
     assertThat(captor.getValue().getPasswordHash()).isEqualTo("ENCODED");
     verify(verificationCodeStore).clearVerified("user@chaeso.zip");
+  }
+
+  @Test
+  @DisplayName("올바른 자격증명이면 액세스/리프레시 토큰과 만료 시간(초)을 반환한다")
+  void login_success() {
+    stubValidLocalLogin();
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("ACCESS");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("REFRESH");
+
+    TokenResponse response = authService.login(loginCommand());
+
+    assertThat(response.accessToken()).isEqualTo("ACCESS");
+    assertThat(response.refreshToken()).isEqualTo("REFRESH");
+    assertThat(response.accessTokenExpiresIn()).isEqualTo(Duration.ofMinutes(30).toSeconds());
+    assertThat(response.refreshTokenExpiresIn()).isEqualTo(Duration.ofDays(14).toSeconds());
+  }
+
+  @Test
+  @DisplayName("로그인 성공 시 마지막 로그인 시각/수단을 기록한다")
+  void login_recordsLastLogin() {
+    User user = stubValidLocalLogin();
+
+    authService.login(loginCommand());
+
+    assertThat(user.getLastLoginProvider()).isEqualTo(AuthProvider.LOCAL);
+    assertThat(user.getLastLoginAt()).isNotNull();
+  }
+
+  @Test
+  @DisplayName("리프레시 토큰 발급 시 UUID 형식 familyId/jti 를 생성해 전달한다")
+  void login_generatesRefreshIdentifiers() {
+    stubValidLocalLogin();
+
+    authService.login(loginCommand());
+
+    ArgumentCaptor<String> familyId = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> jti = ArgumentCaptor.forClass(String.class);
+    verify(jwtTokenProvider).createRefreshToken(any(), familyId.capture(), jti.capture());
+    assertThat(UUID.fromString(familyId.getValue())).isNotNull();
+    assertThat(UUID.fromString(jti.getValue())).isNotNull();
+    assertThat(familyId.getValue()).isNotEqualTo(jti.getValue());
+  }
+
+  @Test
+  @DisplayName("가입되지 않은 이메일이면 AUTH-003 으로 실패하고 토큰을 발급하지 않는다")
+  void login_unknownEmail() {
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
+    LoginCommand command = loginCommand();
+
+    assertThatThrownBy(() -> authService.login(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+    verify(jwtTokenProvider, never()).createAccessToken(any());
+  }
+
+  @Test
+  @DisplayName("LOCAL 인증정보가 없으면 AUTH-003 으로 실패한다")
+  void login_missingLocalIdentity() {
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(UserFixture.user()));
+    given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
+        .willReturn(Optional.empty());
+    LoginCommand command = loginCommand();
+
+    assertThatThrownBy(() -> authService.login(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+  }
+
+  @Test
+  @DisplayName("비밀번호 해시가 없으면 매칭을 시도하지 않고 AUTH-003 으로 실패한다")
+  void login_nullPasswordHash() {
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(UserFixture.user()));
+    given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
+        .willReturn(Optional.of(AuthIdentity.createLocal(null, null)));
+    LoginCommand command = loginCommand();
+
+    assertThatThrownBy(() -> authService.login(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+    verify(passwordEncoder, never()).matches(anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("비밀번호가 일치하지 않으면 AUTH-003 으로 실패한다")
+  void login_wrongPassword() {
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(UserFixture.user()));
+    given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
+        .willReturn(Optional.of(AuthIdentity.createLocal(null, "ENCODED")));
+    given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(false);
+    LoginCommand command = loginCommand();
+
+    assertThatThrownBy(() -> authService.login(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+    verify(jwtTokenProvider, never()).createAccessToken(any());
+  }
+
+  @Test
+  @DisplayName("이메일을 정규화(trim+lowercase)한 뒤 조회한다")
+  void login_normalizesEmail() {
+    stubValidLocalLogin();
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("ACCESS");
+
+    TokenResponse response = authService.login(new LoginCommand("  User@Chaeso.Zip  ", "P@ssw0rd!"));
+
+    assertThat(response.accessToken()).isEqualTo("ACCESS");
   }
 }
