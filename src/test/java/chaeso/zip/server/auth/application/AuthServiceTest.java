@@ -255,6 +255,7 @@ class AuthServiceTest {
         .isInstanceOf(AuthBusinessException.class)
         .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
     verify(jwtTokenProvider, never()).createAccessToken(any());
+    verify(passwordEncoder).matches(anyString(), any());
   }
 
   @Test
@@ -272,7 +273,7 @@ class AuthServiceTest {
   }
 
   @Test
-  @DisplayName("비밀번호 해시가 없으면 매칭을 시도하지 않고 AUTH-003 으로 실패한다")
+  @DisplayName("비밀번호 해시가 없어도 상수 시간 유지를 위해 매칭을 1회 수행하고 AUTH-003 으로 실패한다")
   void login_nullPasswordHash() {
     given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
         .willReturn(Optional.of(UserFixture.user()));
@@ -283,7 +284,7 @@ class AuthServiceTest {
     assertThatThrownBy(() -> authService.login(command))
         .isInstanceOf(AuthBusinessException.class)
         .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
-    verify(passwordEncoder, never()).matches(anyString(), anyString());
+    verify(passwordEncoder).matches(anyString(), any());
   }
 
   @Test

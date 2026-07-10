@@ -16,6 +16,7 @@ import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeS
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
+import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.UUID;
@@ -44,6 +45,14 @@ public class AuthServiceImpl implements AuthService {
   private final JwtProperties jwtProperties;
 
   private final SecureRandom secureRandom = new SecureRandom();
+
+  /** 미가입 계정으로 로그인해도 응답 시간이 달라지지 않도록, 비밀번호 비교에 대신 쓰는 해시. */
+  private String dummyPasswordHash;
+
+  @PostConstruct
+  void initDummyPasswordHash() {
+    dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+  }
 
   @Override
   public void sendSignupVerificationCode(String email) {
@@ -96,15 +105,16 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public TokenResponse login(LoginCommand command) {
     String email = normalizeEmail(command.email());
-    User user = userRepository.findByEmailAndDeletedAtIsNull(email)
-        .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS));
-    AuthIdentity identity = authIdentityRepository
-        .findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
-        .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+    User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+    AuthIdentity identity = user == null ? null
+        : authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
+            .orElse(null);
+    String passwordHash = identity == null ? null : identity.getPasswordHash();
 
-    String passwordHash = identity.getPasswordHash();
-    if (passwordHash == null || passwordHash.isBlank()
-        || !passwordEncoder.matches(command.rawPassword(), passwordHash)) {
+    boolean hasHash = passwordHash != null && !passwordHash.isBlank();
+    boolean passwordMatches =
+        passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
+    if (!hasHash || !passwordMatches) {
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
 
