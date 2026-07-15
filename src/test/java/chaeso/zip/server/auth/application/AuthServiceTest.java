@@ -21,6 +21,7 @@ import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.support.UserFixture;
@@ -65,6 +66,9 @@ class AuthServiceTest {
   @Mock
   private JwtTokenProvider jwtTokenProvider;
 
+  @Mock
+  private RefreshTokenStore refreshTokenStore;
+
   private static final JwtProperties JWT_PROPERTIES =
       new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
           Duration.ofDays(90));
@@ -81,7 +85,8 @@ class AuthServiceTest {
         passwordEncoder,
         new ConsentProperties("v1.0"),
         jwtTokenProvider,
-        JWT_PROPERTIES);
+        JWT_PROPERTIES,
+        refreshTokenStore);
   }
 
   private static LoginCommand loginCommand() {
@@ -95,6 +100,7 @@ class AuthServiceTest {
     given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
         .willReturn(Optional.of(AuthIdentity.createLocal(null, "ENCODED")));
     given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(true);
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
     return user;
   }
 
@@ -313,5 +319,28 @@ class AuthServiceTest {
     TokenResponse response = authService.login(new LoginCommand("  User@Chaeso.Zip  ", "P@ssw0rd!"));
 
     assertThat(response.accessToken()).isEqualTo("ACCESS");
+  }
+
+  @Test
+  @DisplayName("로그인에 성공하면 발급한 refresh 토큰의 family를 저장소에 기록한다")
+  void login_savesRefreshTokenFamily() {
+    User user = UserFixture.user("login@chaeso.zip");
+    given(userRepository.findByEmailAndDeletedAtIsNull("login@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "hashed")));
+    given(passwordEncoder.matches("P@ssw0rd!", "hashed")).willReturn(true);
+    given(jwtTokenProvider.createAccessToken(user.getId())).willReturn("access-token");
+    given(jwtTokenProvider.createRefreshToken(eq(user.getId()), anyString(), anyString()))
+        .willReturn("refresh-token");
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+
+    authService.login(new LoginCommand("login@chaeso.zip", "P@ssw0rd!"));
+
+    ArgumentCaptor<String> familyId = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> jti = ArgumentCaptor.forClass(String.class);
+    verify(refreshTokenStore).save(eq(user.getId()), familyId.capture(), jti.capture());
+    verify(jwtTokenProvider)
+        .createRefreshToken(user.getId(), familyId.getValue(), jti.getValue());
   }
 }

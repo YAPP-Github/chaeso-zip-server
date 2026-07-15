@@ -6,6 +6,7 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.support.EmbeddedRedisConfig;
 import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -24,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * 서비스에 {@code @Transactional} 이 빠져 있어도 테스트가 통과된다.
  */
 @SpringBootTest
+@Import(EmbeddedRedisConfig.class)
 class AuthServiceLoginIntegrationTest {
 
   @Autowired

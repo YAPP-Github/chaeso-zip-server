@@ -11,6 +11,7 @@ import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.user.application.ConsentProperties;
@@ -18,6 +19,7 @@ import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
 import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
   private final ConsentProperties consentProperties;
   private final JwtTokenProvider jwtTokenProvider;
   private final JwtProperties jwtProperties;
+  private final RefreshTokenStore refreshTokenStore;
 
   private final SecureRandom secureRandom = new SecureRandom();
 
@@ -102,7 +105,6 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  @Transactional
   public TokenResponse login(LoginCommand command) {
     String email = normalizeEmail(command.email());
     User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
@@ -119,15 +121,26 @@ public class AuthServiceImpl implements AuthService {
     }
 
     user.recordLogin(AuthProvider.LOCAL);
+    userRepository.save(user);
 
     UUID userId = user.getId();
     String familyId = UUID.randomUUID().toString();
     String jti = UUID.randomUUID().toString();
+    Duration refreshTtl = refreshTokenStore.save(userId, familyId, jti);
+    return tokenResponse(userId, familyId, jti, refreshTtl);
+  }
+
+  /**
+   * {@code refreshTtl} 은 Redis 키에 실제로 걸린 TTL 이다. 절대만료가 가까우면 refresh-ttl 보다
+   * 짧아지므로 설정값이 아니라 이 값을 내려준다.
+   */
+  private TokenResponse tokenResponse(UUID userId, String familyId, String jti,
+      Duration refreshTtl) {
     return new TokenResponse(
         jwtTokenProvider.createAccessToken(userId),
         jwtTokenProvider.createRefreshToken(userId, familyId, jti),
         jwtProperties.accessTtl().toSeconds(),
-        jwtProperties.refreshTtl().toSeconds());
+        refreshTtl.toSeconds());
   }
 
   private User saveUser(SignupCommand command, String email) {
