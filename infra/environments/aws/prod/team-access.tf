@@ -42,17 +42,3 @@ resource "aws_iam_user_policy_attachment" "teammate_ssm" {
   user       = aws_iam_user.teammate[0].name
   policy_arn = aws_iam_policy.ssm_shell.arn
 }
-
-resource "aws_iam_access_key" "teammate" {
-  count = var.teammate_username != "" ? 1 : 0
-  user  = aws_iam_user.teammate[0].name
-}
-
-output "teammate_access_key_id" {
-  value = try(aws_iam_access_key.teammate[0].id, null)
-}
-
-output "teammate_secret_access_key" {
-  value     = try(aws_iam_access_key.teammate[0].secret, null)
-  sensitive = true
-}
