@@ -46,6 +46,11 @@ resource "aws_instance" "this" {
   key_name               = var.key_name
   iam_instance_profile   = aws_iam_instance_profile.this.name
 
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   user_data = templatefile("${path.module}/startup-script.sh.tftpl", {
     app_image_repo  = var.app_image_repo
     image_tag       = var.image_tag
