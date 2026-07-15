@@ -124,13 +124,14 @@ public class AuthServiceImpl implements AuthService {
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
 
-    user.recordLogin(AuthProvider.LOCAL);
-    userRepository.save(user);
-
     UUID userId = user.getId();
     String familyId = UUID.randomUUID().toString();
     String jti = UUID.randomUUID().toString();
     Duration refreshTtl = refreshTokenStore.save(userId, familyId, jti);
+
+    user.recordLogin(AuthProvider.LOCAL);
+    userRepository.save(user);
+
     return tokenResponse(userId, familyId, jti, refreshTtl);
   }
 
