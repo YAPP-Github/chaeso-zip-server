@@ -25,7 +25,7 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6379
+      port: 16379
 
 management:
   health:
@@ -38,6 +38,7 @@ jwt:
   secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVm
   access-ttl: PT30M
   refresh-ttl: P14D
+  refresh-absolute-ttl: P90D
 
 app:
   cors:

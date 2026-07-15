@@ -66,7 +66,8 @@ class AuthServiceTest {
   private JwtTokenProvider jwtTokenProvider;
 
   private static final JwtProperties JWT_PROPERTIES =
-      new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14));
+      new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
+          Duration.ofDays(90));
 
   private AuthServiceImpl authService;
 
