@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 0) Swap 2G — t3.small
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+%{ if embedded_db ~}
+
+# 0-1) 데이터 볼륨(EBS) 마운트
+data_dev=/dev/nvme1n1
+for _ in $(seq 1 30); do
+  [ -b "$data_dev" ] && break
+  sleep 2
+done
+if [ -b "$data_dev" ]; then
+  if ! blkid "$data_dev" >/dev/null 2>&1; then
+    mkfs.ext4 "$data_dev"
+  fi
+  mkdir -p /data
+  mount "$data_dev" /data
+  grep -q "$data_dev" /etc/fstab || echo "$data_dev /data ext4 defaults,nofail 0 2" >> /etc/fstab
+  mkdir -p /data/postgres /data/redis
+else
+  echo "데이터 볼륨($data_dev)이 60초 내 감지되지 않음 — 마운트 스킵하고 계속 진행" >&2
+fi
+%{ endif ~}
+
+# 1) Docker + compose v2 (Ubuntu 22.04)
+apt-get update
+apt-get install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+# 1-0) ECR keyless pull
+apt-get install -y amazon-ecr-credential-helper
+mkdir -p /root/.docker
+
+# 1-0b) Doppler CLI
+curl -sLf --retry 3 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' \
+  | gpg --dearmor -o /usr/share/keyrings/doppler-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/doppler-archive-keyring.gpg] https://packages.doppler.com/public/cli/deb/debian any-version main" \
+  > /etc/apt/sources.list.d/doppler-cli.list
+apt-get update
+apt-get install -y doppler
+cat > /root/.docker/config.json <<DOCKERCFG
+{ "credHelpers": { "${ecr_registry}": "ecr-login" } }
+DOCKERCFG
+
+snap install amazon-ssm-agent --classic 2>/dev/null || true
+systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service 2>/dev/null \
+  || snap start amazon-ssm-agent 2>/dev/null || true
+
+mkdir -p /opt/app
+
+%{ if doppler_token != "" ~}
+umask 077
+echo "DOPPLER_TOKEN=${doppler_token}" >/opt/app/doppler.env
+%{ endif ~}
+
+%{ if grafana_prom_url != "" ~}
+
+cat > /opt/app/config.alloy <<'ALLOY'
+prometheus.scrape "app" {
+  targets         = [{ "__address__" = "app:${management_port}", "__metrics_path__" = "/actuator/prometheus" }]
+  forward_to      = [prometheus.remote_write.gc.receiver]
+  scrape_interval = "30s"
+}
+prometheus.remote_write "gc" {
+  endpoint {
+    url = "${grafana_prom_url}"
+    basic_auth {
+      username = "${grafana_prom_user}"
+      password = "${grafana_token}"
+    }
+  }
+}
+ALLOY
+%{ endif ~}
+
+cat > /opt/app/infra.env <<'INFRA'
+APP_IMAGE_REPO=${app_image_repo}
+APP_PORT=${app_port}
+MANAGEMENT_PORT=${management_port}
+DB_HOST=${db_host}
+DB_NAME=${db_name}
+DB_USER=${db_user}
+REDIS_HOST=${redis_host}
+REDIS_PORT=${redis_port}
+COMPOSE_PROFILES=${compose_profiles}
+INFRA
+
+cat > /opt/app/deploy.sh <<'DEPLOY'
+${deploy_script}
+DEPLOY
+chmod +x /opt/app/deploy.sh
+
+/opt/app/deploy.sh "${image_tag}" || echo "초기 배포 대기: 이미지 push + Doppler 토큰 설정 후 동작"

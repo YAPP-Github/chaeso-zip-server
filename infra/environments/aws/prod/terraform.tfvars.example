@@ -1,0 +1,8 @@
+region            = "ap-northeast-2"
+availability_zone = "ap-northeast-2a"
+ssh_pubkey        = "ssh-ed25519 AAAA... you@host"
+doppler_token = "dp.st.prod.xxxxxxxx"
+
+grafana_prom_url  = "" # 예: https://prometheus-prod-XX.grafana.net/api/prom/push
+grafana_prom_user = "" # 예: 1234567
+grafana_token     = ""

@@ -1,0 +1,11 @@
+# Terraform local status/cache
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# secret
+*.tfvars
+!*.tfvars.example
+*-sa-key.json
+credentials.json

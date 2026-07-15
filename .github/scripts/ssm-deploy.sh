@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Deploy to the app instance via SSM: find it by tag, ship repo's docker-compose.yml,
 # run /opt/app/deploy.sh <sha> on it, and fail if the command does not succeed.
-# Usage: ssm-deploy.sh <git-sha>   (needs INSTANCE_TAG; AWS creds/region from the workflow)
+# Usage: ssm-deploy.sh <git-sha|latest>
 set -euo pipefail
 
-sha="${1:?usage: ssm-deploy.sh <git-sha>}"
+sha="${1:?usage: ssm-deploy.sh <git-sha|latest>}"
 
-[[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || { echo "invalid sha: $sha"; exit 1; }
+[[ "$sha" =~ ^([0-9a-f]{7,40}|latest)$ ]] || { echo "invalid ref: $sha"; exit 1; }
 : "${INSTANCE_TAG:?INSTANCE_TAG is required}"
 
 compose_path="$(dirname "$0")/../../deploy/docker-compose.yml"

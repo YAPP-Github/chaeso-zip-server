@@ -1,0 +1,32 @@
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths: ['infra/**']
+  push:
+    branches: [main]
+    paths: ['infra/**']
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.5"
+
+      - name: fmt (전체 infra)
+        run: terraform fmt -check -recursive infra
+
+      - name: validate (prod 환경)
+        working-directory: infra/environments/aws/prod
+        run: |
+          terraform init -backend=false
+          terraform validate
