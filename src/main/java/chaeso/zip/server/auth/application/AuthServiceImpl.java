@@ -9,9 +9,13 @@ import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.auth.domain.InvalidTokenException;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenInfo;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateOutcome;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.user.application.ConsentProperties;
@@ -130,6 +134,21 @@ public class AuthServiceImpl implements AuthService {
     return tokenResponse(userId, familyId, jti, refreshTtl);
   }
 
+  @Override
+  public TokenResponse reissue(String refreshToken) {
+    RefreshTokenInfo info = parseRefreshToken(refreshToken);
+    String newJti = UUID.randomUUID().toString();
+    RotateOutcome outcome =
+        refreshTokenStore.rotate(info.userId(), info.familyId(), info.jti(), newJti);
+    if (outcome.result() == RotateResult.REUSED) {
+      throw new AuthBusinessException(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+    }
+    if (outcome.result() != RotateResult.ROTATED) {
+      throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+    return tokenResponse(info.userId(), info.familyId(), newJti, outcome.ttl());
+  }
+
   /**
    * {@code refreshTtl} 은 Redis 키에 실제로 걸린 TTL 이다. 절대만료가 가까우면 refresh-ttl 보다
    * 짧아지므로 설정값이 아니라 이 값을 내려준다.
@@ -141,6 +160,18 @@ public class AuthServiceImpl implements AuthService {
         jwtTokenProvider.createRefreshToken(userId, familyId, jti),
         jwtProperties.accessTtl().toSeconds(),
         refreshTtl.toSeconds());
+  }
+
+  /**
+   * refresh 토큰을 파싱한다. {@link JwtTokenProvider} 는 서명/만료 실패를 AUTH-001 로 던지지만
+   * 재발급/로그아웃 경로에서는 refresh 전용 코드인 AUTH-004 로 바꿔 응답한다.
+   */
+  private RefreshTokenInfo parseRefreshToken(String refreshToken) {
+    try {
+      return jwtTokenProvider.parseRefresh(refreshToken);
+    } catch (InvalidTokenException exception) {
+      throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
   }
 
   private User saveUser(SignupCommand command, String email) {

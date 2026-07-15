@@ -19,9 +19,13 @@ import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.auth.domain.InvalidTokenException;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenInfo;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateOutcome;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.support.UserFixture;
@@ -342,5 +346,89 @@ class AuthServiceTest {
     verify(refreshTokenStore).save(eq(user.getId()), familyId.capture(), jti.capture());
     verify(jwtTokenProvider)
         .createRefreshToken(user.getId(), familyId.getValue(), jti.getValue());
+  }
+
+  @Test
+  @DisplayName("유효한 refresh 토큰이면 familyId를 유지한 채 새 jti로 회전해 토큰 쌍을 재발급한다")
+  void reissue_validToken_rotatesWithinSameFamily() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("valid-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.ROTATED, Duration.ofDays(14)));
+    given(jwtTokenProvider.createAccessToken(userId)).willReturn("new-access");
+    given(jwtTokenProvider.createRefreshToken(eq(userId), eq("family-1"), anyString()))
+        .willReturn("new-refresh");
+
+    TokenResponse response = authService.reissue("valid-refresh");
+
+    assertThat(response.accessToken()).isEqualTo("new-access");
+    assertThat(response.refreshToken()).isEqualTo("new-refresh");
+    assertThat(response.accessTokenExpiresIn()).isEqualTo(1800L);
+    assertThat(response.refreshTokenExpiresIn()).isEqualTo(1209600L);
+
+    ArgumentCaptor<String> rotatedJti = ArgumentCaptor.forClass(String.class);
+    verify(refreshTokenStore).rotate(eq(userId), eq("family-1"), eq("jti-1"), rotatedJti.capture());
+    verify(jwtTokenProvider).createRefreshToken(userId, "family-1", rotatedJti.getValue());
+  }
+
+  @Test
+  @DisplayName("절대만료가 가까워 세션 TTL이 잘리면 응답의 만료(초)도 잘린 값으로 내려간다")
+  void reissue_nearAbsoluteDeadline_reportsTruncatedExpiry() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("valid-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.ROTATED, Duration.ofDays(5)));
+
+    TokenResponse response = authService.reissue("valid-refresh");
+
+    assertThat(response.refreshTokenExpiresIn()).isEqualTo(Duration.ofDays(5).toSeconds());
+  }
+
+  @Test
+  @DisplayName("서명이 깨졌거나 만료된 refresh 토큰이면 AUTH-004를 던진다")
+  void reissue_malformedToken_throwsInvalidRefreshToken() {
+    given(jwtTokenProvider.parseRefresh("tampered"))
+        .willThrow(new InvalidTokenException("유효하지 않은 토큰입니다."));
+
+    assertThatThrownBy(() -> authService.reissue("tampered"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+    verify(refreshTokenStore, never()).rotate(any(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("저장소에 없는 세션이면 AUTH-004를 던진다")
+  void reissue_unknownSession_throwsInvalidRefreshToken() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("orphan"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.INVALID, null));
+
+    assertThatThrownBy(() -> authService.reissue("orphan"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+  }
+
+  @Test
+  @DisplayName("이미 회전된 토큰을 재사용하면 AUTH-005를 던진다")
+  void reissue_reusedToken_throwsReuseDetected() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("replayed"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "old-jti"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("old-jti"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.REUSED, null));
+
+    assertThatThrownBy(() -> authService.reissue("replayed"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+
+    verify(refreshTokenStore, never()).revoke(any(), anyString());
   }
 }
