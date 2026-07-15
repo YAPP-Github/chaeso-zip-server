@@ -149,6 +149,15 @@ public class AuthServiceImpl implements AuthService {
     return tokenResponse(info.userId(), info.familyId(), newJti, outcome.ttl());
   }
 
+  @Override
+  public void logout(UUID userId, String refreshToken) {
+    RefreshTokenInfo info = parseRefreshToken(refreshToken);
+    if (!userId.equals(info.userId())) {
+      throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+    refreshTokenStore.revoke(info.userId(), info.familyId());
+  }
+
   /**
    * {@code refreshTtl} 은 Redis 키에 실제로 걸린 TTL 이다. 절대만료가 가까우면 refresh-ttl 보다
    * 짧아지므로 설정값이 아니라 이 값을 내려준다.

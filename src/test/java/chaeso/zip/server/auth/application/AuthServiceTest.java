@@ -431,4 +431,33 @@ class AuthServiceTest {
 
     verify(refreshTokenStore, never()).revoke(any(), anyString());
   }
+
+  @Test
+  @DisplayName("로그아웃하면 해당 refresh 토큰의 family 세션을 폐기한다")
+  void logout_revokesFamily() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("my-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+
+    authService.logout(userId, "my-refresh");
+
+    verify(refreshTokenStore).revoke(userId, "family-1");
+  }
+
+  @Test
+  @DisplayName("다른 사용자의 refresh 토큰으로 로그아웃하면 AUTH-004를 던지고 아무것도 폐기하지 않는다")
+  void logout_otherUsersToken_throwsAndRevokesNothing() {
+    UUID attacker = UUID.randomUUID();
+    UUID victim = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("victim-refresh"))
+        .willReturn(new RefreshTokenInfo(victim, "victim-family", "jti-1"));
+
+    assertThatThrownBy(() -> authService.logout(attacker, "victim-refresh"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+    verify(refreshTokenStore, never()).revoke(any(), anyString());
+  }
+
 }

@@ -4,6 +4,7 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
+import java.util.UUID;
 
 /**
  * 로컬 인증 유스케이스. 회원가입(인증코드 발송·검증·가입)과 세션(로그인·재발급·로그아웃)을 제공한다.
@@ -22,11 +23,9 @@ public interface AuthService {
   /** 이메일/비밀번호로 로컬 로그인하고 액세스/리프레시 토큰을 발급한다. 실패 시 예외. */
   TokenResponse login(LoginCommand command);
 
-  /**
-   * Refresh Token 을 회전시켜 새 토큰 쌍을 발급한다. familyId 는 유지하고 jti 만 교체한다.
-   *
-   * @throws chaeso.zip.server.auth.domain.AuthBusinessException 토큰이 유효하지 않거나 세션이 없으면
-   *     AUTH-004, 이미 회전된 토큰의 재사용이면 AUTH-005(해당 family 전체가 폐기)
-   */
+  /** Refresh Token 을 회전시켜 새 토큰 쌍을 발급한다. familyId 는 유지하고 jti 만 교체한다. 재사용이 탐지되면 family 를 폐기하고 예외. */
   TokenResponse reissue(String refreshToken);
+
+  /** 인증된 {@code userId} 소유의 refresh 토큰이면 family 세션을 폐기한다. 없는 세션은 통과, 소유자가 다르면 예외. */
+  void logout(UUID userId, String refreshToken);
 }
