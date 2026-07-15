@@ -19,11 +19,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
- * 로그인 유스케이스의 영속성 통합 테스트. login 의 {@code @Transactional} 이 {@code recordLogin} 변경을
- * H2 에 실제로 커밋하는지 확인한다.
+ * login 은 {@code @Transactional} 없이 {@code userRepository.save} 로만 {@code recordLogin} 을
+ * 커밋한다. 그게 실제로 커밋되는지 확인한다.
  *
- * <p>테스트 메서드에는 {@code @Transactional} 을 붙이지 않는다. 붙일시 영속성 컨텍스트가 공유돼서
- * 서비스에 {@code @Transactional} 이 빠져 있어도 테스트가 통과된다.
+ * <p>테스트에 {@code @Transactional} 을 붙이면 영속성 컨텍스트가 공유돼 커밋 없이도 통과한다.
  */
 @SpringBootTest
 @Import(EmbeddedRedisConfig.class)
