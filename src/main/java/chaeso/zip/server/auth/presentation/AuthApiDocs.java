@@ -166,7 +166,8 @@ public interface AuthApiDocs {
   ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request);
 
   @Operation(operationId = "login", summary = "로컬 로그인",
-      description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401.")
+      description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401. "
+          + "refreshTokenExpiresIn 은 고정값이 아니므로 응답값을 그대로 쓴다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그인 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),

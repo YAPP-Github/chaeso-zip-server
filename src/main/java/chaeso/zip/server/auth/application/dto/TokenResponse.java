@@ -13,7 +13,7 @@ public record TokenResponse(
     String refreshToken,
     @Schema(description = "액세스 토큰 만료(초)", example = "1800", requiredMode = Schema.RequiredMode.REQUIRED)
     long accessTokenExpiresIn,
-    @Schema(description = "리프레시 토큰 만료(초)", example = "1209600", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "리프레시 토큰 만료(초, 고정값X)", example = "1209600", requiredMode = Schema.RequiredMode.REQUIRED)
     long refreshTokenExpiresIn) {
 
 }
