@@ -125,7 +125,7 @@ jobs:
     steps:
       - name: Send OpenAPI update event
         env:
-          OPENAPI_SYNC_TOKEN: ${{ secrets.OPENAPI_SYNC_TOKEN }}
+          FRONTEND_REPO_TOKEN: ${{ secrets.FRONTEND_REPO_TOKEN }}
           BACKEND_SHA: ${{ github.sha }}
           BACKEND_REF: ${{ github.ref_name }}
         run: |
@@ -144,7 +144,7 @@ jobs:
 
           curl --fail-with-body \
             --request POST \
-            --header "Authorization: Bearer $OPENAPI_SYNC_TOKEN" \
+            --header "Authorization: Bearer $FRONTEND_REPO_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --header "Content-Type: application/json" \
