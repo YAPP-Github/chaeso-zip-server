@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deploy to the app instance via SSM: find it by tag, ship repo's docker-compose.yml,
-# run /opt/app/deploy.sh <sha> on it, and fail if the command does not succeed.
+# Deploy to the app instance via SSM: find it by tag, ship repo's deploy artifacts
+# (docker-compose.yml, Caddyfile, deploy.sh), run deploy.sh <sha> on it,
+# and fail if the command does not succeed. TLS certs come from Doppler, not the repo.
 # Usage: ssm-deploy.sh <git-sha|latest>
 set -euo pipefail
 
@@ -9,8 +10,10 @@ sha="${1:?usage: ssm-deploy.sh <git-sha|latest>}"
 [[ "$sha" =~ ^([0-9a-f]{7,40}|latest)$ ]] || { echo "invalid ref: $sha"; exit 1; }
 : "${INSTANCE_TAG:?INSTANCE_TAG is required}"
 
-compose_path="$(dirname "$0")/../../deploy/docker-compose.yml"
-compose_b64=$(base64 < "$compose_path" | tr -d '\n')
+deploy_dir="$(dirname "$0")/../../deploy"
+compose_b64=$(base64 < "$deploy_dir/docker-compose.yml" | tr -d '\n')
+caddyfile_b64=$(base64 < "$deploy_dir/Caddyfile" | tr -d '\n')
+deploysh_b64=$(base64 < "$(dirname "$0")/../../infra/modules/aws/app/remote-deploy.sh" | tr -d '\n')
 
 instance_id=$(aws ec2 describe-instances \
   --filters "Name=tag:Name,Values=${INSTANCE_TAG}" "Name=instance-state-name,Values=running" \
@@ -21,9 +24,11 @@ instance_id=$(aws ec2 describe-instances \
 }
 echo "target: $instance_id"
 
-params=$(jq -n --arg b64 "$compose_b64" --arg sha "$sha" '{commands: [
-  "mkdir -p /opt/app",
-  "echo \($b64) | base64 -d > /opt/app/docker-compose.yml",
+params=$(jq -n --arg compose "$compose_b64" --arg caddy "$caddyfile_b64" --arg deploysh "$deploysh_b64" --arg sha "$sha" '{commands: [
+  "echo \($compose) | base64 -d > /opt/app/docker-compose.yml",
+  "echo \($caddy) | base64 -d > /opt/app/Caddyfile",
+  "echo \($deploysh) | base64 -d > /opt/app/deploy.sh",
+  "chmod +x /opt/app/deploy.sh",
   "/opt/app/deploy.sh \($sha)"
 ]}')
 command_id=$(aws ssm send-command \
