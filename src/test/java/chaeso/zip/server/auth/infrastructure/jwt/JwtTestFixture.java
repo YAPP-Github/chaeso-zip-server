@@ -29,7 +29,8 @@ public final class JwtTestFixture {
 
   public static JwtTokenProvider provider(Duration accessTtl) {
     return new JwtTokenProvider(
-        new JwtProperties(SECRET, accessTtl, Duration.ofDays(14)), FIXED_CLOCK);
+        new JwtProperties(SECRET, accessTtl, Duration.ofDays(14), Duration.ofDays(90)),
+        FIXED_CLOCK);
   }
 
   /** 테스트에서 토큰을 직접 서명해 만들 때 사용하는 키. */

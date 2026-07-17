@@ -1,22 +1,26 @@
 package chaeso.zip.server.auth.presentation;
 
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
+import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
 import chaeso.zip.server.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RequestBody;
 
-/** 회원가입/인증 API 문서 정의. 구현은 {@link AuthController}. */
-@Tag(name = "Auth", description = "회원가입/이메일 인증 API")
+/** 회원가입/인증/세션 API 문서 정의. 구현은 {@link AuthController}. */
+@Tag(name = "Auth", description = "회원가입/이메일 인증/세션 API")
 public interface AuthApiDocs {
 
   String VALIDATION_ERROR_EXAMPLE = """
@@ -97,6 +101,30 @@ public interface AuthApiDocs {
       }
       """;
 
+  String INVALID_REFRESH_TOKEN_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-004",
+          "message": "유효하지 않은 refresh 토큰입니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  String REFRESH_TOKEN_REUSE_DETECTED_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-005",
+          "message": "재사용이 감지되어 해당 세션이 만료되었습니다. 다시 로그인하세요.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
   @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
       description = "가입할 이메일로 6자리 인증코드를 발송한다. 이미 가입된 이메일이면 409.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발송 성공")
@@ -138,7 +166,8 @@ public interface AuthApiDocs {
   ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request);
 
   @Operation(operationId = "login", summary = "로컬 로그인",
-      description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401.")
+      description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401. "
+          + "refreshTokenExpiresIn 은 고정값이 아니므로 응답값을 그대로 쓴다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그인 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -147,4 +176,39 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "INVALID_CREDENTIALS", value = INVALID_CREDENTIALS_EXAMPLE)))
   ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request);
+
+  @Operation(operationId = "refresh", summary = "토큰 재발급",
+      description = "Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다. "
+          + "기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고 "
+          + "해당 세션(family) 전체를 폐기하므로, 동시에 여러 번 호출하지 말고 한 번만 보낸다. "
+          + "Access Token 이 만료된 상태에서 호출하므로 인증이 필요 없다. "
+          + "refreshTokenExpiresIn 은 로그인 후 90일에 가까워질수록 짧아진다.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재발급 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+      description = "토큰 만료/변조/세션 없음(AUTH-004) 또는 재사용 탐지(AUTH-005)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = {
+              @ExampleObject(name = "INVALID_REFRESH_TOKEN", value = INVALID_REFRESH_TOKEN_EXAMPLE),
+              @ExampleObject(name = "REFRESH_TOKEN_REUSE_DETECTED",
+                  value = REFRESH_TOKEN_REUSE_DETECTED_EXAMPLE)
+          }))
+  ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request);
+
+  @Operation(operationId = "logout", summary = "로그아웃",
+      description = "제출한 Refresh Token 의 세션(family)을 폐기한다. 인증된 사용자만 호출할 수 있고, "
+          + "토큰 소유자가 인증 사용자와 다르면 401. 이미 폐기된 세션이어도 200 을 반환한다(멱등).")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그아웃 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+      description = "미인증 요청(C-004) 또는 토큰 무효/소유자 불일치(AUTH-004)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "INVALID_REFRESH_TOKEN", value = INVALID_REFRESH_TOKEN_EXAMPLE)))
+  ApiResponse<Void> logout(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @Valid @RequestBody RefreshTokenRequest request);
 }

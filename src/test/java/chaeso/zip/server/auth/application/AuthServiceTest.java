@@ -19,8 +19,13 @@ import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
+import chaeso.zip.server.auth.domain.InvalidTokenException;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenInfo;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateOutcome;
+import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.support.UserFixture;
@@ -65,8 +70,12 @@ class AuthServiceTest {
   @Mock
   private JwtTokenProvider jwtTokenProvider;
 
+  @Mock
+  private RefreshTokenStore refreshTokenStore;
+
   private static final JwtProperties JWT_PROPERTIES =
-      new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14));
+      new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
+          Duration.ofDays(90));
 
   private AuthServiceImpl authService;
 
@@ -80,7 +89,8 @@ class AuthServiceTest {
         passwordEncoder,
         new ConsentProperties("v1.0"),
         jwtTokenProvider,
-        JWT_PROPERTIES);
+        JWT_PROPERTIES,
+        refreshTokenStore);
   }
 
   private static LoginCommand loginCommand() {
@@ -94,6 +104,7 @@ class AuthServiceTest {
     given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
         .willReturn(Optional.of(AuthIdentity.createLocal(null, "ENCODED")));
     given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(true);
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
     return user;
   }
 
@@ -313,4 +324,140 @@ class AuthServiceTest {
 
     assertThat(response.accessToken()).isEqualTo("ACCESS");
   }
+
+  @Test
+  @DisplayName("로그인에 성공하면 발급한 refresh 토큰의 family를 저장소에 기록한다")
+  void login_savesRefreshTokenFamily() {
+    User user = UserFixture.user("login@chaeso.zip");
+    given(userRepository.findByEmailAndDeletedAtIsNull("login@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "hashed")));
+    given(passwordEncoder.matches("P@ssw0rd!", "hashed")).willReturn(true);
+    given(jwtTokenProvider.createAccessToken(user.getId())).willReturn("access-token");
+    given(jwtTokenProvider.createRefreshToken(eq(user.getId()), anyString(), anyString()))
+        .willReturn("refresh-token");
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+
+    authService.login(new LoginCommand("login@chaeso.zip", "P@ssw0rd!"));
+
+    ArgumentCaptor<String> familyId = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> jti = ArgumentCaptor.forClass(String.class);
+    verify(refreshTokenStore).save(eq(user.getId()), familyId.capture(), jti.capture());
+    verify(jwtTokenProvider)
+        .createRefreshToken(user.getId(), familyId.getValue(), jti.getValue());
+  }
+
+  @Test
+  @DisplayName("유효한 refresh 토큰이면 familyId를 유지한 채 새 jti로 회전해 토큰 쌍을 재발급한다")
+  void reissue_validToken_rotatesWithinSameFamily() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("valid-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.ROTATED, Duration.ofDays(14)));
+    given(jwtTokenProvider.createAccessToken(userId)).willReturn("new-access");
+    given(jwtTokenProvider.createRefreshToken(eq(userId), eq("family-1"), anyString()))
+        .willReturn("new-refresh");
+
+    TokenResponse response = authService.reissue("valid-refresh");
+
+    assertThat(response.accessToken()).isEqualTo("new-access");
+    assertThat(response.refreshToken()).isEqualTo("new-refresh");
+    assertThat(response.accessTokenExpiresIn()).isEqualTo(1800L);
+    assertThat(response.refreshTokenExpiresIn()).isEqualTo(1209600L);
+
+    ArgumentCaptor<String> rotatedJti = ArgumentCaptor.forClass(String.class);
+    verify(refreshTokenStore).rotate(eq(userId), eq("family-1"), eq("jti-1"), rotatedJti.capture());
+    verify(jwtTokenProvider).createRefreshToken(userId, "family-1", rotatedJti.getValue());
+  }
+
+  @Test
+  @DisplayName("절대만료가 가까워 세션 TTL이 잘리면 응답의 만료(초)도 잘린 값으로 내려간다")
+  void reissue_nearAbsoluteDeadline_reportsTruncatedExpiry() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("valid-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.ROTATED, Duration.ofDays(5)));
+
+    TokenResponse response = authService.reissue("valid-refresh");
+
+    assertThat(response.refreshTokenExpiresIn()).isEqualTo(Duration.ofDays(5).toSeconds());
+  }
+
+  @Test
+  @DisplayName("서명이 깨졌거나 만료된 refresh 토큰이면 AUTH-004를 던진다")
+  void reissue_malformedToken_throwsInvalidRefreshToken() {
+    given(jwtTokenProvider.parseRefresh("tampered"))
+        .willThrow(new InvalidTokenException("유효하지 않은 토큰입니다."));
+
+    assertThatThrownBy(() -> authService.reissue("tampered"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+    verify(refreshTokenStore, never()).rotate(any(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("저장소에 없는 세션이면 AUTH-004를 던진다")
+  void reissue_unknownSession_throwsInvalidRefreshToken() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("orphan"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("jti-1"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.INVALID, null));
+
+    assertThatThrownBy(() -> authService.reissue("orphan"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+  }
+
+  @Test
+  @DisplayName("이미 회전된 토큰을 재사용하면 AUTH-005를 던진다")
+  void reissue_reusedToken_throwsReuseDetected() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("replayed"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "old-jti"));
+    given(refreshTokenStore.rotate(eq(userId), eq("family-1"), eq("old-jti"), anyString()))
+        .willReturn(new RotateOutcome(RotateResult.REUSED, null));
+
+    assertThatThrownBy(() -> authService.reissue("replayed"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+
+    verify(refreshTokenStore, never()).revoke(any(), anyString());
+  }
+
+  @Test
+  @DisplayName("로그아웃하면 해당 refresh 토큰의 family 세션을 폐기한다")
+  void logout_revokesFamily() {
+    UUID userId = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("my-refresh"))
+        .willReturn(new RefreshTokenInfo(userId, "family-1", "jti-1"));
+
+    authService.logout(userId, "my-refresh");
+
+    verify(refreshTokenStore).revoke(userId, "family-1");
+  }
+
+  @Test
+  @DisplayName("다른 사용자의 refresh 토큰으로 로그아웃하면 AUTH-004를 던지고 아무것도 폐기하지 않는다")
+  void logout_otherUsersToken_throwsAndRevokesNothing() {
+    UUID attacker = UUID.randomUUID();
+    UUID victim = UUID.randomUUID();
+    given(jwtTokenProvider.parseRefresh("victim-refresh"))
+        .willReturn(new RefreshTokenInfo(victim, "victim-family", "jti-1"));
+
+    assertThatThrownBy(() -> authService.logout(attacker, "victim-refresh"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+    verify(refreshTokenStore, never()).revoke(any(), anyString());
+  }
+
 }

@@ -72,6 +72,7 @@ jwt:
   secret: ${JWT_SECRET}
   access-ttl: ${JWT_ACCESS_TTL:PT30M}
   refresh-ttl: ${JWT_REFRESH_TTL:P14D}
+  refresh-absolute-ttl: ${JWT_REFRESH_ABSOLUTE_TTL:P90D}
 
 app:
   cors:

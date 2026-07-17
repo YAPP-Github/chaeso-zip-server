@@ -1,9 +1,11 @@
 package chaeso.zip.server.auth.presentation;
 
 import chaeso.zip.server.auth.application.AuthService;
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
+import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
@@ -11,6 +13,7 @@ import chaeso.zip.server.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,5 +55,20 @@ public class AuthController implements AuthApiDocs {
   @PostMapping("/login")
   public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
     return ApiResponse.success(authService.login(request.toCommand()));
+  }
+
+  @Override
+  @PostMapping("/refresh")
+  public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+    return ApiResponse.success(authService.reissue(request.refreshToken()));
+  }
+
+  @Override
+  @PostMapping("/logout")
+  public ApiResponse<Void> logout(
+      @AuthenticationPrincipal UserPrincipal principal,
+      @Valid @RequestBody RefreshTokenRequest request) {
+    authService.logout(principal.userId(), request.refreshToken());
+    return ApiResponse.success();
   }
 }

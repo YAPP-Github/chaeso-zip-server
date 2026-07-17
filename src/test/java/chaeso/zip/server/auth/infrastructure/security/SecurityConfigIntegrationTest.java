@@ -63,6 +63,16 @@ class SecurityConfigIntegrationTest {
     String nonPublicAuthProbe() {
       return "ok";
     }
+
+    @PostMapping("/api/v1/auth/refresh")
+    String refreshProbe() {
+      return "ok";
+    }
+
+    @PostMapping("/api/v1/auth/logout")
+    String logoutProbe() {
+      return "ok";
+    }
   }
 
   @Test
@@ -134,5 +144,20 @@ class SecurityConfigIntegrationTest {
             .header("Origin", "http://evil.example.com")
             .header("Access-Control-Request-Method", "GET"))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("재발급 경로는 Access Token 없이 접근할 수 있다")
+  void refreshPathIsPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/refresh"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("로그아웃 경로는 Access Token 없이 접근하면 401을 반환한다")
+  void logoutPathRequiresAuthentication() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/logout"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("C-004"));
   }
 }
