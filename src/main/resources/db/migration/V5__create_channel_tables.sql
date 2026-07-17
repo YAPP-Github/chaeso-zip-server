@@ -104,8 +104,8 @@ create table channel_pricing (
                                  currency           varchar(10)  not null default 'KRW',
                                  unit_period        varchar(50),
                                  unit_days          numeric,      -- 계산용 단위 일수(일=1/주=7/월=30, 기간무관이면 null)
-                                 price_type         varchar(20)  not null default 'unknown',
-                                 vat                varchar(20)  not null default 'unknown',
+                                 price_type         varchar(20)  not null default 'UNKNOWN',
+                                 vat                varchar(20)  not null default 'UNKNOWN',
                                  segment            varchar(100),
                                  valid_period       varchar(100),
                                  raw_text           text,

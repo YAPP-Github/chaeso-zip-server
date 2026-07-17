@@ -16,7 +16,7 @@ public record SampleResponse(
     String name,
     @Schema(description = "생성 시각", requiredMode = Schema.RequiredMode.REQUIRED)
     LocalDateTime createdAt,
-    @Schema(description = "수정 시각", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "수정 시각", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     LocalDateTime updatedAt) {
 
   public static SampleResponse from(Sample sample) {
