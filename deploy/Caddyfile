@@ -1,0 +1,9 @@
+api.chaeso-zip.com {
+    tls /certs/origin.pem /certs/origin.key {
+        client_auth {
+            mode       require_and_verify
+            trust_pool file /certs/aop-ca.pem
+        }
+    }
+    reverse_proxy app:{$APP_PORT:8080}
+}

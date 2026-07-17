@@ -37,6 +37,9 @@ spring:
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:false}
 
+server:
+  forward-headers-strategy: framework
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:false}
