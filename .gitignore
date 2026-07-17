@@ -38,6 +38,3 @@ out/
 
 ### env ###
 .env*
-
-### Infra(Terraform) ###
-/infra

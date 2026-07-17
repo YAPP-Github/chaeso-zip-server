@@ -20,6 +20,22 @@ spring:
         default_batch_fetch_size: 100
     open-in-view: false
     show-sql: ${JPA_SHOW_SQL:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
 
 springdoc:
   api-docs:
@@ -51,3 +67,21 @@ sentry:
     minimum-event-level: error
     minimum-breadcrumb-level: info
   exception-resolver-order: 2147483647
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-ttl: ${JWT_ACCESS_TTL:PT30M}
+  refresh-ttl: ${JWT_REFRESH_TTL:P14D}
+  refresh-absolute-ttl: ${JWT_REFRESH_ABSOLUTE_TTL:P90D}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  consent:
+    terms-version: ${TERMS_VERSION:v1.0}
+  email-verification:
+    from: ${EMAIL_VERIFICATION_FROM:no-reply@localhost}
+    code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT5M}
+    verified-ttl: ${EMAIL_VERIFICATION_VERIFIED_TTL:PT30M}
+    max-verify-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+    send-cooldown: ${EMAIL_VERIFICATION_SEND_COOLDOWN:PT1M}

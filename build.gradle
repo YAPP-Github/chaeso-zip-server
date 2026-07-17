@@ -31,16 +31,24 @@ dependencies {
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.web
     implementation libs.spring.boot.starter.validation
+    implementation libs.spring.boot.starter.security
+    implementation libs.spring.boot.starter.data.redis
+    implementation libs.spring.boot.starter.mail
     implementation libs.springdoc.openapi.ui
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
+    implementation libs.jjwt.api
     compileOnly libs.lombok
     runtimeOnly libs.postgresql
+    runtimeOnly libs.jjwt.impl
+    runtimeOnly libs.jjwt.jackson
     annotationProcessor libs.lombok
     testImplementation libs.spring.boot.starter.test
     testImplementation libs.spring.restdocs.mockmvc
+    testImplementation libs.spring.security.test
     testImplementation libs.archunit.junit5
     testRuntimeOnly libs.h2
+    testImplementation libs.embedded.redis
     testCompileOnly libs.lombok
     testRuntimeOnly libs.junit.platform.launcher
     testAnnotationProcessor libs.lombok

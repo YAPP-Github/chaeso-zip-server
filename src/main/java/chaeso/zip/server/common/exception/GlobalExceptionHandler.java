@@ -4,6 +4,7 @@ import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.common.response.ErrorResponse;
 import chaeso.zip.server.common.response.ErrorResponse.FieldError;
 import java.util.List;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -22,6 +23,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+  /** 검증 실패 응답에 값을 그대로 전달하면 안 되는 보호 필드 */
+  private static final Set<String> SENSITIVE_FIELDS = Set.of("password", "rawPassword");
 
   /**
    * 비즈니스 예외 처리.
@@ -79,8 +83,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return bindingResult.getFieldErrors().stream()
         .map(error -> FieldError.of(
             error.getField(),
-            error.getRejectedValue() == null ? "" : error.getRejectedValue().toString(),
+            rejectedValue(error),
             error.getDefaultMessage()))
         .toList();
+  }
+
+  private String rejectedValue(org.springframework.validation.FieldError error) {
+    if (SENSITIVE_FIELDS.contains(error.getField()) || error.getRejectedValue() == null) {
+      return "";
+    }
+    return error.getRejectedValue().toString();
   }
 }
