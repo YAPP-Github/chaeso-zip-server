@@ -336,7 +336,7 @@ public interface AuthApiDocs {
   @Operation(operationId = "linkGoogle", summary = "구글 계정 연결 확인",
       description = "linkRequired:true 응답을 받고 사용자가 확인 UI 에서 '예'를 선택했을 때만 호출한다. "
           + "진입 때 보냈던 idToken 을 그대로 재전송하면 서버가 재검증한 뒤 같은 이메일의 로컬 계정에 "
-          + "구글 로그인을 연결하고 토큰을 발급한다.'아니오'는 이 API 를 호출하지 않는다"
+          + "구글 로그인을 연결하고 토큰을 발급한다. '아니오'는 이 API 를 호출하지 않는다. "
           + "확인 모달을 띄우는 사이 idToken 이 만료되면 401 응답.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "연결 완료(code: GOOGLE_ACCOUNT_LINKED) 및 토큰 발급",
@@ -366,7 +366,7 @@ public interface AuthApiDocs {
   @SecurityRequirements
   @Operation(operationId = "signupGoogle", summary = "구글 최종 회원가입",
       description = "POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로 "
-          + "신규 회원가입을 완료하고 토큰을 발급한다."
+          + "신규 회원가입을 완료하고 토큰을 발급한다. "
           + "가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공, 토큰 발급",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
