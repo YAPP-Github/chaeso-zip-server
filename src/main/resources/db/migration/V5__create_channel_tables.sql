@@ -48,6 +48,7 @@ create table channels (
                           display_platforms     text[],
                           logo_url              varchar(500),
                           media_type            varchar(20),
+                          primary_category      varchar(30),   -- 매체 대표 업종 1개
                           suitable_categories   text[],
                           default_tags          text[],
                           advantages            text[],

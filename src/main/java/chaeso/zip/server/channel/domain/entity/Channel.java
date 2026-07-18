@@ -38,6 +38,10 @@ public class Channel extends BaseEntity {
   private String mediaType;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "primary_category", length = 30)
+  private Category primaryCategory;
+
+  @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.ARRAY)
   @Column(name = "suitable_categories")
   private List<Category> suitableCategories;
