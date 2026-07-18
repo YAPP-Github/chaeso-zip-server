@@ -12,12 +12,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import chaeso.zip.server.auth.application.AuthService;
 import chaeso.zip.server.auth.application.UserPrincipal;
+import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
+import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
+import chaeso.zip.server.auth.presentation.dto.GoogleSignupRequest;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
@@ -179,6 +183,20 @@ class AuthControllerTest {
   }
 
   @Test
+  @DisplayName("구글로만 가입된 이메일이면 200과 EMAIL_ALREADY_USED_WITH_GOOGLE 안내 코드를 반환한다")
+  void sendSignupCode_googleOnly() throws Exception {
+    given(authService.sendSignupVerificationCode("user@chaeso.zip"))
+        .willReturn("EMAIL_ALREADY_USED_WITH_GOOGLE");
+
+    mockMvc.perform(post("/api/v1/auth/signup/email-code")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new SendVerificationCodeRequest("user@chaeso.zip"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_USED_WITH_GOOGLE"));
+  }
+
+  @Test
   @DisplayName("로그인 요청이 성공하면 200과 토큰/만료 시간을 반환한다")
   void login_success() throws Exception {
     given(authService.login(any(LoginCommand.class)))
@@ -233,6 +251,19 @@ class AuthControllerTest {
             .content(objectMapper.writeValueAsString(validLoginRequest())))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error.code").value("AUTH-003"));
+  }
+
+  @Test
+  @DisplayName("구글로만 가입된 계정으로 로그인하면 401과 AUTH-010을 반환한다")
+  void login_accountRegisteredWithGoogle() throws Exception {
+    given(authService.login(any(LoginCommand.class)))
+        .willThrow(new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE));
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validLoginRequest())))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("AUTH-010"));
   }
 
   @Test
@@ -302,4 +333,170 @@ class AuthControllerTest {
     then(authService).should().logout(AUTHENTICATED_USER_ID, "my-refresh");
   }
 
+  @Test
+  @DisplayName("구글 로그인 분기는 토큰만 내려주고 분기 플래그를 싣지 않는다")
+  void googleAuth_login() throws Exception {
+    given(authService.googleAuth("id-token")).willReturn(
+        GoogleAuthResponse.login(new TokenResponse("access", "refresh", 1800L, 1209600L)));
+
+    mockMvc.perform(post("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest("id-token"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("LOGIN"))
+        .andExpect(jsonPath("$.data.accessToken").value("access"))
+        .andExpect(jsonPath("$.data.refreshToken").value("refresh"))
+        .andExpect(jsonPath("$.data.linkRequired").doesNotExist())
+        .andExpect(jsonPath("$.data.signupRequired").doesNotExist())
+        .andExpect(jsonPath("$.code").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("연결 확인 분기는 linkRequired 와 email 만 내려주고 토큰을 싣지 않는다")
+  void googleAuth_linkRequired() throws Exception {
+    given(authService.googleAuth("id-token"))
+        .willReturn(GoogleAuthResponse.linkRequired("user@chaeso.zip"));
+
+    mockMvc.perform(post("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest("id-token"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("LINK_REQUIRED"))
+        .andExpect(jsonPath("$.data.linkRequired").value(true))
+        .andExpect(jsonPath("$.data.email").value("user@chaeso.zip"))
+        .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+        .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("가입 분기는 signupToken 과 프리필을 내려주고 토큰을 싣지 않는다")
+  void googleAuth_signupRequired() throws Exception {
+    given(authService.googleAuth("id-token")).willReturn(
+        GoogleAuthResponse.signupRequired("signup-ticket", "user@chaeso.zip", "홍길동"));
+
+    mockMvc.perform(post("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest("id-token"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("SIGNUP_REQUIRED"))
+        .andExpect(jsonPath("$.data.signupRequired").value(true))
+        .andExpect(jsonPath("$.data.signupToken").value("signup-ticket"))
+        .andExpect(jsonPath("$.data.prefill.email").value("user@chaeso.zip"))
+        .andExpect(jsonPath("$.data.prefill.suggestedNickname").value("홍길동"))
+        .andExpect(jsonPath("$.data.accessToken").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("idToken 이 공백이면 C-001과 필드 에러를 반환한다")
+  void googleAuth_blankIdToken() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest(""))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("idToken")));
+  }
+
+  @Test
+  @DisplayName("idToken 검증에 실패하면 401 AUTH-009를 반환한다")
+  void googleAuth_invalidIdToken() throws Exception {
+    willThrow(new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED))
+        .given(authService).googleAuth("bad-token");
+
+    mockMvc.perform(post("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest("bad-token"))))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("AUTH-009"));
+  }
+
+  @Test
+  @DisplayName("연결이 끝나면 토큰과 함께 GOOGLE_ACCOUNT_LINKED 안내 코드를 내려준다")
+  void linkGoogle_success() throws Exception {
+    given(authService.linkGoogle("id-token"))
+        .willReturn(new TokenResponse("access", "refresh", 1800L, 1209600L));
+
+    mockMvc.perform(post("/api/v1/auth/google/link")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new GoogleAuthRequest("id-token"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.code").value("GOOGLE_ACCOUNT_LINKED"))
+        .andExpect(jsonPath("$.data.accessToken").value("access"))
+        .andExpect(jsonPath("$.error").doesNotExist());
+  }
+
+  private static GoogleSignupRequest validGoogleSignupRequest() {
+    return new GoogleSignupRequest("signup-ticket", "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT,
+        true, false);
+  }
+
+  @Test
+  @DisplayName("구글 최종 회원가입이 성공하면 201과 토큰을 반환한다")
+  void signupGoogle_success() throws Exception {
+    given(authService.signupGoogle(any(GoogleSignupCommand.class)))
+        .willReturn(new TokenResponse("access", "refresh", 1800L, 1209600L));
+
+    mockMvc.perform(post("/api/v1/auth/signup/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validGoogleSignupRequest())))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accessToken").value("access"))
+        .andExpect(jsonPath("$.data.refreshToken").value("refresh"));
+  }
+
+  @Test
+  @DisplayName("signupToken이 공백이면 C-001과 필드 에러를 반환한다")
+  void signupGoogle_blankSignupToken() throws Exception {
+    GoogleSignupRequest request = new GoogleSignupRequest("", "채소러버", "채소컴퍼니",
+        Occupation.DEVELOPMENT, true, false);
+
+    mockMvc.perform(post("/api/v1/auth/signup/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("signupToken")));
+  }
+
+  @Test
+  @DisplayName("필수 약관에 동의하지 않으면 C-001과 필드 에러를 반환한다")
+  void signupGoogle_termsNotAgreed() throws Exception {
+    GoogleSignupRequest request = new GoogleSignupRequest("signup-ticket", "채소러버", "채소컴퍼니",
+        Occupation.DEVELOPMENT, false, false);
+
+    mockMvc.perform(post("/api/v1/auth/signup/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("termsAgreed")));
+  }
+
+  @Test
+  @DisplayName("가입 티켓이 만료됐으면 400 AUTH-011을 반환한다")
+  void signupGoogle_expiredTicket() throws Exception {
+    willThrow(new AuthBusinessException(AuthErrorCode.GOOGLE_SIGNUP_SESSION_INVALID))
+        .given(authService).signupGoogle(any(GoogleSignupCommand.class));
+
+    mockMvc.perform(post("/api/v1/auth/signup/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validGoogleSignupRequest())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("AUTH-011"));
+  }
+
+  @Test
+  @DisplayName("가입 처리 중 이메일이 선점됐으면 409 AUTH-002를 반환한다")
+  void signupGoogle_emailAlreadyExists() throws Exception {
+    willThrow(new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS))
+        .given(authService).signupGoogle(any(GoogleSignupCommand.class));
+
+    mockMvc.perform(post("/api/v1/auth/signup/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(validGoogleSignupRequest())))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("AUTH-002"));
+  }
 }

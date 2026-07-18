@@ -73,6 +73,21 @@ class SecurityConfigIntegrationTest {
     String logoutProbe() {
       return "ok";
     }
+
+    @PostMapping("/api/v1/auth/google")
+    String googleProbe() {
+      return "ok";
+    }
+
+    @PostMapping("/api/v1/auth/google/link")
+    String googleLinkProbe() {
+      return "ok";
+    }
+
+    @PostMapping("/api/v1/auth/signup/google")
+    String signupGoogleProbe() {
+      return "ok";
+    }
   }
 
   @Test
@@ -159,5 +174,26 @@ class SecurityConfigIntegrationTest {
     mockMvc.perform(post("/api/v1/auth/logout"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error.code").value("C-004"));
+  }
+
+  @Test
+  @DisplayName("구글 인증 진입 경로는 Access Token 없이 접근할 수 있다")
+  void googlePathIsPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/google"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("구글 연결 확인 경로는 Access Token 없이 접근할 수 있다")
+  void googleLinkPathIsPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/google/link"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("구글 최종 회원가입 경로는 Access Token 없이 접근할 수 있다")
+  void signupGooglePathIsPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/signup/google"))
+        .andExpect(status().isOk());
   }
 }

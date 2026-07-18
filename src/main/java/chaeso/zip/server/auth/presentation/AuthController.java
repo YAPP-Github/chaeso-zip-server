@@ -4,6 +4,9 @@ import chaeso.zip.server.auth.application.AuthService;
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
+import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
+import chaeso.zip.server.auth.presentation.dto.GoogleSignupRequest;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
@@ -32,8 +35,8 @@ public class AuthController implements AuthApiDocs {
   @PostMapping("/signup/email-code")
   public ApiResponse<Void> sendSignupCode(
       @Valid @RequestBody SendVerificationCodeRequest request) {
-    authService.sendSignupVerificationCode(request.email());
-    return ApiResponse.success();
+    String code = authService.sendSignupVerificationCode(request.email());
+    return ApiResponse.success(null, code);
   }
 
   @Override
@@ -61,6 +64,25 @@ public class AuthController implements AuthApiDocs {
   @PostMapping("/refresh")
   public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
     return ApiResponse.success(authService.reissue(request.refreshToken()));
+  }
+
+  @Override
+  @PostMapping("/google")
+  public ApiResponse<GoogleAuthResponse> googleAuth(@Valid @RequestBody GoogleAuthRequest request) {
+    return ApiResponse.success(authService.googleAuth(request.idToken()));
+  }
+
+  @Override
+  @PostMapping("/google/link")
+  public ApiResponse<TokenResponse> linkGoogle(@Valid @RequestBody GoogleAuthRequest request) {
+    return ApiResponse.success(authService.linkGoogle(request.idToken()), GOOGLE_ACCOUNT_LINKED);
+  }
+
+  @Override
+  @PostMapping("/signup/google")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ApiResponse<TokenResponse> signupGoogle(@Valid @RequestBody GoogleSignupRequest request) {
+    return ApiResponse.success(authService.signupGoogle(request.toCommand()));
   }
 
   @Override
