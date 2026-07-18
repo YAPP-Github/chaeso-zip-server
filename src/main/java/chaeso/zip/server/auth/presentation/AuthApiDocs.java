@@ -292,6 +292,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
       description = "브라우저에서 받은 구글 idToken 을 검증하고 계정 상태에 따라 세 분기로 응답한다. "
           + "분기는 LOGIN/LINK_REQUIRED/SIGNUP_REQUIRED 로 판별. "
@@ -331,6 +332,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "linkGoogle", summary = "구글 계정 연결 확인",
       description = "linkRequired:true 응답을 받고 사용자가 확인 UI 에서 '예'를 선택했을 때만 호출한다. "
           + "진입 때 보냈던 idToken 을 그대로 재전송하면 서버가 재검증한 뒤 같은 이메일의 로컬 계정에 "
@@ -361,6 +363,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "signupGoogle", summary = "구글 최종 회원가입",
       description = "POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로 "
           + "신규 회원가입을 완료하고 토큰을 발급한다."
