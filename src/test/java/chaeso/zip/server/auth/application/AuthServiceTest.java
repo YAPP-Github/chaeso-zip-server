@@ -180,21 +180,21 @@ class AuthServiceTest {
   }
 
   @Test
-  @DisplayName("구글로만 가입된 이메일이면 EMAIL_ALREADY_EXISTS를 던지지 않고 코드를 보낸 뒤 안내 코드를 돌려준다")
-  void sendSignupVerificationCode_googleOnly_sendsCodeWithGuidance() {
+  @DisplayName("구글로만 가입된 이메일이면 인증메일을 보내지 않고 구글 로그인 안내 코드만 돌려준다")
+  void sendSignupVerificationCode_googleOnly_returnsGuidanceWithoutSendingMail() {
     User user = UserFixture.user();
     given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
     given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
         .willReturn(Optional.empty());
     given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE))
         .willReturn(Optional.of(AuthIdentity.createGoogle(user.getId(), "google-sub-1")));
-    given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
 
     String code = authService.sendSignupVerificationCode("user@chaeso.zip");
 
     assertThat(code).isEqualTo("EMAIL_ALREADY_USED_WITH_GOOGLE");
-    verify(verificationCodeStore).saveCode(eq("user@chaeso.zip"), anyString());
-    verify(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
+    verify(verificationCodeStore, never()).tryAcquireSendSlot(anyString());
+    verify(verificationCodeStore, never()).saveCode(anyString(), anyString());
+    verify(verificationMailSender, never()).sendVerificationCode(anyString(), anyString());
   }
 
   @Test

@@ -297,7 +297,7 @@ public interface AuthApiDocs {
       description = "브라우저에서 받은 구글 idToken 을 검증하고 계정 상태에 따라 세 분기로 응답한다. "
           + "분기는 LOGIN/LINK_REQUIRED/SIGNUP_REQUIRED 로 판별. "
           + "(1) 구글 계정이 연결돼 있으면 토큰을 발급. "
-          + "(2) 같은 이메일의 로컬 계정만 있으면 linkRequired:true 와 email를 내려준다 - 사용자 확인을 받은 후 POST /auth/google/link 를 호출"
+          + "(2) 같은 이메일의 로컬 계정만 있으면 linkRequired:true 와 email 을 내려준다 - 사용자 확인을 받은 후 POST /auth/google/link 를 호출. "
           + "(3) 가입 이력이 없으면 signupRequired:true 와 일회성 signupToken, 프리필 값을 내려준다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "로그인 성공 / 연결 확인 필요 / 가입 필요",
@@ -363,6 +363,19 @@ public interface AuthApiDocs {
       }
       """;
 
+  String GOOGLE_SIGNUP_SUCCESS_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+          "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+          "accessTokenExpiresIn": 1800,
+          "refreshTokenExpiresIn": 1209600
+        },
+        "error": null
+      }
+      """;
+
   @SecurityRequirements
   @Operation(operationId = "signupGoogle", summary = "구글 최종 회원가입",
       description = "POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로 "
@@ -370,7 +383,7 @@ public interface AuthApiDocs {
           + "가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공, 토큰 발급",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "LOGIN", value = GOOGLE_LOGIN_EXAMPLE)))
+          examples = @ExampleObject(name = "SIGNUP_SUCCESS", value = GOOGLE_SIGNUP_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "입력값 검증 실패(C-001) 또는 signupToken 만료/무효(AUTH-011)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),

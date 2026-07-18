@@ -75,12 +75,13 @@ public class AuthServiceImpl implements AuthService {
   public String sendSignupVerificationCode(String email) {
     String normalized = normalizeEmail(email);
     User user = userRepository.findByEmailAndDeletedAtIsNull(normalized).orElse(null);
-    boolean googleOnly = false;
     if (user != null) {
       if (hasLocalIdentity(user)) {
         throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
       }
-      googleOnly = hasGoogleIdentity(user);
+      if (hasGoogleIdentity(user)) {
+        return EMAIL_ALREADY_USED_WITH_GOOGLE;
+      }
     }
 
     if (!verificationCodeStore.tryAcquireSendSlot(normalized)) {
@@ -94,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
       verificationCodeStore.releaseSendSlot(normalized);
       throw exception;
     }
-    return googleOnly ? EMAIL_ALREADY_USED_WITH_GOOGLE : null;
+    return null;
   }
 
   private boolean hasLocalIdentity(User user) {

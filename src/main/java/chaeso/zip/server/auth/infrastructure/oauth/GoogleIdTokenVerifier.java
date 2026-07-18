@@ -58,7 +58,8 @@ public class GoogleIdTokenVerifier {
     }
 
     GoogleIdToken.Payload payload = token.getPayload();
-    if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+    if (!Boolean.TRUE.equals(payload.getEmailVerified())
+        || payload.getEmail() == null || payload.getEmail().isBlank()) {
       throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
     }
     return new GoogleIdTokenInfo(
