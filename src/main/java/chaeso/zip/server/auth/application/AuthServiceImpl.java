@@ -140,8 +140,6 @@ public class AuthServiceImpl implements AuthService {
     boolean passwordMatches =
         passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
     if (!hasHash || !passwordMatches) {
-      // 매칭은 이미 위에서 수행했으니(상수 시간 유지) 여기서는 실패 사유만 고른다. 계정 존재 자체가 아니라
-      // 가입 수단을 알려주는 것이라 이 경우만 INVALID_CREDENTIALS 통일 원칙의 예외로 둔다.
       if (user != null && !hasHash && hasGoogleIdentity(user)) {
         throw new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
       }
@@ -204,8 +202,8 @@ public class AuthServiceImpl implements AuthService {
   }
 
   /**
-   * sub 는 구글 계정에 유일하다. 같은 sub 의 identity 가 있으면 소유자가 소프트 삭제된 경우에만 재소유시키고
-   * 활성 상태면 거부한다. 더블클릭 등 동시 제출로 인한 유니크 제약 위반은 이미 연결된 것으로 처리한다.
+   * providerUid 는 구글 계정당 하나. 같은 providerUid 의 identity 가 있으면 소유자가 소프트
+   * 삭제된 상태일 때만 재소유시킨다. 소유자가 활성 상태면 거부한다.
    */
   private void attachGoogleIdentity(User user, GoogleIdTokenInfo info) {
     if (hasGoogleIdentity(user)) {
