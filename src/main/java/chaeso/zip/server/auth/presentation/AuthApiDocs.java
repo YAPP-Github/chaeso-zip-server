@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -77,6 +78,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
       description = "가입할 이메일로 6자리 인증코드를 발송한다. 로컬로 이미 가입된 이메일이면 409. "
           + "구글로만 가입된 이메일(로컬 미연결)이면 연결 대상이므로 코드는 그대로 발송하고 "
@@ -110,6 +112,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "verifySignupCode", summary = "회원가입 이메일 인증코드 확인",
       description = "발송된 코드를 검증하고 인증완료 상태로 전환한다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "인증 성공")
@@ -133,6 +136,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "signup", summary = "회원가입 최종 제출",
       description = "이메일 인증 완료 후 로컬 계정을 생성한다. 인증 미완료 시 400, 이메일 중복 시 409.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공")
@@ -171,6 +175,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "login", summary = "로컬 로그인",
       description = "이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401. "
           + "구글로만 가입되어 로컬 인증정보가 없는 이메일이면 AUTH-010 으로 별도 응답한다.")
@@ -212,6 +217,7 @@ public interface AuthApiDocs {
       }
       """;
 
+  @SecurityRequirements
   @Operation(operationId = "refresh", summary = "토큰 재발급",
       description = "Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다. "
           + "기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고 "
