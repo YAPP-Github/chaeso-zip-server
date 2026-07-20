@@ -13,7 +13,6 @@ services:
         condition: service_healthy
         required: false
     ports:
-      - "80:${APP_PORT}"
       - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"
     env_file: .env
     environment:
@@ -29,6 +28,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_PORT: ${APP_PORT:-8080}
+    volumes:
+      - /opt/app/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/app/certs:/certs:ro
+    mem_limit: 128m
+    logging: *default-logging
+
   alloy:
     image: grafana/alloy:latest
     profiles: ["monitoring"]

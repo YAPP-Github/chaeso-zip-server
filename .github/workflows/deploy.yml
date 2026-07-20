@@ -112,3 +112,43 @@ jobs:
 
           curl -sfSL -X POST -H "Content-Type: application/json" \
             -d "$payload" "$WEBHOOK"
+
+  notify-frontend:
+    name: Trigger frontend OpenAPI sync
+    needs: deploy
+    if: ${{ needs.deploy.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Send OpenAPI update event
+        env:
+          FRONTEND_REPO_TOKEN: ${{ secrets.FRONTEND_REPO_TOKEN }}
+          BACKEND_SHA: ${{ github.sha }}
+          BACKEND_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          payload=$(jq -nc \
+            --arg sha "$BACKEND_SHA" \
+            --arg ref "$BACKEND_REF" \
+            '{
+              event_type: "openapi-updated",
+              client_payload: {
+                backend_sha: $sha,
+                backend_ref: $ref
+              }
+            }')
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $FRONTEND_REPO_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --header "Content-Type: application/json" \
+            https://api.github.com/repos/YAPP-Github/28th-Web-Team-4-FE/dispatches \
+            --data "$payload"
+
+          echo "Frontend OpenAPI sync event sent successfully."

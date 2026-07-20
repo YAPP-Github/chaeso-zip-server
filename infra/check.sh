@@ -37,12 +37,21 @@ echo "$services" | grep -qx app && pass "app 컨테이너 기동" || bad "app �
 curl -fsS -m 5 "http://localhost:${mgmt_port}/actuator/health" | grep -q '"status":"UP"' \
   && pass "app actuator health" || bad "app actuator health"
 
-public_http_code=$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://localhost:80/api/v1/samples" || true)
-public_http_code=${public_http_code:-000}
-if [ "$public_http_code" -ge 200 ] 2>/dev/null && [ "$public_http_code" -lt 500 ]; then
-  pass "외부 HTTP 포트 라우팅(${public_http_code})"
+echo "$services" | grep -qx caddy && pass "caddy 컨테이너 기동" || bad "caddy 컨테이너 기동"
+
+redirect_code=$(curl -sS -o /dev/null -w '%{http_code}' -m 5 -H 'Host: api.chaeso-zip.com' http://localhost:80/ || true)
+[ "${redirect_code:-000}" = 308 ] \
+  && pass "HTTP→HTTPS 리다이렉트(308)" || bad "HTTP→HTTPS 리다이렉트(${redirect_code:-000})"
+
+aop_ca_cn=$(sudo openssl x509 -in /opt/app/certs/aop-ca.pem -noout -subject -nameopt multiline 2>/dev/null \
+  | sed -n 's/^ *commonName *= *//p')
+if [ -z "$aop_ca_cn" ]; then
+  bad "AOP mTLS 강제(aop-ca.pem 읽기 실패)"
+elif echo | timeout 8 openssl s_client -connect localhost:443 -servername api.chaeso-zip.com 2>&1 \
+  | grep -qF "$aop_ca_cn"; then
+  pass "AOP mTLS 강제(CA ${aop_ca_cn})"
 else
-  bad "외부 HTTP 포트 라우팅(${public_http_code})"
+  bad "AOP mTLS 강제(클라이언트 인증서 미요구 또는 CA 불일치)"
 fi
 
 app_container=$(sudo docker compose ps -q app)
