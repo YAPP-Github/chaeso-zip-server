@@ -1,0 +1,88 @@
+name: chaeso-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: ghcr.io/yapp-github/chaeso-zip-server:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/chaeso_zip
+      DB_USERNAME: chaeso
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      SENTRY_ENV: dev
+      SWAGGER_ENABLED: "true"
+    mem_limit: 900m
+    cpus: 1.5
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8081; echo -e 'GET /actuator/health HTTP/1.0\r\n\r\n' >&3; grep -q UP <&3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chaeso_zip
+      POSTGRES_USER: chaeso
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    mem_limit: 384m
+    cpus: 0.5
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    volumes:
+      - /data/redis:/data
+    mem_limit: 192m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  mailpit:
+    image: axllent/mailpit:v1.21.1
+    restart: unless-stopped
+    environment:
+      MP_WEBROOT: /mail
+    ports:
+      - "127.0.0.1:8025:8025"
+    mem_limit: 128m
+    logging: *default-logging
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

@@ -38,6 +38,7 @@ dependencies {
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
     implementation libs.jjwt.api
+    implementation libs.google.api.client
     compileOnly libs.lombok
     runtimeOnly libs.postgresql
     runtimeOnly libs.jjwt.impl

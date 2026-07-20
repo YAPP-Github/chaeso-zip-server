@@ -1,5 +1,7 @@
 package chaeso.zip.server.auth.application;
 
+import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
@@ -17,6 +19,9 @@ import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateOutcome;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.User;
@@ -25,8 +30,10 @@ import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * {@link AuthService} 구현. 이메일은 trim + lowercase 로 정규화해 동일 계정으로 취급한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -50,6 +58,8 @@ public class AuthServiceImpl implements AuthService {
   private final JwtTokenProvider jwtTokenProvider;
   private final JwtProperties jwtProperties;
   private final RefreshTokenStore refreshTokenStore;
+  private final GoogleIdTokenVerifier googleIdTokenVerifier;
+  private final GoogleSignupStore googleSignupStore;
 
   private final SecureRandom secureRandom = new SecureRandom();
 
@@ -62,14 +72,18 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public void sendSignupVerificationCode(String email) {
+  public String sendSignupVerificationCode(String email) {
     String normalized = normalizeEmail(email);
-    // TODO(google): 구글 로그인 도입 시 user 단위 존재 검사를 AuthIdentity provider 단위로 승격 —
-    //   로컬 가입 존재시 = 409 EMAIL_ALREADY_EXISTS
-    //   구글 가입 존재시 = 200 EMAIL_ALREADY_USED_WITH_GOOGLE(연결) / 신규=200 발송
-    if (userRepository.existsByEmailAndDeletedAtIsNull(normalized)) {
-      throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+    User user = userRepository.findByEmailAndDeletedAtIsNull(normalized).orElse(null);
+    if (user != null) {
+      if (hasLocalIdentity(user)) {
+        throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+      }
+      if (hasGoogleIdentity(user)) {
+        return EMAIL_ALREADY_USED_WITH_GOOGLE;
+      }
     }
+
     if (!verificationCodeStore.tryAcquireSendSlot(normalized)) {
       throw new AuthBusinessException(AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN);
     }
@@ -81,6 +95,12 @@ public class AuthServiceImpl implements AuthService {
       verificationCodeStore.releaseSendSlot(normalized);
       throw exception;
     }
+    return null;
+  }
+
+  private boolean hasLocalIdentity(User user) {
+    return authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
+        .isPresent();
   }
 
   @Override
@@ -121,18 +141,12 @@ public class AuthServiceImpl implements AuthService {
     boolean passwordMatches =
         passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
     if (!hasHash || !passwordMatches) {
+      if (user != null && !hasHash && hasGoogleIdentity(user)) {
+        throw new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+      }
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
-
-    UUID userId = user.getId();
-    String familyId = UUID.randomUUID().toString();
-    String jti = UUID.randomUUID().toString();
-    Duration refreshTtl = refreshTokenStore.save(userId, familyId, jti);
-
-    user.recordLogin(AuthProvider.LOCAL);
-    userRepository.save(user);
-
-    return tokenResponse(userId, familyId, jti, refreshTtl);
+    return openSession(user, AuthProvider.LOCAL);
   }
 
   @Override
@@ -157,6 +171,119 @@ public class AuthServiceImpl implements AuthService {
       throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
     refreshTokenStore.revoke(info.userId(), info.familyId());
+  }
+
+  /**
+   * 구글 계정 상태는 이메일로 판정.
+   */
+  @Override
+  public GoogleAuthResponse googleAuth(String idToken) {
+    GoogleIdTokenInfo info = googleIdTokenVerifier.verify(idToken);
+    String email = normalizeEmail(info.email());
+
+    User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+    if (user == null) {
+      return GoogleAuthResponse.signupRequired(googleSignupStore.save(info), email, info.name());
+    }
+    if (hasGoogleIdentity(user)) {
+      return GoogleAuthResponse.login(openSession(user, AuthProvider.GOOGLE));
+    }
+    return GoogleAuthResponse.linkRequired(email);
+  }
+
+  @Override
+  public TokenResponse linkGoogle(String idToken) {
+    GoogleIdTokenInfo info = googleIdTokenVerifier.verify(idToken);
+    String email = normalizeEmail(info.email());
+
+    User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+        .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED));
+    attachGoogleIdentity(user, info);
+    return openSession(user, AuthProvider.GOOGLE);
+  }
+
+  /**
+   * providerUid 는 구글 계정당 하나. 같은 providerUid 의 identity 가 있으면 소유자가 소프트
+   * 삭제된 상태일 때만 재소유시킨다. 소유자가 활성 상태면 거부한다.
+   */
+  private void attachGoogleIdentity(User user, GoogleIdTokenInfo info) {
+    if (hasGoogleIdentity(user)) {
+      return;
+    }
+    Optional<AuthIdentity> existing =
+        authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, info.sub());
+    if (existing.isPresent()) {
+      AuthIdentity identity = existing.get();
+      if (userRepository.findByIdAndDeletedAtIsNull(identity.getUserId()).isPresent()) {
+        log.warn("Google sub already linked to a different active user; refusing to reassign. "
+            + "identityId={}, activeOwnerId={}", identity.getId(), identity.getUserId());
+        throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
+      }
+      log.warn("Reassigning orphaned GOOGLE identity from a deleted/missing user. "
+          + "identityId={}, previousOwnerId={}, newOwnerId={}",
+          identity.getId(), identity.getUserId(), user.getId());
+      identity.reassignTo(user.getId());
+      authIdentityRepository.save(identity);
+      return;
+    }
+    try {
+      authIdentityRepository.save(AuthIdentity.createGoogle(user.getId(), info.sub()));
+    } catch (DataIntegrityViolationException e) {
+      // 이메일 존재 확인 직후 동시 제출(더블클릭)이 먼저 저장한 경우. 이미 연결된 것으로 본다.
+    }
+  }
+
+  private boolean hasGoogleIdentity(User user) {
+    return authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE)
+        .isPresent();
+  }
+
+  @Override
+  public TokenResponse signupGoogle(GoogleSignupCommand command) {
+    GoogleIdTokenInfo info = googleSignupStore.find(command.signupToken())
+        .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.GOOGLE_SIGNUP_SESSION_INVALID));
+    String email = normalizeEmail(info.email());
+
+    User user = saveGoogleUser(command, email);
+    try {
+      attachGoogleIdentity(user, info);
+    } catch (AuthBusinessException exception) {
+      userRepository.delete(user);
+      throw exception;
+    }
+    googleSignupStore.delete(command.signupToken());
+
+    return openSession(user, AuthProvider.GOOGLE);
+  }
+
+  private User saveGoogleUser(GoogleSignupCommand command, String email) {
+    try {
+      return userRepository.saveAndFlush(User.create(
+          email,
+          command.nickname(),
+          command.companyName(),
+          command.occupation(),
+          command.termsAgreed(),
+          command.marketingAgreed(),
+          consentProperties.toVersions()));
+    } catch (DataIntegrityViolationException exception) {
+      throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+    }
+  }
+
+  /**
+   * 새 refresh family 를 열고 토큰 쌍을 발급한다.
+   */
+  private TokenResponse openSession(User user, AuthProvider provider) {
+    UUID userId = user.getId();
+    String familyId = UUID.randomUUID().toString();
+    String jti = UUID.randomUUID().toString();
+    Duration refreshTtl = refreshTokenStore.save(userId, familyId, jti);
+
+    user.recordLogin(provider);
+    userRepository.save(user);
+
+    return tokenResponse(userId, familyId, jti, refreshTtl);
   }
 
   /**

@@ -41,6 +41,9 @@ jwt:
   refresh-absolute-ttl: P90D
 
 app:
+  google:
+    client-id: test-google-client-id
+    signup-ttl: PT10M
   cors:
     allowed-origins: http://localhost:3000
   consent:

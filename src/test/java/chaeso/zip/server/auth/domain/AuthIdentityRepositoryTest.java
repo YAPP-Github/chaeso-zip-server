@@ -49,4 +49,17 @@ class AuthIdentityRepositoryTest {
         assertThatThrownBy(() -> authIdentityRepository.saveAndFlush(duplicateIdentity))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    @DisplayName("provider 와 provider_uid 로 소유 유저와 무관하게 조회된다")
+    void findByProviderAndProviderUid() {
+        User user = userRepository.save(UserFixture.user("sub-lookup@chaeso.zip"));
+        authIdentityRepository.save(AuthIdentity.createGoogle(user.getId(), "google-sub-x"));
+
+        assertThat(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-x"))
+                .isPresent()
+                .get()
+                .extracting(AuthIdentity::getUserId)
+                .isEqualTo(user.getId());
+    }
 }

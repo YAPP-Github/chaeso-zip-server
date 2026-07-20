@@ -59,6 +59,7 @@ services:
       JPA_SHOW_SQL: ${JPA_SHOW_SQL:-false}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
     ports:
       - "${APP_PORT:-8080}:8080"
       - "127.0.0.1:${MANAGEMENT_PORT:-8081}:8081"
