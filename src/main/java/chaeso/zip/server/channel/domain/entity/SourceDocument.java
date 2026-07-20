@@ -54,7 +54,7 @@ public class SourceDocument extends BaseEntity {
   @Column(length = 20)
   private String priority;
 
-  @Column(name = "valid_period", length = 100)
+  @Column(name = "valid_period", length = 255)
   private String validPeriod;
 
   @Column(name = "data_quality", length = 20)

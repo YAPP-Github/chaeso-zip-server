@@ -55,10 +55,10 @@ public class ChannelPricing extends BaseEntity {
   @Column(nullable = false, length = 20)
   private Vat vat;
 
-  @Column(length = 100)
+  @Column(length = 255)
   private String segment;
 
-  @Column(name = "valid_period", length = 100)
+  @Column(name = "valid_period", length = 255)
   private String validPeriod;
 
   @Column(name = "raw_text")
