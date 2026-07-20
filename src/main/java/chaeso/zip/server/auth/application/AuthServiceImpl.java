@@ -3,6 +3,7 @@ package chaeso.zip.server.auth.application;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
 import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
+import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
@@ -22,6 +23,7 @@ import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
+import chaeso.zip.server.auth.infrastructure.ratelimit.LoginMethodLookupLimiter;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.User;
@@ -29,6 +31,8 @@ import chaeso.zip.server.user.domain.UserRepository;
 import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,6 +64,7 @@ public class AuthServiceImpl implements AuthService {
   private final RefreshTokenStore refreshTokenStore;
   private final GoogleIdTokenVerifier googleIdTokenVerifier;
   private final GoogleSignupStore googleSignupStore;
+  private final LoginMethodLookupLimiter loginMethodLookupLimiter;
 
   private final SecureRandom secureRandom = new SecureRandom();
 
@@ -150,6 +155,21 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional(readOnly = true)
+  public LoginMethodsResponse findLoginMethods(String email, String clientIp) {
+    if (!loginMethodLookupLimiter.tryAcquire(clientIp)) {
+      throw new AuthBusinessException(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
+    }
+    return userRepository.findByEmailAndDeletedAtIsNull(normalizeEmail(email))
+        .map(user -> authIdentityRepository.findAllByUserId(user.getId()).stream()
+            .map(AuthIdentity::getProvider)
+            .sorted(Comparator.naturalOrder())
+            .toList())
+        .map(LoginMethodsResponse::new)
+        .orElseGet(() -> new LoginMethodsResponse(List.of()));
+  }
+
+  @Override
   public TokenResponse reissue(String refreshToken) {
     RefreshTokenInfo info = parseRefreshToken(refreshToken);
     String newJti = UUID.randomUUID().toString();
@@ -229,7 +249,7 @@ public class AuthServiceImpl implements AuthService {
     try {
       authIdentityRepository.save(AuthIdentity.createGoogle(user.getId(), info.sub()));
     } catch (DataIntegrityViolationException e) {
-      // 이메일 존재 확인 직후 동시 제출(더블클릭)이 먼저 저장한 경우. 이미 연결된 것으로 본다.
+      // 동시 제출(더블클릭)로 먼저 저장된 경우. 이미 연결된 것으로 본다.
     }
   }
 
@@ -239,18 +259,14 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional
   public TokenResponse signupGoogle(GoogleSignupCommand command) {
     GoogleIdTokenInfo info = googleSignupStore.find(command.signupToken())
         .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.GOOGLE_SIGNUP_SESSION_INVALID));
     String email = normalizeEmail(info.email());
 
     User user = saveGoogleUser(command, email);
-    try {
-      attachGoogleIdentity(user, info);
-    } catch (AuthBusinessException exception) {
-      userRepository.delete(user);
-      throw exception;
-    }
+    attachGoogleIdentity(user, info);
     googleSignupStore.delete(command.signupToken());
 
     return openSession(user, AuthProvider.GOOGLE);
