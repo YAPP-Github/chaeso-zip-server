@@ -10,6 +10,8 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
@@ -27,6 +29,9 @@ import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateOutcome;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
 import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
+import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.application.ConsentProperties;
@@ -43,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mail.MailSendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -73,6 +79,12 @@ class AuthServiceTest {
   @Mock
   private RefreshTokenStore refreshTokenStore;
 
+  @Mock
+  private GoogleIdTokenVerifier googleIdTokenVerifier;
+
+  @Mock
+  private GoogleSignupStore googleSignupStore;
+
   private static final JwtProperties JWT_PROPERTIES =
       new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
           Duration.ofDays(90));
@@ -90,7 +102,9 @@ class AuthServiceTest {
         new ConsentProperties("v1.0"),
         jwtTokenProvider,
         JWT_PROPERTIES,
-        refreshTokenStore);
+        refreshTokenStore,
+        googleIdTokenVerifier,
+        googleSignupStore);
   }
 
   private static LoginCommand loginCommand() {
@@ -116,11 +130,12 @@ class AuthServiceTest {
   @Test
   @DisplayName("미가입 이메일이면 인증 코드를 저장하고 메일을 보낸다")
   void sendSignupVerificationCode_success() {
-    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
     given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
 
-    authService.sendSignupVerificationCode("  User@Chaeso.Zip  ");
+    String code = authService.sendSignupVerificationCode("  User@Chaeso.Zip  ");
 
+    assertThat(code).isNull();
     verify(verificationCodeStore).saveCode(eq("user@chaeso.zip"), anyString());
     verify(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
   }
@@ -128,7 +143,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("메일 발송이 실패하면 쿨다운 슬롯을 해제해 즉시 재요청을 허용한다")
   void sendSignupVerificationCode_mailFailureReleasesCooldown() {
-    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
     given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
     willThrow(new MailSendException("smtp down"))
         .given(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
@@ -141,7 +156,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("인증 코드 발송 쿨다운 중이면 AUTH-008로 실패하고 메일을 보내지 않는다")
   void sendSignupVerificationCode_cooldown() {
-    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
     given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(false);
 
     assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
@@ -151,14 +166,49 @@ class AuthServiceTest {
   }
 
   @Test
-  @DisplayName("이미 가입된 이메일이면 EMAIL_ALREADY_EXISTS로 실패하고 메일을 보내지 않는다")
+  @DisplayName("이미 로컬로 가입된 이메일이면 EMAIL_ALREADY_EXISTS로 실패하고 메일을 보내지 않는다")
   void sendSignupVerificationCode_duplicate() {
-    given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(true);
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "ENCODED")));
 
     assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
         .isInstanceOf(AuthBusinessException.class)
         .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     verify(verificationMailSender, never()).sendVerificationCode(anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("구글로만 가입된 이메일이면 인증메일을 보내지 않고 구글 로그인 안내 코드만 돌려준다")
+  void sendSignupVerificationCode_googleOnly_returnsGuidanceWithoutSendingMail() {
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.empty());
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE))
+        .willReturn(Optional.of(AuthIdentity.createGoogle(user.getId(), "google-sub-1")));
+
+    String code = authService.sendSignupVerificationCode("user@chaeso.zip");
+
+    assertThat(code).isEqualTo("EMAIL_ALREADY_USED_WITH_GOOGLE");
+    verify(verificationCodeStore, never()).tryAcquireSendSlot(anyString());
+    verify(verificationCodeStore, never()).saveCode(anyString(), anyString());
+    verify(verificationMailSender, never()).sendVerificationCode(anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("로컬과 구글이 모두 연결된 이메일이면 구글 안내가 아니라 EMAIL_ALREADY_EXISTS로 실패한다")
+  void sendSignupVerificationCode_localAndGoogleLinked_stillRejected() {
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "ENCODED")));
+
+    assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+    verify(authIdentityRepository, never()).findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE);
   }
 
   @Test
@@ -281,6 +331,24 @@ class AuthServiceTest {
     assertThatThrownBy(() -> authService.login(command))
         .isInstanceOf(AuthBusinessException.class)
         .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+  }
+
+  @Test
+  @DisplayName("구글로만 가입된 계정으로 로컬 로그인을 시도하면 상수 시간 매칭 뒤 ACCOUNT_REGISTERED_WITH_GOOGLE로 실패한다")
+  void login_googleOnlyAccount_rejectedWithGoogleGuidance() {
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.of(user));
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+        .willReturn(Optional.empty());
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE))
+        .willReturn(Optional.of(AuthIdentity.createGoogle(user.getId(), "google-sub-1")));
+    LoginCommand command = loginCommand();
+
+    assertThatThrownBy(() -> authService.login(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+    verify(passwordEncoder).matches(anyString(), any());
+    verify(jwtTokenProvider, never()).createAccessToken(any());
   }
 
   @Test
@@ -460,4 +528,349 @@ class AuthServiceTest {
     verify(refreshTokenStore, never()).revoke(any(), anyString());
   }
 
+  private static final GoogleIdTokenInfo GOOGLE_INFO =
+      new GoogleIdTokenInfo("google-sub-1", "user@chaeso.zip", "홍길동");
+
+  /** 구글이 검증한 idToken 이 들어오는 상황. 이후 분기는 계정 상태가 정한다. */
+  private void givenVerifiedGoogleToken() {
+    given(googleIdTokenVerifier.verify("id-token")).willReturn(GOOGLE_INFO);
+  }
+
+  private void givenGoogleIdentity(User user, boolean linked) {
+    given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE))
+        .willReturn(linked
+            ? Optional.of(AuthIdentity.createGoogle(user.getId(), "google-sub-1"))
+            : Optional.empty());
+  }
+
+  @Test
+  @DisplayName("구글 계정이 연결된 유저면 토큰을 발급하고 GOOGLE 로그인으로 기록한다")
+  void googleAuth_linkedUser_login() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, true);
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    GoogleAuthResponse response = authService.googleAuth("id-token");
+
+    assertThat(response.accessToken()).isEqualTo("access");
+    assertThat(response.refreshToken()).isEqualTo("refresh");
+    assertThat(response.linkRequired()).isNull();
+    assertThat(response.signupRequired()).isNull();
+    assertThat(user.getLastLoginProvider()).isEqualTo(AuthProvider.GOOGLE);
+  }
+
+  @Test
+  @DisplayName("같은 이메일의 로컬 계정만 있으면 연결하지 않고 linkRequired 로 사용자 확인을 요구한다")
+  void googleAuth_localOnly_requiresLinkConfirmation() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+
+    GoogleAuthResponse response = authService.googleAuth("id-token");
+
+    assertThat(response.linkRequired()).isTrue();
+    assertThat(response.email()).isEqualTo("user@chaeso.zip");
+    assertThat(response.accessToken()).isNull();
+    assertThat(response.refreshToken()).isNull();
+  }
+
+  @Test
+  @DisplayName("자동 연결 금지: linkRequired 시점에는 AuthIdentity 도 토큰도 만들지 않는다")
+  void googleAuth_localOnly_createsNothing() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+
+    authService.googleAuth("id-token");
+
+    verify(authIdentityRepository, never()).save(any());
+    verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("가입 이력이 없으면 구글 클레임을 보관하고 signupToken 과 프리필을 발급한다")
+  void googleAuth_newUser_issuesSignupToken() {
+    givenVerifiedGoogleToken();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.empty());
+    given(googleSignupStore.save(GOOGLE_INFO)).willReturn("signup-ticket");
+
+    GoogleAuthResponse response = authService.googleAuth("id-token");
+
+    assertThat(response.signupRequired()).isTrue();
+    assertThat(response.signupToken()).isEqualTo("signup-ticket");
+    assertThat(response.prefill().email()).isEqualTo("user@chaeso.zip");
+    assertThat(response.prefill().suggestedNickname()).isEqualTo("홍길동");
+    assertThat(response.accessToken()).isNull();
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("구글 계정에 이름이 없으면 프리필 닉네임은 null 이다")
+  void googleAuth_newUserWithoutName_prefillNicknameIsNull() {
+    GoogleIdTokenInfo noName = new GoogleIdTokenInfo("google-sub-1", "user@chaeso.zip", null);
+    given(googleIdTokenVerifier.verify("id-token")).willReturn(noName);
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.empty());
+    given(googleSignupStore.save(noName)).willReturn("signup-ticket");
+
+    GoogleAuthResponse response = authService.googleAuth("id-token");
+
+    assertThat(response.prefill().suggestedNickname()).isNull();
+  }
+
+  @Test
+  @DisplayName("구글 이메일은 정규화해 같은 계정으로 매핑한다")
+  void googleAuth_normalizesEmail() {
+    given(googleIdTokenVerifier.verify("id-token"))
+        .willReturn(new GoogleIdTokenInfo("google-sub-1", "  User@Chaeso.ZIP ", "홍길동"));
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.empty());
+    given(googleSignupStore.save(any())).willReturn("signup-ticket");
+
+    GoogleAuthResponse response = authService.googleAuth("id-token");
+
+    assertThat(response.prefill().email()).isEqualTo("user@chaeso.zip");
+  }
+
+  @Test
+  @DisplayName("사용자 확인 후 연결하면 GOOGLE identity 를 만들고 토큰을 발급한다")
+  void linkGoogle_createsIdentityAndIssuesTokens() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+    given(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-1"))
+        .willReturn(Optional.empty());
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    TokenResponse response = authService.linkGoogle("id-token");
+
+    assertThat(response.accessToken()).isEqualTo("access");
+    ArgumentCaptor<AuthIdentity> captor = ArgumentCaptor.forClass(AuthIdentity.class);
+    verify(authIdentityRepository).save(captor.capture());
+    assertThat(captor.getValue().getProvider()).isEqualTo(AuthProvider.GOOGLE);
+    assertThat(captor.getValue().getProviderUid()).isEqualTo("google-sub-1");
+    assertThat(captor.getValue().getPasswordHash()).isNull();
+  }
+
+  @Test
+  @DisplayName("동시 제출(더블클릭) 레이스로 유니크 제약과 충돌해도 토큰을 발급한다")
+  void linkGoogle_uniqueViolation_stillIssuesTokens() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+    given(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-1"))
+        .willReturn(Optional.empty());
+    willThrow(new DataIntegrityViolationException("duplicate"))
+        .given(authIdentityRepository).save(any());
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    TokenResponse response = authService.linkGoogle("id-token");
+
+    assertThat(response.accessToken()).isEqualTo("access");
+  }
+
+  @Test
+  @DisplayName("소프트 삭제된 계정에 남은 identity 는 새로 만들지 않고 새 유저로 재소유시킨다")
+  void linkGoogle_orphanedIdentity_reassignsToNewOwner() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    UUID deletedOwnerId = UUID.randomUUID();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+    AuthIdentity orphaned = AuthIdentity.createGoogle(deletedOwnerId, "google-sub-1");
+    given(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-1"))
+        .willReturn(Optional.of(orphaned));
+    given(userRepository.findByIdAndDeletedAtIsNull(deletedOwnerId)).willReturn(Optional.empty());
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    TokenResponse response = authService.linkGoogle("id-token");
+
+    assertThat(response.accessToken()).isEqualTo("access");
+    ArgumentCaptor<AuthIdentity> captor = ArgumentCaptor.forClass(AuthIdentity.class);
+    verify(authIdentityRepository).save(captor.capture());
+    assertThat(captor.getValue()).isSameAs(orphaned);
+    assertThat(captor.getValue().getUserId()).isEqualTo(user.getId());
+  }
+
+  @Test
+  @DisplayName("같은 구글 계정이 이미 활성 유저에게 연결돼 있으면 재소유하지 않고 AUTH-009로 거부한다")
+  void linkGoogle_identityOwnedByActiveUser_rejected() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    UUID otherUserId = UUID.randomUUID();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, false);
+    AuthIdentity ownedByOther = AuthIdentity.createGoogle(otherUserId, "google-sub-1");
+    given(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-1"))
+        .willReturn(Optional.of(ownedByOther));
+    given(userRepository.findByIdAndDeletedAtIsNull(otherUserId))
+        .willReturn(Optional.of(UserFixture.user("other@chaeso.zip")));
+
+    assertThatThrownBy(() -> authService.linkGoogle("id-token"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.GOOGLE_AUTH_FAILED);
+    verify(authIdentityRepository, never()).save(any());
+    verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("이미 연결된 계정에 다시 연결해도 identity 를 새로 만들지 않고 토큰만 발급한다")
+  void linkGoogle_alreadyLinked_isIdempotent() {
+    givenVerifiedGoogleToken();
+    User user = UserFixture.user();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    givenGoogleIdentity(user, true);
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    TokenResponse response = authService.linkGoogle("id-token");
+
+    assertThat(response.accessToken()).isEqualTo("access");
+    verify(authIdentityRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("연결 확인 중 idToken 이 만료되면 AUTH-009로 떨어지고 아무것도 연결하지 않는다")
+  void linkGoogle_expiredIdToken_rejected() {
+    willThrow(new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED))
+        .given(googleIdTokenVerifier).verify("expired-token");
+
+    assertThatThrownBy(() -> authService.linkGoogle("expired-token"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.GOOGLE_AUTH_FAILED);
+
+    verify(authIdentityRepository, never()).save(any());
+    verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("붙을 계정이 사라졌으면 AUTH-009로 떨어져 구글 로그인을 다시 태우게 한다")
+  void linkGoogle_noAccount_rejected() {
+    givenVerifiedGoogleToken();
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.linkGoogle("id-token"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(AuthErrorCode.GOOGLE_AUTH_FAILED);
+
+    verify(authIdentityRepository, never()).save(any());
+  }
+
+  private static GoogleSignupCommand googleSignupCommand(String signupToken) {
+    return new GoogleSignupCommand(signupToken, "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT, true,
+        false);
+  }
+
+  @Test
+  @DisplayName("가입 티켓이 없거나 만료됐으면 GOOGLE_SIGNUP_SESSION_INVALID로 실패한다")
+  void signupGoogle_missingTicket_rejected() {
+    given(googleSignupStore.find("no-such-token")).willReturn(Optional.empty());
+    GoogleSignupCommand command = googleSignupCommand("no-such-token");
+
+    assertThatThrownBy(() -> authService.signupGoogle(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.GOOGLE_SIGNUP_SESSION_INVALID);
+
+    verify(userRepository, never()).saveAndFlush(any());
+    verify(authIdentityRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("유효한 티켓이면 회원과 GOOGLE 인증정보를 만들고 티켓을 폐기한 뒤 토큰을 발급한다")
+  void signupGoogle_success() {
+    given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+    given(userRepository.saveAndFlush(any(User.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+    given(jwtTokenProvider.createAccessToken(any())).willReturn("access");
+    given(jwtTokenProvider.createRefreshToken(any(), anyString(), anyString())).willReturn("refresh");
+
+    TokenResponse response = authService.signupGoogle(googleSignupCommand("signup-ticket"));
+
+    assertThat(response.accessToken()).isEqualTo("access");
+    assertThat(response.refreshToken()).isEqualTo("refresh");
+
+    ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).saveAndFlush(userCaptor.capture());
+    assertThat(userCaptor.getValue().getEmail()).isEqualTo("user@chaeso.zip");
+    assertThat(userCaptor.getValue().getNickname()).isEqualTo("채소러버");
+    assertThat(userCaptor.getValue().getLastLoginProvider()).isEqualTo(AuthProvider.GOOGLE);
+
+    ArgumentCaptor<AuthIdentity> identityCaptor = ArgumentCaptor.forClass(AuthIdentity.class);
+    verify(authIdentityRepository).save(identityCaptor.capture());
+    assertThat(identityCaptor.getValue().getProvider()).isEqualTo(AuthProvider.GOOGLE);
+    assertThat(identityCaptor.getValue().getProviderUid()).isEqualTo("google-sub-1");
+    assertThat(identityCaptor.getValue().getPasswordHash()).isNull();
+
+    verify(googleSignupStore).delete("signup-ticket");
+  }
+
+  @Test
+  @DisplayName("가입 처리 중 타인이 먼저 같은 이메일로 가입했으면 EMAIL_ALREADY_EXISTS로 실패하고 티켓을 남겨둔다")
+  void signupGoogle_emailTakenConcurrently_rejected() {
+    given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+    willThrow(new DataIntegrityViolationException("duplicate"))
+        .given(userRepository).saveAndFlush(any(User.class));
+    GoogleSignupCommand command = googleSignupCommand("signup-ticket");
+
+    assertThatThrownBy(() -> authService.signupGoogle(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+
+    verify(authIdentityRepository, never()).save(any());
+    verify(googleSignupStore, never()).delete(anyString());
+  }
+
+  @Test
+  @DisplayName("가입 대상 이메일의 구글 sub 가 이미 활성 유저에게 연결돼 있으면 방금 만든 유저를 되돌리고 티켓을 남겨둔다")
+  void signupGoogle_identityOwnedByActiveUser_rollsBackCreatedUser() {
+    given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+    given(userRepository.saveAndFlush(any(User.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    UUID otherUserId = UUID.randomUUID();
+    AuthIdentity ownedByOther = AuthIdentity.createGoogle(otherUserId, "google-sub-1");
+    given(authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, "google-sub-1"))
+        .willReturn(Optional.of(ownedByOther));
+    given(userRepository.findByIdAndDeletedAtIsNull(otherUserId))
+        .willReturn(Optional.of(UserFixture.user("other@chaeso.zip")));
+    GoogleSignupCommand command = googleSignupCommand("signup-ticket");
+
+    assertThatThrownBy(() -> authService.signupGoogle(command))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.GOOGLE_AUTH_FAILED);
+
+    ArgumentCaptor<User> deletedUserCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).delete(deletedUserCaptor.capture());
+    assertThat(deletedUserCaptor.getValue().getEmail()).isEqualTo("user@chaeso.zip");
+    verify(authIdentityRepository, never()).save(any());
+    verify(googleSignupStore, never()).delete(anyString());
+    verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
+  }
 }

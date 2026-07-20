@@ -75,6 +75,9 @@ jwt:
   refresh-absolute-ttl: ${JWT_REFRESH_ABSOLUTE_TTL:P90D}
 
 app:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID}
+    signup-ttl: ${GOOGLE_SIGNUP_TTL:PT10M}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   consent:

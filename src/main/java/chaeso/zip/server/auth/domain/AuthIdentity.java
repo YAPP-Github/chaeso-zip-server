@@ -66,4 +66,14 @@ public class AuthIdentity {
     public static AuthIdentity createLocal(UUID userId, String passwordHash) {
         return new AuthIdentity(userId, AuthProvider.LOCAL, null, passwordHash);
     }
+
+    /** 구글 로그인. 비밀번호가 없고 providerUid 는 구글 {@code sub}. */
+    public static AuthIdentity createGoogle(UUID userId, String providerUid) {
+        return new AuthIdentity(userId, AuthProvider.GOOGLE, providerUid, null);
+    }
+
+    /** 이전 소유자가 soft delete된 identity 를 새 유저로 옮긴다. provider/providerUid 는 그대로 유지. */
+    public void reassignTo(UUID newUserId) {
+        this.userId = newUserId;
+    }
 }
