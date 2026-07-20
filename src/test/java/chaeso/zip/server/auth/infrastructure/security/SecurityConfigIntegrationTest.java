@@ -64,6 +64,11 @@ class SecurityConfigIntegrationTest {
       return "ok";
     }
 
+    @PostMapping("/api/v1/auth/login/methods")
+    String loginMethodsProbe() {
+      return "ok";
+    }
+
     @PostMapping("/api/v1/auth/refresh")
     String refreshProbe() {
       return "ok";
@@ -159,6 +164,13 @@ class SecurityConfigIntegrationTest {
             .header("Origin", "http://evil.example.com")
             .header("Access-Control-Request-Method", "GET"))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("로그인 수단 조회는 토큰 없이 접근할 수 있다")
+  void loginMethods_isPublic() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/login/methods"))
+        .andExpect(status().isOk());
   }
 
   @Test

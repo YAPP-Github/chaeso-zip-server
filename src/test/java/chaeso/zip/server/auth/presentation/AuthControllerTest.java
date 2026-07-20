@@ -3,6 +3,7 @@ package chaeso.zip.server.auth.presentation;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -15,13 +16,16 @@ import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
 import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
+import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
+import chaeso.zip.server.auth.domain.AuthProvider;
 import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
 import chaeso.zip.server.auth.presentation.dto.GoogleSignupRequest;
+import chaeso.zip.server.auth.presentation.dto.LoginMethodsRequest;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
@@ -432,7 +436,7 @@ class AuthControllerTest {
   }
 
   @Test
-  @DisplayName("구글 최종 회원가입이 성공하면 201과 토큰을 반환한다")
+  @DisplayName("구글 최종 회원가입이 성공하면 200과 토큰을 반환한다")
   void signupGoogle_success() throws Exception {
     given(authService.signupGoogle(any(GoogleSignupCommand.class)))
         .willReturn(new TokenResponse("access", "refresh", 1800L, 1209600L));
@@ -440,7 +444,7 @@ class AuthControllerTest {
     mockMvc.perform(post("/api/v1/auth/signup/google")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(validGoogleSignupRequest())))
-        .andExpect(status().isCreated())
+        .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.accessToken").value("access"))
         .andExpect(jsonPath("$.data.refreshToken").value("refresh"));
@@ -498,5 +502,47 @@ class AuthControllerTest {
             .content(objectMapper.writeValueAsString(validGoogleSignupRequest())))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("AUTH-002"));
+  }
+
+  @Test
+  @DisplayName("이메일로 로그인 수단을 조회하면 methods 배열을 돌려준다")
+  void loginMethods_returnsMethods() throws Exception {
+    given(authService.findLoginMethods(anyString(), anyString()))
+        .willReturn(new LoginMethodsResponse(List.of(AuthProvider.LOCAL, AuthProvider.GOOGLE)));
+
+    mockMvc.perform(post("/api/v1/auth/login/methods")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new LoginMethodsRequest("user@chaeso.zip"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.methods[0]").value("LOCAL"))
+        .andExpect(jsonPath("$.data.methods[1]").value("GOOGLE"));
+
+    then(authService).should().findLoginMethods(eq("user@chaeso.zip"), anyString());
+  }
+
+  @Test
+  @DisplayName("이메일 형식이 아니면 400 을 돌려준다")
+  void loginMethods_invalidEmail_returns400() throws Exception {
+    mockMvc.perform(post("/api/v1/auth/login/methods")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(new LoginMethodsRequest("not-an-email"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"));
+  }
+
+  @Test
+  @DisplayName("조회 한도를 넘으면 429 AUTH-012 를 돌려준다")
+  void loginMethods_rateLimited_returns429() throws Exception {
+    willThrow(new AuthBusinessException(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN))
+        .given(authService).findLoginMethods(anyString(), anyString());
+
+    mockMvc.perform(post("/api/v1/auth/login/methods")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new LoginMethodsRequest("user@chaeso.zip"))))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.error.code").value("AUTH-012"));
   }
 }
