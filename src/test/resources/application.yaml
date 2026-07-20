@@ -54,3 +54,6 @@ app:
     verified-ttl: PT30M
     max-verify-attempts: 5
     send-cooldown: PT1M
+  login-method-lookup:
+    max-attempts: 30
+    window: PT1M
