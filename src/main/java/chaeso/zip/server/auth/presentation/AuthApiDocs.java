@@ -2,10 +2,12 @@ package chaeso.zip.server.auth.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
 import chaeso.zip.server.auth.presentation.dto.GoogleSignupRequest;
+import chaeso.zip.server.auth.presentation.dto.LoginMethodsRequest;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
@@ -19,6 +21,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -79,11 +82,12 @@ public interface AuthApiDocs {
       """;
 
   @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
-      description = "가입할 이메일로 6자리 인증코드를 발송한다. 로컬로 이미 가입된 이메일이면 409. "
-          + "구글로만 가입된 이메일(로컬 미연결)이면 연결 대상이므로 코드는 그대로 발송하고 "
-          + "200과 함께 code: EMAIL_ALREADY_USED_WITH_GOOGLE 을 내려준다.")
+      description = "가입할 이메일로 6자리 인증코드를 발송한다. "
+          + "로컬로 이미 가입된 이메일: 409. "
+          + "구글로만 가입된 이메일: 발송하지 않고 200 과 code: EMAIL_ALREADY_USED_WITH_GOOGLE. "
+          + "그 외: 발송 후 200.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
-      description = "발송 성공. 구글로만 가입된 이메일이면 안내 코드가 함께 실린다",
+      description = "발송 성공. 구글로만 가입된 이메일이면 발송 없이 안내 코드만 실린다",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "EMAIL_ALREADY_USED_WITH_GOOGLE",
               value = EMAIL_ALREADY_USED_WITH_GOOGLE_EXAMPLE)))
@@ -189,6 +193,62 @@ public interface AuthApiDocs {
           }))
   ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request);
 
+  String LOGIN_METHODS_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "methods": ["LOCAL", "GOOGLE"]
+        },
+        "error": null
+      }
+      """;
+
+  String LOGIN_METHODS_EMPTY_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "methods": []
+        },
+        "error": null
+      }
+      """;
+
+  String LOGIN_METHOD_LOOKUP_COOLDOWN_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-012",
+          "message": "조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
+  @Operation(operationId = "loginMethods", summary = "로그인 수단 조회",
+      description = "이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용. "
+          + "methods [LOCAL]: 비밀번호 입력창. "
+          + "[LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼. "
+          + "[GOOGLE]: 구글로 가입된 계정 안내. "
+          + "[]: 미가입 -> 회원가입 화면.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = {
+              @ExampleObject(name = "REGISTERED", value = LOGIN_METHODS_EXAMPLE),
+              @ExampleObject(name = "NOT_REGISTERED", value = LOGIN_METHODS_EMPTY_EXAMPLE)
+          }))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429",
+      description = "IP 단위 조회 한도 초과(AUTH-012)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "LOGIN_METHOD_LOOKUP_COOLDOWN",
+              value = LOGIN_METHOD_LOOKUP_COOLDOWN_EXAMPLE)))
+  ApiResponse<LoginMethodsResponse> loginMethods(
+      @Valid @RequestBody LoginMethodsRequest request,
+      @Parameter(hidden = true) HttpServletRequest httpRequest);
+
   String INVALID_REFRESH_TOKEN_EXAMPLE = """
       {
         "success": false,
@@ -288,11 +348,10 @@ public interface AuthApiDocs {
       """;
 
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
-      description = "브라우저에서 받은 구글 idToken 을 검증하고 계정 상태에 따라 세 분기로 응답한다. "
-          + "분기는 LOGIN/LINK_REQUIRED/SIGNUP_REQUIRED 로 판별. "
-          + "(1) 구글 계정이 연결돼 있으면 토큰을 발급. "
-          + "(2) 같은 이메일의 로컬 계정만 있으면 linkRequired:true 와 email 을 내려준다 - 사용자 확인을 받은 후 POST /auth/google/link 를 호출. "
-          + "(3) 가입 이력이 없으면 signupRequired:true 와 일회성 signupToken, 프리필 값을 내려준다.")
+      description = "구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다. "
+          + "LOGIN: 토큰 발급. "
+          + "LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출. "
+          + "SIGNUP_REQUIRED: signupRequired 와 일회성 signupToken, 프리필 값을 내려준다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "로그인 성공 / 연결 확인 필요 / 가입 필요",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -327,10 +386,9 @@ public interface AuthApiDocs {
       """;
 
   @Operation(operationId = "linkGoogle", summary = "구글 계정 연결 확인",
-      description = "linkRequired:true 응답을 받고 사용자가 확인 UI 에서 '예'를 선택했을 때만 호출한다. "
-          + "진입 때 보냈던 idToken 을 그대로 재전송하면 서버가 재검증한 뒤 같은 이메일의 로컬 계정에 "
-          + "구글 로그인을 연결하고 토큰을 발급한다. '아니오'는 이 API 를 호출하지 않는다. "
-          + "확인 모달을 띄우는 사이 idToken 이 만료되면 401 응답.")
+      description = "linkRequired:true 응답을 받고 사용자가 '예'를 선택했을 때만 호출한다. "
+          + "진입 때 보낸 idToken 을 재전송하면 재검증 후 같은 이메일의 로컬 계정에 구글 로그인을 "
+          + "연결하고 토큰을 발급한다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "연결 완료(code: GOOGLE_ACCOUNT_LINKED) 및 토큰 발급",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -373,7 +431,7 @@ public interface AuthApiDocs {
       description = "POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로 "
           + "신규 회원가입을 완료하고 토큰을 발급한다. "
           + "가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.")
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공, 토큰 발급",
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "가입 성공, 토큰 발급",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "SIGNUP_SUCCESS", value = GOOGLE_SIGNUP_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
