@@ -17,6 +17,6 @@ public class ChannelServiceImpl implements ChannelService {
   @Override
   @Transactional(readOnly = true)
   public Page<ChannelListItemResponse> getChannels(Pageable pageable) {
-    return channelRepository.findAll(pageable).map(ChannelListItemResponse::from);
+    return channelRepository.findAllByActiveTrue(pageable).map(ChannelListItemResponse::from);
   }
 }
