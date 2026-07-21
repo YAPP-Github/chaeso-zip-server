@@ -5,7 +5,6 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -31,7 +30,6 @@ public class OpenApiConfig {
             .version("v1")
             .contact(new Contact().name("chaeso-zip").email("channelsogae.zip@gmail.com"))
             .license(new License().name("Apache 2.0")))
-        .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
         .components(new Components().addSecuritySchemes(
             "bearerAuth",
             new SecurityScheme()
