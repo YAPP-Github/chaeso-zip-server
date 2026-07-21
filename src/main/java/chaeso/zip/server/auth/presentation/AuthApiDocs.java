@@ -225,7 +225,6 @@ public interface AuthApiDocs {
       }
       """;
 
-  @SecurityRequirements
   @Operation(operationId = "loginMethods", summary = "로그인 수단 조회",
       description = "이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용. "
           + "methods [LOCAL]: 비밀번호 입력창. "
