@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -35,6 +36,7 @@ public class SampleController {
 
   private final SampleService sampleService;
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "createSample", summary = "샘플 생성", description = "이름을 받아 새로운 샘플을 생성한다.")
   @ApiResponses({
       @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
@@ -47,6 +49,7 @@ public class SampleController {
     return ApiResponse.success(sampleService.create(request.toCommand()));
   }
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getSampleById", summary = "샘플 단건 조회", description = "식별자로 샘플을 조회한다.")
   @ApiResponses({
       @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -59,6 +62,7 @@ public class SampleController {
     return ApiResponse.success(sampleService.getById(id));
   }
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getAllSamples", summary = "샘플 목록 조회", description = "전체 샘플 목록을 조회한다.")
   @GetMapping
   public ApiResponse<List<SampleResponse>> getAll() {

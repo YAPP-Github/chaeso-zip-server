@@ -49,7 +49,7 @@ class OpenApiContractTest {
     assertThat(bearerAuth.path("type").asText()).isEqualTo("http");
     assertThat(bearerAuth.path("scheme").asText()).isEqualTo("bearer");
     assertThat(bearerAuth.path("bearerFormat").asText()).isEqualTo("JWT");
-    assertThat(spec.path("security").get(0).has("bearerAuth")).isTrue();
+    assertThat(spec.path("security").isMissingNode() || spec.path("security").isEmpty()).isTrue();
 
     List<String> operationIds = collectOperationIds(spec);
     assertThat(operationIds).isNotEmpty();
