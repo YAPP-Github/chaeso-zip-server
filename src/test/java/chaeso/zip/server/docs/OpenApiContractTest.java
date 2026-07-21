@@ -61,6 +61,31 @@ class OpenApiContractTest {
     writeSnapshot(spec);
   }
 
+  @Test
+  @DisplayName("모든 API에서 Pageable 파라미터가 단일 객체가 아닌 개별 쿼리 파라미터로 노출된다")
+  void pageableParametersAreExploded() throws Exception {
+    MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andReturn();
+
+    JsonNode spec = objectMapper.readTree(result.getResponse().getContentAsString());
+    JsonNode paths = spec.path("paths");
+
+    paths.forEach(pathItem ->
+        pathItem.forEach(operation -> {
+          JsonNode parameters = operation.path("parameters");
+          if (parameters.isArray()) {
+            for (JsonNode param : parameters) {
+              String paramName = param.path("name").asText();
+              assertThat(paramName)
+                  .as("Pageable 객체가 OpenAPI 스펙에 단일 객체 파라미터('pageable')로 노출되었습니다. @ParameterObject를 사용해 개별 파라미터로 분리해야 합니다.")
+                  .isNotEqualTo("pageable");
+            }
+          }
+        })
+    );
+  }
+
   private List<String> collectOperationIds(JsonNode spec) {
     List<String> ids = new ArrayList<>();
     spec.path("paths").forEach(pathItem ->
