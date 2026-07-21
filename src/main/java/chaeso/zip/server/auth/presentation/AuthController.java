@@ -5,14 +5,17 @@ import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
+import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
 import chaeso.zip.server.auth.presentation.dto.GoogleSignupRequest;
+import chaeso.zip.server.auth.presentation.dto.LoginMethodsRequest;
 import chaeso.zip.server.auth.presentation.dto.LoginRequest;
 import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
 import chaeso.zip.server.common.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -61,6 +64,15 @@ public class AuthController implements AuthApiDocs {
   }
 
   @Override
+  @PostMapping("/login/methods")
+  public ApiResponse<LoginMethodsResponse> loginMethods(
+      @Valid @RequestBody LoginMethodsRequest request,
+      HttpServletRequest httpRequest) {
+    return ApiResponse.success(
+        authService.findLoginMethods(request.email(), httpRequest.getRemoteAddr()));
+  }
+
+  @Override
   @PostMapping("/refresh")
   public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
     return ApiResponse.success(authService.reissue(request.refreshToken()));
@@ -80,7 +92,6 @@ public class AuthController implements AuthApiDocs {
 
   @Override
   @PostMapping("/signup/google")
-  @ResponseStatus(HttpStatus.CREATED)
   public ApiResponse<TokenResponse> signupGoogle(@Valid @RequestBody GoogleSignupRequest request) {
     return ApiResponse.success(authService.signupGoogle(request.toCommand()));
   }

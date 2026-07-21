@@ -25,6 +25,9 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       timeout: ${REDIS_TIMEOUT:2s}
+    web:
+      pageable:
+        max-page-size: 100
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -91,3 +94,6 @@ app:
     verified-ttl: ${EMAIL_VERIFICATION_VERIFIED_TTL:PT30M}
     max-verify-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
     send-cooldown: ${EMAIL_VERIFICATION_SEND_COOLDOWN:PT1M}
+  login-method-lookup:
+    max-attempts: ${LOGIN_METHOD_LOOKUP_MAX_ATTEMPTS:30}
+    window: ${LOGIN_METHOD_LOOKUP_WINDOW:PT1M}

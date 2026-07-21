@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
 import chaeso.zip.server.auth.application.dto.GoogleSignupCommand;
 import chaeso.zip.server.auth.application.dto.LoginCommand;
+import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
 import chaeso.zip.server.auth.application.dto.UserResponse;
@@ -32,6 +33,7 @@ import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
+import chaeso.zip.server.auth.infrastructure.ratelimit.LoginMethodLookupLimiter;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
 import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.application.ConsentProperties;
@@ -39,6 +41,7 @@ import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +88,9 @@ class AuthServiceTest {
   @Mock
   private GoogleSignupStore googleSignupStore;
 
+  @Mock
+  private LoginMethodLookupLimiter loginMethodLookupLimiter;
+
   private static final JwtProperties JWT_PROPERTIES =
       new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
           Duration.ofDays(90));
@@ -104,7 +110,8 @@ class AuthServiceTest {
         JWT_PROPERTIES,
         refreshTokenStore,
         googleIdTokenVerifier,
-        googleSignupStore);
+        googleSignupStore,
+        loginMethodLookupLimiter);
   }
 
   private static LoginCommand loginCommand() {
@@ -849,7 +856,7 @@ class AuthServiceTest {
   }
 
   @Test
-  @DisplayName("가입 대상 이메일의 구글 sub 가 이미 활성 유저에게 연결돼 있으면 방금 만든 유저를 되돌리고 티켓을 남겨둔다")
+  @DisplayName("가입 대상 이메일의 구글 sub 가 이미 활성 유저에게 연결돼 있으면 예외로 트랜잭션을 되돌리고 티켓을 남겨둔다")
   void signupGoogle_identityOwnedByActiveUser_rollsBackCreatedUser() {
     given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
     given(userRepository.saveAndFlush(any(User.class)))
@@ -866,11 +873,66 @@ class AuthServiceTest {
         .isInstanceOf(AuthBusinessException.class)
         .extracting("errorCode").isEqualTo(AuthErrorCode.GOOGLE_AUTH_FAILED);
 
-    ArgumentCaptor<User> deletedUserCaptor = ArgumentCaptor.forClass(User.class);
-    verify(userRepository).delete(deletedUserCaptor.capture());
-    assertThat(deletedUserCaptor.getValue().getEmail()).isEqualTo("user@chaeso.zip");
+    verify(userRepository, never()).delete(any(User.class));
     verify(authIdentityRepository, never()).save(any());
     verify(googleSignupStore, never()).delete(anyString());
     verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
+  }
+
+  @Test
+  @DisplayName("로컬과 구글이 모두 연동된 계정은 LOCAL, GOOGLE 순으로 돌려준다")
+  void findLoginMethods_localAndGoogle_ordered() {
+    User user = UserFixture.user("user@chaeso.zip");
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    given(authIdentityRepository.findAllByUserId(user.getId()))
+        .willReturn(List.of(
+            AuthIdentity.createGoogle(user.getId(), "google-sub-1"),
+            AuthIdentity.createLocal(user.getId(), "hashed")));
+    given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
+
+    LoginMethodsResponse response = authService.findLoginMethods("user@chaeso.zip", "203.0.113.7");
+
+    assertThat(response.methods()).containsExactly(AuthProvider.LOCAL, AuthProvider.GOOGLE);
+  }
+
+  @Test
+  @DisplayName("가입 이력이 없거나 탈퇴한 계정은 빈 목록을 돌려준다")
+  void findLoginMethods_notFound_returnsEmpty() {
+    given(userRepository.findByEmailAndDeletedAtIsNull("ghost@chaeso.zip"))
+        .willReturn(Optional.empty());
+    given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
+
+    LoginMethodsResponse response = authService.findLoginMethods("ghost@chaeso.zip", "203.0.113.7");
+
+    assertThat(response.methods()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("대소문자와 공백이 달라도 같은 계정으로 조회한다")
+  void findLoginMethods_normalizesEmail() {
+    User user = UserFixture.user("user@chaeso.zip");
+    given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+        .willReturn(Optional.of(user));
+    given(authIdentityRepository.findAllByUserId(user.getId()))
+        .willReturn(List.of(AuthIdentity.createLocal(user.getId(), "hashed")));
+    given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
+
+    LoginMethodsResponse response =
+        authService.findLoginMethods("  USER@Chaeso.Zip  ", "203.0.113.7");
+
+    assertThat(response.methods()).containsExactly(AuthProvider.LOCAL);
+  }
+
+  @Test
+  @DisplayName("IP 쿨다운에 걸리면 DB 조회 없이 AUTH-012 로 거부한다")
+  void findLoginMethods_rateLimited_throwsAndSkipsLookup() {
+    given(loginMethodLookupLimiter.tryAcquire("203.0.113.7")).willReturn(false);
+
+    assertThatThrownBy(() -> authService.findLoginMethods("user@chaeso.zip", "203.0.113.7"))
+        .isInstanceOf(AuthBusinessException.class)
+        .extracting("errorCode").isEqualTo(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
+
+    verify(userRepository, never()).findByEmailAndDeletedAtIsNull(anyString());
   }
 }
