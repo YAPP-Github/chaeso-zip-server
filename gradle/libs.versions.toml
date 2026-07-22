@@ -5,6 +5,7 @@ sentry = "7.14.0"
 jjwt = "0.13.0"
 embeddedRedis = "1.4.3"
 googleApiClient = "2.7.2"
+querydsl = "5.1.0"
 
 [libraries]
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
@@ -33,6 +34,10 @@ spring-boot-starter-data-redis = { module = "org.springframework.boot:spring-boo
 spring-boot-starter-mail = { module = "org.springframework.boot:spring-boot-starter-mail" }
 embedded-redis = { module = "com.github.codemonstur:embedded-redis", version.ref = "embeddedRedis" }
 google-api-client = { module = "com.google.api-client:google-api-client", version.ref = "googleApiClient" }
+querydsl-jpa = { module = "com.querydsl:querydsl-jpa", version.ref = "querydsl" }
+querydsl-apt = { module = "com.querydsl:querydsl-apt", version.ref = "querydsl" }
+jakarta-annotation-api = { module = "jakarta.annotation:jakarta.annotation-api" }
+jakarta-persistence-api = { module = "jakarta.persistence:jakarta.persistence-api" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version = "3.5.15" }
