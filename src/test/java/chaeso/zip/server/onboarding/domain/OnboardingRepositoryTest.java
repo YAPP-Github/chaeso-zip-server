@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
-import chaeso.zip.server.common.config.JpaAuditingConfig;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
@@ -14,39 +13,22 @@ import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
+import chaeso.zip.server.support.PostgresDataJpaTest;
 import chaeso.zip.server.support.UserFixture;
-import java.sql.DriverManager;
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 온보딩·집행 실적의 배열 컬럼 매핑과 DB 제약을 실제 적재된 데이터로 검증하는 통합 테스트
  */
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = Replace.NONE)
-@Import(JpaAuditingConfig.class)
-@TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://localhost:5432/chaeso_zip",
-    "spring.datasource.driver-class-name=org.postgresql.Driver",
-    "spring.datasource.username=postgres",
-    "spring.datasource.password=postgres",
-    "spring.jpa.hibernate.ddl-auto=validate",
-    "spring.flyway.enabled=false"
-})
-@EnabledIf("postgresAvailable")
+@PostgresDataJpaTest
 class OnboardingRepositoryTest {
 
   @Autowired
@@ -142,16 +124,5 @@ class OnboardingRepositoryTest {
         userId, null, null, 1L, null, null, null, null, null);
     assertThatThrownBy(() -> adPerformanceRepository.saveAndFlush(invalidPerformance))
         .isInstanceOf(DataIntegrityViolationException.class);
-  }
-
-  /** 로컬에 적재 데이터를 가진 Postgres 가 떠 있을 때만 이 통합 테스트를 실행한다(CI 에서는 건너뜀). */
-  @SuppressWarnings("unused")
-  static boolean postgresAvailable() {
-    try (var ignored = DriverManager.getConnection(
-            "jdbc:postgresql://localhost:5432/chaeso_zip", "postgres", "postgres")) {
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
   }
 }
