@@ -1,6 +1,10 @@
 create unique index uq_onboarding_active_user
     on onboarding_responses (user_id) where is_active;
 
+alter table onboarding_responses
+    alter column budget_min type bigint,
+    alter column budget_max type bigint;
+
 create table ad_performances (
     id                    uuid        primary key default gen_random_uuid(),
     user_id               uuid        not null references users (id),
