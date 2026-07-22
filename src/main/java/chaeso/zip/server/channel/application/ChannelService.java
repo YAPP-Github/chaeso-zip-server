@@ -6,5 +6,5 @@ import org.springframework.data.domain.Pageable;
 
 public interface ChannelService {
 
-  Page<ChannelListItemResponse> getChannels(Pageable pageable);
+  Page<ChannelListItemResponse> getChannels(String name, Pageable pageable);
 }

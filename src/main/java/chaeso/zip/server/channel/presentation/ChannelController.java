@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,7 +23,8 @@ public class ChannelController implements ChannelApiDocs {
   @Override
   @GetMapping
   public ApiResponse<PageResponse<ChannelListItemResponse>> getChannels(
+      @RequestParam(required = false) String name,
       @PageableDefault(size = 12, sort = "name") @ParameterObject Pageable pageable) {
-    return ApiResponse.success(PageResponse.from(channelService.getChannels(pageable)));
+    return ApiResponse.success(PageResponse.from(channelService.getChannels(name, pageable)));
   }
 }
