@@ -8,6 +8,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.common.config.JpaAuditingConfig;
+import chaeso.zip.server.common.config.QuerydslConfig;
 import java.sql.DriverManager;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +26,7 @@ import org.springframework.test.context.TestPropertySource;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = Replace.NONE)
-@Import(JpaAuditingConfig.class)
+@Import({JpaAuditingConfig.class, QuerydslConfig.class})
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:postgresql://localhost:5432/chaeso_zip",
     "spring.datasource.driver-class-name=org.postgresql.Driver",
