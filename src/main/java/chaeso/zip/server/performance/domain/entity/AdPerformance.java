@@ -1,19 +1,23 @@
 package chaeso.zip.server.performance.domain.entity;
 
-import chaeso.zip.server.common.entity.BaseEntity;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.UuidGenerator;
 
 /**
  * 사용자 소유의 광고 집행 실적.
@@ -22,7 +26,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "ad_performances")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AdPerformance extends BaseEntity {
+public class AdPerformance {
+
+  @Id
+  @UuidGenerator
+  private UUID id;
 
   @Column(name = "user_id", nullable = false)
   private UUID userId;
@@ -61,9 +69,21 @@ public class AdPerformance extends BaseEntity {
   @Column(name = "cpa_actual")
   private BigDecimal cpaActual;
 
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private LocalDateTime createdAt;
+
+  @PrePersist
+  private void prePersist() {
+    this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
+  }
+
   private AdPerformance(UUID userId, PerfSource sourceType, UUID channelId,
       String externalChannelName, Long budgetWon, Long impressions, Long clicks, Long conversions,
       LocalDate startedAt, LocalDate endedAt) {
+    if (channelId == null && externalChannelName == null) {
+      throw new IllegalArgumentException(
+          "AdPerformance requires either channelId or externalChannelName.");
+    }
     this.userId = userId;
     this.sourceType = sourceType;
     this.channelId = channelId;
