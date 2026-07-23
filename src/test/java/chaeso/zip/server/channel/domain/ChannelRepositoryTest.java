@@ -7,35 +7,16 @@ import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
-import chaeso.zip.server.common.config.JpaAuditingConfig;
-import chaeso.zip.server.common.config.QuerydslConfig;
-import java.sql.DriverManager;
+import chaeso.zip.server.support.PostgresDataJpaTest;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 채널 카탈로그 특수 컬럼 매핑을 실제 적재된 데이터로 검증하는 통합 테스트
  */
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = Replace.NONE)
-@Import({JpaAuditingConfig.class, QuerydslConfig.class})
-@TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://localhost:5432/chaeso_zip",
-    "spring.datasource.driver-class-name=org.postgresql.Driver",
-    "spring.datasource.username=postgres",
-    "spring.datasource.password=postgres",
-    "spring.jpa.hibernate.ddl-auto=validate",
-    "spring.flyway.enabled=false"
-})
-@EnabledIf("postgresAvailable")
+@PostgresDataJpaTest
 class ChannelRepositoryTest {
 
   @Autowired
@@ -93,17 +74,5 @@ class ChannelRepositoryTest {
       assertThat(pr.getChannelProductId()).isEqualTo(productWithPricing.getId());
       assertThat(pr.getPricingModel()).isNotNull();
     });
-  }
-
-  /** 로컬에 적재 데이터를 가진 Postgres 가 떠 있을 때만 이 통합 테스트를 실행한다(CI 에서는 건너뜀). */
-  @SuppressWarnings("unused")
-  static boolean postgresAvailable() {
-    try (var conn = DriverManager.getConnection(
-        "jdbc:postgresql://localhost:5432/chaeso_zip", "postgres", "postgres");
-        var rs = conn.createStatement().executeQuery("select count(*) from channels")) {
-      return rs.next() && rs.getInt(1) > 0;
-    } catch (Exception e) {
-      return false;
-    }
   }
 }

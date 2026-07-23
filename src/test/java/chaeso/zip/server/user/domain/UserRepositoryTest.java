@@ -3,18 +3,17 @@ package chaeso.zip.server.user.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import chaeso.zip.server.common.config.JpaAuditingConfig;
-import chaeso.zip.server.common.config.QuerydslConfig;
+import chaeso.zip.server.support.PostgresDataJpaTest;
 import chaeso.zip.server.support.UserFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
-@DataJpaTest
-@Import({JpaAuditingConfig.class, QuerydslConfig.class})
+/**
+ * users 의 대소문자 무시 이메일 유니크 제약을 실제 적재된 데이터로 검증하는 통합 테스트
+ */
+@PostgresDataJpaTest
 class UserRepositoryTest {
 
   @Autowired
@@ -61,5 +60,15 @@ class UserRepositoryTest {
     assertThat(saved.isMarketingAgreed()).isTrue();
     assertThat(saved.getTermsVersion()).isEqualTo(UserFixture.consentVersions().termsVersion());
     assertThat(saved.getMarketingAgreedAt()).isNotNull();
+  }
+
+  @Test
+  @DisplayName("대소문자만 다른 이메일로 중복 저장하면 부분 유니크 인덱스 위반으로 실패한다")
+  void rejectsDuplicateActiveEmailCaseInsensitive() {
+    userRepository.saveAndFlush(UserFixture.user("dup-index@chaeso.zip"));
+
+    User duplicateUser = UserFixture.user("DUP-INDEX@Chaeso.Zip");
+    assertThatThrownBy(() -> userRepository.saveAndFlush(duplicateUser))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 }
