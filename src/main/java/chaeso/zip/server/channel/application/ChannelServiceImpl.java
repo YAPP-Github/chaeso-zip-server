@@ -7,6 +7,8 @@ import chaeso.zip.server.channel.application.dto.PricingResponse;
 import chaeso.zip.server.channel.application.dto.ProductResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
+import chaeso.zip.server.channel.domain.entity.ChannelPricing;
+import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.entity.ChannelReference;
 import chaeso.zip.server.channel.domain.repository.ChannelAudienceMetricRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
@@ -14,8 +16,10 @@ import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelReferenceRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,11 +45,14 @@ public class ChannelServiceImpl implements ChannelService {
   @Override
   @Transactional(readOnly = true)
   public ChannelDetailResponse getChannel(UUID id) {
-    Channel channel = channelRepository.findById(id)
+    Channel channel = channelRepository.findByIdAndActiveTrue(id)
         .orElseThrow(() -> new ChannelNotFoundException(id));
 
-    List<ProductResponse> products = channelProductRepository.findByChannelId(id).stream()
-        .map(product -> ProductResponse.from(product, pricingOf(product.getId())))
+    List<ChannelProduct> channelProducts = channelProductRepository.findByChannelId(id);
+    Map<UUID, List<PricingResponse>> pricingByProductId = pricingByProductId(channelProducts);
+    List<ProductResponse> products = channelProducts.stream()
+        .map(product -> ProductResponse.from(product,
+            pricingByProductId.getOrDefault(product.getId(), List.of())))
         .toList();
 
     List<AudienceMetricResponse> audienceMetrics =
@@ -61,9 +68,14 @@ public class ChannelServiceImpl implements ChannelService {
     return ChannelDetailResponse.from(channel, products, audienceMetrics, references);
   }
 
-  private List<PricingResponse> pricingOf(UUID channelProductId) {
-    return channelPricingRepository.findByChannelProductId(channelProductId).stream()
-        .map(PricingResponse::from)
-        .toList();
+  private Map<UUID, List<PricingResponse>> pricingByProductId(List<ChannelProduct> products) {
+    if (products.isEmpty()) {
+      return Map.of();
+    }
+    List<UUID> productIds = products.stream().map(ChannelProduct::getId).toList();
+    return channelPricingRepository.findByChannelProductIdIn(productIds).stream()
+        .collect(Collectors.groupingBy(
+            ChannelPricing::getChannelProductId,
+            Collectors.mapping(PricingResponse::from, Collectors.toList())));
   }
 }
