@@ -69,6 +69,9 @@ public class AdPerformance {
   @Column(name = "cpa_actual")
   private BigDecimal cpaActual;
 
+  @Column(name = "raw_file_url")
+  private String rawFileUrl;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
@@ -79,7 +82,7 @@ public class AdPerformance {
 
   private AdPerformance(UUID userId, PerfSource sourceType, UUID channelId,
       String externalChannelName, Long budgetWon, Long impressions, Long clicks, Long conversions,
-      LocalDate startedAt, LocalDate endedAt) {
+      LocalDate startedAt, LocalDate endedAt, String rawFileUrl) {
     if (channelId == null && externalChannelName == null) {
       throw new IllegalArgumentException(
           "AdPerformance requires either channelId or externalChannelName.");
@@ -94,6 +97,7 @@ public class AdPerformance {
     this.impressions = impressions;
     this.clicks = clicks;
     this.conversions = conversions;
+    this.rawFileUrl = rawFileUrl;
     this.ctrActual = ratio(clicks, impressions);
     this.cpcActual = ratio(budgetWon, clicks);
     this.cpaActual = ratio(budgetWon, conversions);
@@ -102,11 +106,11 @@ public class AdPerformance {
   /**
    * 온보딩에서 입력한 과거 집행 실적.
    */
-  public static AdPerformance fromOnboarding(UUID userId, UUID channelId, String channelName,
-      Long budgetWon, Long impressions, Long clicks, Long conversions,
-      LocalDate startedAt, LocalDate endedAt) {
-    return new AdPerformance(userId, PerfSource.MANUAL, channelId, channelName,
-        budgetWon, impressions, clicks, conversions, startedAt, endedAt);
+  public static AdPerformance fromOnboarding(UUID userId, PerfSource sourceType, UUID channelId,
+      String channelName, Long budgetWon, Long impressions, Long clicks, Long conversions,
+      LocalDate startedAt, LocalDate endedAt, String rawFileUrl) {
+    return new AdPerformance(userId, sourceType, channelId, channelName,
+        budgetWon, impressions, clicks, conversions, startedAt, endedAt, rawFileUrl);
   }
 
   private static BigDecimal ratio(Long numerator, Long denominator) {

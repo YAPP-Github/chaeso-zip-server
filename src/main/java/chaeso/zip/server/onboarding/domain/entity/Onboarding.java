@@ -91,7 +91,7 @@ public class Onboarding extends BaseEntity {
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
       Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience) {
-    if (budgetMin > budgetMax) {
+    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
     if (!ObjectivePolicy.allows(serviceType, campaignObjective)) {

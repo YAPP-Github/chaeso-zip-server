@@ -14,6 +14,7 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
+import chaeso.zip.server.performance.domain.vo.PerfSource;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -57,15 +58,13 @@ public class OnboardingServiceImpl implements OnboardingService {
 
     onboardingRepository.findByUserIdAndIsActiveTrue(userId)
         .forEach(Onboarding::deactivate);
-    onboardingRepository.flush();
-    adPerformanceRepository.deleteByUserId(userId);
 
     Onboarding saved = saveResponse(response);
 
     adPerformanceRepository.saveAll(command.adHistory().stream()
-        .map(row -> AdPerformance.fromOnboarding(userId, row.channelId(), row.channelNameRaw(),
-            row.budgetWon(), row.impressions(), row.clicks(), row.conversions(),
-            row.startedAt(), row.endedAt()))
+        .map(row -> AdPerformance.fromOnboarding(userId, PerfSource.MANUAL, row.channelId(),
+            row.channelNameRaw(), row.budgetWon(), row.impressions(), row.clicks(),
+            row.conversions(), row.startedAt(), row.endedAt(), null))
         .toList());
 
     onboardingAdHistorySnapshotRepository.saveAll(command.adHistory().stream()
