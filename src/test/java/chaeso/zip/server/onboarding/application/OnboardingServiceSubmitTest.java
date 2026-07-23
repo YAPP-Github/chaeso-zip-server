@@ -27,6 +27,7 @@ import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
+import chaeso.zip.server.performance.domain.vo.PerfSource;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.time.LocalDate;
 import java.time.Month;
@@ -77,7 +78,6 @@ class OnboardingServiceSubmitTest {
     Onboarding saved = captor.getValue();
     assertThat(saved.getUserId()).isEqualTo(USER_ID);
     assertThat(saved.isActive()).isTrue();
-    then(adPerformanceRepository).should().deleteByUserId(USER_ID);
     then(adPerformanceRepository).should().saveAll(List.of());
     then(onboardingAdHistorySnapshotRepository).should().saveAll(List.of());
   }
@@ -103,6 +103,19 @@ class OnboardingServiceSubmitTest {
   void rejectsInvertedBudgetRange() {
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
         CampaignObjective.TRAFFIC, 9_000_000L, 1_000_000L, AdExperience.NONE, List.of());
+
+    assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+        .isInstanceOf(OnboardingBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(OnboardingErrorCode.INVALID_BUDGET_RANGE);
+    then(onboardingRepository).should(never()).saveAndFlush(any());
+  }
+
+  @Test
+  @DisplayName("예산 범위 값이 null이면 ONB-001")
+  void rejectsNullBudgetRange() {
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, null, 1_000_000L, AdExperience.NONE, List.of());
 
     assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
         .isInstanceOf(OnboardingBusinessException.class)
@@ -216,6 +229,7 @@ class OnboardingServiceSubmitTest {
     assertThat(captor.getValue()).hasSize(1);
     AdPerformance performance = captor.getValue().getFirst();
     assertThat(performance.getUserId()).isEqualTo(USER_ID);
+    assertThat(performance.getSourceType()).isEqualTo(PerfSource.MANUAL);
     assertThat(performance.getChannelId()).isEqualTo(channelId);
     assertThat(performance.getExternalChannelName()).isEqualTo("인스타그램");
 

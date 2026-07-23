@@ -140,7 +140,7 @@ public interface OnboardingApiDocs {
       description = "온보딩 정보를 저장한다. 이미 제출한 적이 있으면 이전 응답은 비활성으로 내려가고 새 응답이 활성이 된다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "제출 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
-      description = "입력값 검증 실패(C-001) 또는 값 사이의 관계 규칙 위반(ONB-001~002, ONB-004~006)",
+      description = "입력값 검증 실패(C-001) 또는 값 사이의 관계 규칙 위반(ONB-001~006)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
