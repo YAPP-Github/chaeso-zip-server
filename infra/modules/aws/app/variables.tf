@@ -93,3 +93,8 @@ variable "grafana_token" {
   default   = ""
   sensitive = true
 }
+
+variable "ad_history_cors_allowed_origins" {
+  type    = list(string)
+  default = ["http://localhost:3000"]
+}

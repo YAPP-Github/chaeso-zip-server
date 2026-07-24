@@ -37,8 +37,13 @@ module "app" {
   grafana_prom_url  = var.grafana_prom_url
   grafana_prom_user = var.grafana_prom_user
   grafana_token     = var.grafana_token
+  ad_history_cors_allowed_origins = var.ad_history_cors_allowed_origins
 }
 
 output "public_ip" {
   value = module.app.public_ip
+}
+
+output "ad_history_bucket_name" {
+  value = module.app.ad_history_bucket_name
 }
