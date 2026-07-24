@@ -36,8 +36,7 @@ public interface ChannelApiDocs {
           "totalPages": 9,
           "first": true,
           "last": false
-        },
-        "error": null
+        }
       }
       """;
 
@@ -102,15 +101,13 @@ public interface ChannelApiDocs {
             }
           ],
           "references": ["A커머스 브랜드 신제품 런칭 캠페인", "B패션 시즌오프 프로모션"]
-        },
-        "error": null
+        }
       }
       """;
 
   String CHANNEL_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "CH-001",
           "message": "존재하지 않는 채널입니다. id=550e8400-e29b-41d4-a716-446655440000",
