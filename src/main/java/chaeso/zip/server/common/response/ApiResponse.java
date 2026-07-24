@@ -13,8 +13,7 @@ import lombok.RequiredArgsConstructor;
  * <pre>
  * {
  *   "success": true,
- *   "data": { ... },
- *   "error": null
+ *   "data": { ... }
  * }
  * </pre>
  *
