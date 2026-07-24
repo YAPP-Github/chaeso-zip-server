@@ -33,7 +33,6 @@ public interface AuthApiDocs {
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -51,7 +50,6 @@ public interface AuthApiDocs {
   String EMAIL_ALREADY_EXISTS_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-002",
           "message": "이미 사용 중인 이메일입니다.",
@@ -63,7 +61,6 @@ public interface AuthApiDocs {
   String VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-008",
           "message": "인증 코드는 잠시 후 다시 요청해 주세요.",
@@ -75,8 +72,6 @@ public interface AuthApiDocs {
   String EMAIL_ALREADY_USED_WITH_GOOGLE_EXAMPLE = """
       {
         "success": true,
-        "data": null,
-        "error": null,
         "code": "EMAIL_ALREADY_USED_WITH_GOOGLE"
       }
       """;
@@ -106,7 +101,6 @@ public interface AuthApiDocs {
   String VERIFICATION_CODE_INVALID_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-007",
           "message": "인증 코드가 올바르지 않거나 만료되었습니다.",
@@ -129,7 +123,6 @@ public interface AuthApiDocs {
   String EMAIL_NOT_VERIFIED_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-006",
           "message": "이메일 인증이 필요합니다.",
@@ -155,7 +148,6 @@ public interface AuthApiDocs {
   String INVALID_CREDENTIALS_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-003",
           "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -167,7 +159,6 @@ public interface AuthApiDocs {
   String ACCOUNT_REGISTERED_WITH_GOOGLE_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-010",
           "message": "Google 계정으로 가입된 이메일입니다. Google 로그인을 이용해 주세요.",
@@ -198,8 +189,7 @@ public interface AuthApiDocs {
         "success": true,
         "data": {
           "methods": ["LOCAL", "GOOGLE"]
-        },
-        "error": null
+        }
       }
       """;
 
@@ -208,15 +198,13 @@ public interface AuthApiDocs {
         "success": true,
         "data": {
           "methods": []
-        },
-        "error": null
+        }
       }
       """;
 
   String LOGIN_METHOD_LOOKUP_COOLDOWN_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-012",
           "message": "조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
@@ -252,7 +240,6 @@ public interface AuthApiDocs {
   String INVALID_REFRESH_TOKEN_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-004",
           "message": "유효하지 않은 refresh 토큰입니다.",
@@ -264,7 +251,6 @@ public interface AuthApiDocs {
   String REFRESH_TOKEN_REUSE_DETECTED_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-005",
           "message": "재사용이 감지되어 해당 세션이 만료되었습니다. 다시 로그인하세요.",
@@ -296,7 +282,6 @@ public interface AuthApiDocs {
   String GOOGLE_AUTH_FAILED_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-009",
           "message": "Google 인증에 실패했습니다. 다시 시도해 주세요.",
@@ -314,8 +299,7 @@ public interface AuthApiDocs {
           "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
           "accessTokenExpiresIn": 1800,
           "refreshTokenExpiresIn": 1209600
-        },
-        "error": null
+        }
       }
       """;
 
@@ -326,8 +310,7 @@ public interface AuthApiDocs {
           "status": "LINK_REQUIRED",
           "linkRequired": true,
           "email": "user@chaeso.zip"
-        },
-        "error": null
+        }
       }
       """;
 
@@ -342,8 +325,7 @@ public interface AuthApiDocs {
             "email": "user@chaeso.zip",
             "suggestedNickname": "홍길동"
           }
-        },
-        "error": null
+        }
       }
       """;
 
@@ -380,7 +362,6 @@ public interface AuthApiDocs {
           "accessTokenExpiresIn": 1800,
           "refreshTokenExpiresIn": 1209600
         },
-        "error": null,
         "code": "GOOGLE_ACCOUNT_LINKED"
       }
       """;
@@ -405,7 +386,6 @@ public interface AuthApiDocs {
   String GOOGLE_SIGNUP_SESSION_INVALID_EXAMPLE = """
       {
         "success": false,
-        "data": null,
         "error": {
           "code": "AUTH-011",
           "message": "가입 세션이 만료되었습니다. Google 로그인을 다시 시도해 주세요.",
@@ -422,8 +402,7 @@ public interface AuthApiDocs {
           "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
           "accessTokenExpiresIn": 1800,
           "refreshTokenExpiresIn": 1209600
-        },
-        "error": null
+        }
       }
       """;
 
