@@ -1,5 +1,6 @@
 package chaeso.zip.server.onboarding.application;
 
+import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
@@ -114,8 +115,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             .filter(id -> !existingIds.contains(id))
             .findFirst()
             .orElseThrow();
-        throw new OnboardingBusinessException(
-            OnboardingErrorCode.CHANNEL_NOT_FOUND, "존재하지 않는 채널입니다: " + missingId);
+        throw new ChannelNotFoundException(missingId);
       }
     }
   }

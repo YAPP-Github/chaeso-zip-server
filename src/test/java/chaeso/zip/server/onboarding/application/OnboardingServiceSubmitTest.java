@@ -9,6 +9,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
+import chaeso.zip.server.channel.domain.ChannelErrorCode;
+import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
@@ -177,7 +179,7 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
-  @DisplayName("존재하지 않는 channelId를 보내면 ONB-005")
+  @DisplayName("존재하지 않는 channelId를 보내면 CH-001")
   void rejectsUnknownChannelId() {
     UUID unknown = UUID.randomUUID();
     given(channelRepository.findAllById(List.of(unknown))).willReturn(List.of());
@@ -186,13 +188,13 @@ class OnboardingServiceSubmitTest {
         List.of(new AdHistoryCommand(unknown, "인스타그램", 1000L, null, null, null, null, null)));
 
     assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
-        .isInstanceOf(OnboardingBusinessException.class)
+        .isInstanceOf(ChannelNotFoundException.class)
         .extracting("errorCode")
-        .isEqualTo(OnboardingErrorCode.CHANNEL_NOT_FOUND);
+        .isEqualTo(ChannelErrorCode.CHANNEL_NOT_FOUND);
   }
 
   @Test
-  @DisplayName("집행 종료일이 시작일보다 빠르면 ONB-006")
+  @DisplayName("집행 종료일이 시작일보다 빠르면 ONB-005")
   void rejectsInvertedAdPeriod() {
     UUID channelId = UUID.randomUUID();
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
@@ -256,7 +258,7 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
-  @DisplayName("동시 재제출로 활성 유니크 제약을 위반하면 ONB-007")
+  @DisplayName("동시 재제출로 활성 유니크 제약을 위반하면 ONB-006")
   void rejectsConcurrentSubmission() {
     given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
     given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
