@@ -24,7 +24,8 @@ if [ -b "$data_dev" ]; then
   fi
   mkdir -p /data
   mount "$data_dev" /data
-  grep -q "$data_dev" /etc/fstab || echo "$data_dev /data ext4 defaults,nofail 0 2" >> /etc/fstab
+  data_uuid=$(blkid -s UUID -o value "$data_dev")
+  grep -q " /data " /etc/fstab || echo "UUID=$data_uuid /data ext4 defaults,nofail 0 2" >> /etc/fstab
   mkdir -p /data/postgres /data/redis
 else
   echo "데이터 볼륨($data_dev)이 60초 내 감지되지 않음 — 마운트 스킵하고 계속 진행" >&2
@@ -43,6 +44,15 @@ apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 systemctl enable --now docker
 usermod -aG docker ubuntu
+
+%{ if embedded_db ~}
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/require-data-mount.conf <<'UNIT'
+[Unit]
+RequiresMountsFor=/data
+UNIT
+systemctl daemon-reload
+%{ endif ~}
 
 # 1-0) ECR keyless pull
 apt-get install -y amazon-ecr-credential-helper

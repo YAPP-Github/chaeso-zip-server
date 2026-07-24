@@ -64,11 +64,12 @@ class ChannelRepositoryTest {
     assertThat(products).allSatisfy(p -> assertThat(p.getChannelId()).isEqualTo(channelWithProducts.getId()));
 
     ChannelProduct productWithPricing = products.stream()
-        .filter(p -> !channelPricingRepository.findByChannelProductId(p.getId()).isEmpty())
+        .filter(p -> !channelPricingRepository.findByChannelProductIdIn(List.of(p.getId())).isEmpty())
         .findFirst()
         .orElseThrow(() -> new AssertionError("단가를 가진 상품이 없습니다"));
 
-    var pricings = channelPricingRepository.findByChannelProductId(productWithPricing.getId());
+    var pricings =
+        channelPricingRepository.findByChannelProductIdIn(List.of(productWithPricing.getId()));
     assertThat(pricings).isNotEmpty();
     assertThat(pricings).allSatisfy(pr -> {
       assertThat(pr.getChannelProductId()).isEqualTo(productWithPricing.getId());
