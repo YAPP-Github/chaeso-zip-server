@@ -85,6 +85,7 @@ echo "DOPPLER_TOKEN=${doppler_token}" >/opt/app/doppler.env
   set -e
 
   if ! command -v aws >/dev/null 2>&1; then
+    command -v unzip >/dev/null 2>&1 || apt-get install -y unzip
     curl -fsSL --retry 3 "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
     unzip -q /tmp/awscliv2.zip -d /tmp
     /tmp/aws/install
