@@ -35,6 +35,7 @@ module "network" {
 module "app" {
   source                          = "../../../modules/aws/app"
   region                          = var.region
+  availability_zone               = var.availability_zone
   subnet_id                       = module.network.subnet_id
   firewall_ref                    = module.network.firewall_ref
   key_name                        = aws_key_pair.this.key_name

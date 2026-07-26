@@ -138,7 +138,7 @@ resource "aws_eip" "this" {
 
 resource "aws_ebs_volume" "data" {
   count             = var.embedded_db ? 1 : 0
-  availability_zone = aws_instance.this.availability_zone
+  availability_zone = var.availability_zone
   size              = var.data_volume_size_gb
   type              = "gp3"
   encrypted         = true
