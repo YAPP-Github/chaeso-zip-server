@@ -63,6 +63,9 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 sentry:
   dsn: ${SENTRY_DSN:}
