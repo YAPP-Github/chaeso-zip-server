@@ -44,6 +44,17 @@ variable "doppler_token" {
   sensitive = true
 }
 
+variable "grafana_cloud_url" {
+  type    = string
+  default = ""
+}
+
+variable "grafana_dashboard_token" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 variable "ad_history_cors_allowed_origins" {
   type    = list(string)
   default = ["http://localhost:3000"]
