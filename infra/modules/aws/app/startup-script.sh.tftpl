@@ -81,23 +81,48 @@ echo "DOPPLER_TOKEN=${doppler_token}" >/opt/app/doppler.env
 %{ endif ~}
 
 %{ if grafana_prom_url != "" ~}
+(
+  set -e
 
-cat > /opt/app/config.alloy <<'ALLOY'
-prometheus.scrape "app" {
-  targets         = [{ "__address__" = "app:${management_port}", "__metrics_path__" = "/actuator/prometheus" }]
-  forward_to      = [prometheus.remote_write.gc.receiver]
-  scrape_interval = "30s"
+  if ! command -v aws >/dev/null 2>&1; then
+    curl -fsSL --retry 3 "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
+    rm -rf /tmp/awscliv2.zip /tmp/aws
+  fi
+
+  cat > /opt/app/sync-alloy-config.sh <<'SYNC'
+#!/usr/bin/env bash
+set -euo pipefail
+NEW=$(aws ssm get-parameter --name "${alloy_config_param_name}" --with-decryption \
+  --region "${region}" --query Parameter.Value --output text || true)
+[ -z "$NEW" ] && exit 0
+CUR=$(cat /opt/app/config.alloy 2>/dev/null || true)
+if [ "$NEW" != "$CUR" ]; then
+  echo "$NEW" > /opt/app/config.alloy
+  chmod 600 /opt/app/config.alloy
+  cd /opt/app && docker compose up -d --force-recreate alloy
+fi
+SYNC
+  chmod +x /opt/app/sync-alloy-config.sh
+
+  cat > /etc/cron.d/alloy-config-sync <<'CRON'
+*/5 * * * * root /opt/app/sync-alloy-config.sh >> /var/log/alloy-config-sync.log 2>&1
+CRON
+  chmod 644 /etc/cron.d/alloy-config-sync
+
+  cat > /etc/logrotate.d/alloy-config-sync <<'LOGROTATE'
+/var/log/alloy-config-sync.log {
+  weekly
+  rotate 4
+  compress
+  missingok
+  notifempty
 }
-prometheus.remote_write "gc" {
-  endpoint {
-    url = "${grafana_prom_url}"
-    basic_auth {
-      username = "${grafana_prom_user}"
-      password = "${grafana_token}"
-    }
-  }
-}
-ALLOY
+LOGROTATE
+
+  /opt/app/sync-alloy-config.sh
+) || echo "Alloy config sync 설정 실패 — 모니터링 영향, 앱 배포 계속 진행" >&2
 %{ endif ~}
 
 cat > /opt/app/infra.env <<'INFRA'

@@ -8,6 +8,25 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+locals {
+  alloy_config_param_name = "/${var.name_prefix}/config.alloy"
+
+  alloy_config = var.grafana_prom_url != "" ? templatefile("${path.module}/config.alloy.tftpl", {
+    management_port   = var.management_port
+    embedded_db       = var.embedded_db
+    grafana_prom_url  = var.grafana_prom_url
+    grafana_prom_user = var.grafana_prom_user
+    grafana_token     = var.grafana_token
+  }) : ""
+}
+
+resource "aws_ssm_parameter" "alloy_config" {
+  count = var.grafana_prom_url != "" ? 1 : 0
+  name  = local.alloy_config_param_name
+  type  = "SecureString"
+  value = local.alloy_config
+  tags  = { Name = "${var.name_prefix}-alloy-config" }
+}
 
 resource "aws_iam_role" "this" {
   name = "${var.name_prefix}-app-role"
@@ -30,6 +49,30 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 resource "aws_iam_role_policy_attachment" "ecr_read" {
   role       = aws_iam_role.this.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_role_policy" "alloy_config_read" {
+  count = var.grafana_prom_url != "" ? 1 : 0
+  name  = "${var.name_prefix}-alloy-config-read"
+  role  = aws_iam_role.this.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = aws_ssm_parameter.alloy_config[0].arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "kms:ViaService" = "ssm.${var.region}.amazonaws.com" }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_iam_instance_profile" "this" {
@@ -71,9 +114,9 @@ resource "aws_instance" "this" {
       var.grafana_prom_url != "" ? "monitoring" : "",
     ]))
 
-    grafana_prom_url  = var.grafana_prom_url
-    grafana_prom_user = var.grafana_prom_user
-    grafana_token     = var.grafana_token
+    grafana_prom_url        = var.grafana_prom_url
+    region                  = var.region
+    alloy_config_param_name = local.alloy_config_param_name
   })
 
   tags = { Name = "${var.name_prefix}-vm" }

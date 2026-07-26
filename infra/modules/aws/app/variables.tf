@@ -3,6 +3,10 @@ variable "name_prefix" {
   default = "chaeso-zip"
 }
 
+variable "region" {
+  type = string
+}
+
 variable "subnet_id" {
   type = string
 }
