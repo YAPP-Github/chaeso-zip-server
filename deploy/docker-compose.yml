@@ -96,6 +96,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false
     mem_limit: 64m
     logging: *default-logging
 
@@ -108,5 +109,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
     mem_limit: 64m
     logging: *default-logging
