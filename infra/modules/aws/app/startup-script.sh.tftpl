@@ -107,21 +107,6 @@ fi
 SYNC
   chmod +x /opt/app/sync-alloy-config.sh
 
-  cat > /etc/cron.d/alloy-config-sync <<'CRON'
-*/5 * * * * root /opt/app/sync-alloy-config.sh >> /var/log/alloy-config-sync.log 2>&1
-CRON
-  chmod 644 /etc/cron.d/alloy-config-sync
-
-  cat > /etc/logrotate.d/alloy-config-sync <<'LOGROTATE'
-/var/log/alloy-config-sync.log {
-  weekly
-  rotate 4
-  compress
-  missingok
-  notifempty
-}
-LOGROTATE
-
   /opt/app/sync-alloy-config.sh
 ) || echo "Alloy config sync 설정 실패 — 모니터링 영향, 앱 배포 계속 진행" >&2
 %{ endif ~}
