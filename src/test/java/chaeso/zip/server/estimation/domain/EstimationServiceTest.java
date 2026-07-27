@@ -1,6 +1,7 @@
 package chaeso.zip.server.estimation.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
@@ -17,8 +18,38 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EstimationServiceTest {
+
+  @Nested
+  @DisplayName("입력 검증")
+  class InputValidation {
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1_000_000L, -1L, 0L})
+    @DisplayName("예산이 양수가 아니면 거부한다")
+    void rejectsNonPositiveBudget(long budgetWon) {
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "5000", null, null));
+
+      assertThatThrownBy(() -> EstimationService.estimate(product, budgetWon, 30))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Budget must be positive.");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-30, -1, 0})
+    @DisplayName("집행 기간이 양수가 아니면 거부한다")
+    void rejectsNonPositivePeriod(int periodDays) {
+      EstimationProduct product = product(null, 100_000L, null,
+          pricing(PricingModel.SLOT, PriceType.LIST, "500000", null, "7"));
+
+      assertThatThrownBy(() -> EstimationService.estimate(product, 1_000_000L, periodDays))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Period days must be positive.");
+    }
+  }
 
   @Nested
   @DisplayName("CPM 노출 계산")
@@ -48,6 +79,29 @@ class EstimationServiceTest {
 
       assertThat(result.impressions()).isEqualTo(new ImpressionRange(125_000, 200_000));
       assertThat(result.clicks()).isEqualTo(new ClickRange(1_875, 3_000));   // 1.5%
+    }
+
+    @Test
+    @DisplayName("단가 상한이 하한과 같으면 노출 하한·상한도 같다")
+    void collapsesRangeWhenPriceMaxEqualsPrice() {
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "5000", "5000", null));
+
+      EstimationResult result = EstimationService.estimate(product, 1_000_000L, 30);
+
+      assertThat(result.impressions()).isEqualTo(new ImpressionRange(200_000, 200_000));
+    }
+
+    @Test
+    @DisplayName("단가 상한이 하한보다 작은 이상 데이터면 ±15% 로 폴백한다")
+    void fallsBackToSpreadWhenPriceMaxBelowPrice() {
+      // 그대로 계산하면 하한이 1,000,000/3,000*1000 = 333,333 으로 상한 200,000 을 넘어 역전된다
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "5000", "3000", null));
+
+      EstimationResult result = EstimationService.estimate(product, 1_000_000L, 30);
+
+      assertThat(result.impressions()).isEqualTo(new ImpressionRange(170_000, 230_000));
     }
   }
 

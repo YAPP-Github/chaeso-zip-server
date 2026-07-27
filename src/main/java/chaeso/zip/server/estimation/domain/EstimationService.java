@@ -55,10 +55,17 @@ public final class EstimationService {
    * @param budgetWon  예산(원)
    * @param periodDays 집행 기간(일)
    * @return 시뮬레이션 결과. 값이 있는 단가가 하나도 없어 대표 단가를 정할 수 없으면 {@code null}
+   * @throws IllegalArgumentException 예산이나 기간이 양수가 아닌 경우
    */
   public static EstimationResult estimate(EstimationProduct product, long budgetWon,
       int periodDays) {
     Objects.requireNonNull(product, "product 는 null 일 수 없습니다");
+    if (budgetWon <= 0) {
+      throw new IllegalArgumentException("Budget must be positive.");
+    }
+    if (periodDays <= 0) {
+      throw new IllegalArgumentException("Period days must be positive.");
+    }
 
     EstimationPricing pricing = selectRepresentative(product.pricings());
     if (pricing == null) {
@@ -111,7 +118,7 @@ public final class EstimationService {
     if (pricing.pricingModel() == PricingModel.CPM) {
       BigDecimal mid = budget.divide(price, MC).multiply(CPM_UNIT);
       BigDecimal priceMax = pricing.valueMax();
-      if (priceMax != null && priceMax.signum() > 0) {
+      if (priceMax != null && priceMax.compareTo(price) >= 0) {
         // 구간형 단가는 상한 단가가 노출 하한, 하한 단가가 노출 상한이 된다
         return new Bounds(budget.divide(priceMax, MC).multiply(CPM_UNIT), mid);
       }
