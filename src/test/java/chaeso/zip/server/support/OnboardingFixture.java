@@ -26,7 +26,7 @@ public final class OnboardingFixture {
   public static Onboarding onboarding(UUID userId) {
     return Onboarding.create(userId, SERVICE_NAME, INDUSTRY, ServiceType.MOBILE_APP,
         List.of(AgeBand.AGE_20S, AgeBand.AGE_30S), CampaignObjective.IN_APP_ACTION,
-        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.EXPERIENCED);
+        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.EXPERIENCED, List.of());
   }
 
   /** WEB/TRAFFIC/100만~500만원/NONE, 집행 내역 없음. */
@@ -38,15 +38,22 @@ public final class OnboardingFixture {
   public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
       CampaignObjective campaignObjective, Long budgetMin, Long budgetMax,
       AdExperience adExperience, List<AdHistoryCommand> adHistory) {
+    return submitCommand(serviceType, campaignObjective, budgetMin, budgetMax, adExperience,
+        adHistory, List.of());
+  }
+
+  public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
+      CampaignObjective campaignObjective, Long budgetMin, Long budgetMax,
+      AdExperience adExperience, List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
     return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType,
         List.of(AgeBand.AGE_20S), campaignObjective, budgetMin, budgetMax,
-        CampaignPeriod.M1, adExperience, adHistory);
+        CampaignPeriod.M1, adExperience, adHistory, rawFileKeys);
   }
 
   /** WEB/TRAFFIC/300만~1000만원/NONE, 20·30대 대상, 집행 내역 없음.*/
   public static SubmitOnboardingRequest submitRequest() {
     return new SubmitOnboardingRequest(SERVICE_NAME, INDUSTRY, ServiceType.WEB,
         List.of(AgeBand.AGE_20S, AgeBand.AGE_30S), CampaignObjective.TRAFFIC,
-        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.NONE, List.of());
+        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.NONE, List.of(), List.of());
   }
 }
