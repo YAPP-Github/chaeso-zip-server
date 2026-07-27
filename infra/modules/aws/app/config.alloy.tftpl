@@ -1,0 +1,26 @@
+prometheus.scrape "app" {
+  targets         = [{ "__address__" = "app:${management_port}", "__metrics_path__" = "/actuator/prometheus" }]
+  forward_to      = [prometheus.remote_write.gc.receiver]
+  scrape_interval = "30s"
+}
+%{ if embedded_db ~}
+prometheus.scrape "postgres" {
+  targets         = [{ "__address__" = "postgres-exporter:9187" }]
+  forward_to      = [prometheus.remote_write.gc.receiver]
+  scrape_interval = "30s"
+}
+prometheus.scrape "redis" {
+  targets         = [{ "__address__" = "redis-exporter:9121" }]
+  forward_to      = [prometheus.remote_write.gc.receiver]
+  scrape_interval = "30s"
+}
+%{ endif ~}
+prometheus.remote_write "gc" {
+  endpoint {
+    url = "${grafana_prom_url}"
+    basic_auth {
+      username = "${grafana_prom_user}"
+      password = "${grafana_token}"
+    }
+  }
+}

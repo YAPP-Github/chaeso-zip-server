@@ -5,11 +5,20 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    grafana = {
+      source  = "grafana/grafana"
+      version = "~> 3.0"
+    }
   }
 }
 
 provider "aws" {
   region = var.region
+}
+
+provider "grafana" {
+  url  = var.grafana_cloud_url
+  auth = var.grafana_dashboard_token
 }
 
 resource "aws_key_pair" "this" {
@@ -25,6 +34,8 @@ module "network" {
 
 module "app" {
   source                          = "../../../modules/aws/app"
+  region                          = var.region
+  availability_zone               = var.availability_zone
   subnet_id                       = module.network.subnet_id
   firewall_ref                    = module.network.firewall_ref
   key_name                        = aws_key_pair.this.key_name

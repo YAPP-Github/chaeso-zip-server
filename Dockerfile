@@ -14,6 +14,12 @@ RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
 COPY src src
 RUN ./gradlew clean bootJar --no-daemon -x test
 
+# ---- Layer extraction ----
+FROM eclipse-temurin:21-jre AS extract
+WORKDIR /workspace
+COPY --from=build /workspace/build/libs/*.jar app.jar
+RUN java -Djarmode=tools -jar app.jar extract --layers --launcher --destination extracted
+
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
@@ -22,7 +28,10 @@ WORKDIR /app
 RUN groupadd --system spring && useradd --system --gid spring spring
 USER spring:spring
 
-COPY --from=build /workspace/build/libs/*.jar app.jar
+COPY --from=extract /workspace/extracted/dependencies/ ./
+COPY --from=extract /workspace/extracted/spring-boot-loader/ ./
+COPY --from=extract /workspace/extracted/snapshot-dependencies/ ./
+COPY --from=extract /workspace/extracted/application/ ./
 
 EXPOSE 8080 8081
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]

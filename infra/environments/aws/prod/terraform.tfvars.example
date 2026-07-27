@@ -7,4 +7,7 @@ grafana_prom_url  = "" # 예: https://prometheus-prod-XX.grafana.net/api/prom/pu
 grafana_prom_user = "" # 예: 1234567
 grafana_token     = ""
 
+grafana_cloud_url       = "" # 예: https://myorg.grafana.net
+grafana_dashboard_token = ""
+
 ad_history_cors_allowed_origins = ["https://example.com", "https://www.example.com"]
