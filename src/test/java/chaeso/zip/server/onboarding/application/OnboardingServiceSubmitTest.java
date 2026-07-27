@@ -186,7 +186,7 @@ class OnboardingServiceSubmitTest {
   @Test
   @DisplayName("경험 있음이어도 수동 입력 없이 성과파일만 있으면 통과한다")
   void allowsExperiencedWithOnlyFileKeysNoManualHistory() {
-    given(performanceFileStorage.verifyAndConfirm("ad-history/abc.xlsx"))
+    given(performanceFileStorage.verify("ad-history/abc.xlsx"))
         .willReturn("s3://bucket/ad-history/abc.xlsx");
     given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
     given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
@@ -253,7 +253,7 @@ class OnboardingServiceSubmitTest {
         new AdHistoryCommand(null, "채널3", 1000L, 10_000L, null, null, null, null));
     List<String> rawFileKeys = List.of("ad-history/1.xlsx", "ad-history/2.xlsx",
         "ad-history/3.xlsx", "ad-history/4.xlsx", "ad-history/5.xlsx");
-    rawFileKeys.forEach(key -> given(performanceFileStorage.verifyAndConfirm(key))
+    rawFileKeys.forEach(key -> given(performanceFileStorage.verify(key))
         .willReturn("s3://bucket/" + key));
     given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
     given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
@@ -266,14 +266,16 @@ class OnboardingServiceSubmitTest {
     ArgumentCaptor<List<AdPerformance>> captor = ArgumentCaptor.forClass(List.class);
     then(adPerformanceRepository).should().saveAll(captor.capture());
     assertThat(captor.getValue()).hasSize(3);
-    rawFileKeys.forEach(
-        key -> then(performanceFileStorage).should().verifyAndConfirm(key));
+    rawFileKeys.forEach(key -> {
+      then(performanceFileStorage).should().verify(key);
+      then(performanceFileStorage).should().confirm(key);
+    });
   }
 
   @Test
   @DisplayName("성과파일 key를 검증/확정하고 온보딩의 raw_file_urls로 저장한다")
   void confirmsRawFileKeysAndStoresUrlsOnOnboarding() {
-    given(performanceFileStorage.verifyAndConfirm("ad-history/abc.xlsx"))
+    given(performanceFileStorage.verify("ad-history/abc.xlsx"))
         .willReturn("s3://bucket/ad-history/abc.xlsx");
     given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
     given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
@@ -293,7 +295,7 @@ class OnboardingServiceSubmitTest {
   @Test
   @DisplayName("성과파일 검증에 실패하면 ONB-008이고 저장되지 않는다")
   void rejectsInvalidPerformanceFile() {
-    given(performanceFileStorage.verifyAndConfirm("ad-history/bad.xlsx"))
+    given(performanceFileStorage.verify("ad-history/bad.xlsx"))
         .willThrow(new InvalidPerformanceFileException("invalid file"));
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
         CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, List.of(),
@@ -348,7 +350,8 @@ class OnboardingServiceSubmitTest {
     assertThat(performance.getChannelId()).isEqualTo(channelId);
     assertThat(performance.getExternalChannelName()).isEqualTo("인스타그램");
     assertThat(performance.getRawFileUrl()).isNull();
-    then(performanceFileStorage).should(never()).verifyAndConfirm(any());
+    then(performanceFileStorage).should(never()).verify(any());
+    then(performanceFileStorage).should(never()).confirm(any());
 
     ArgumentCaptor<List<OnboardingAdHistorySnapshot>> snapshotCaptor =
         ArgumentCaptor.forClass(List.class);

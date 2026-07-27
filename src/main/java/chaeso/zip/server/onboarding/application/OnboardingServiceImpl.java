@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -35,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 온보딩 애플리케이션 서비스 구현체.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -55,10 +57,14 @@ public class OnboardingServiceImpl implements OnboardingService {
     validateSubmission(command.adExperience(), command.adHistory(), command.rawFileKeys());
     validateBudgetAndObjective(command);
 
-    List<String> confirmedFileUrls = confirmPerformanceFiles(command.rawFileKeys());
+    List<String> fileUrls = verifyPerformanceFiles(command.rawFileKeys());
 
-    return new TransactionTemplate(transactionManager)
-        .execute(status -> saveOnboarding(userId, command, confirmedFileUrls));
+    OnboardingSubmitResponse response = new TransactionTemplate(transactionManager)
+        .execute(status -> saveOnboarding(userId, command, fileUrls));
+
+    confirmPerformanceFiles(command.rawFileKeys());
+
+    return response;
   }
 
   private OnboardingSubmitResponse saveOnboarding(UUID userId, SubmitOnboardingCommand command,
@@ -159,20 +165,32 @@ public class OnboardingServiceImpl implements OnboardingService {
   }
 
   /**
-   * 성과파일을 확인하고 삭제 태그를 지운다.
+   * 성과파일이 유효한지 확인한다.
    *
    * @throws OnboardingBusinessException 파일 확인에 실패한 경우(PERFORMANCE_FILE_INVALID)
    */
-  private List<String> confirmPerformanceFiles(List<String> rawFileKeys) {
-    return rawFileKeys.stream().map(this::confirmPerformanceFile).toList();
+  private List<String> verifyPerformanceFiles(List<String> rawFileKeys) {
+    return rawFileKeys.stream().map(this::verifyPerformanceFile).toList();
   }
 
-  private String confirmPerformanceFile(String rawFileKey) {
+  private String verifyPerformanceFile(String rawFileKey) {
     try {
-      return performanceFileStorage.verifyAndConfirm(rawFileKey);
-    } catch (InvalidPerformanceFileException e) {
-      throw new OnboardingBusinessException(OnboardingErrorCode.PERFORMANCE_FILE_INVALID,
-          e.getMessage(), e);
+      return performanceFileStorage.verify(rawFileKey);
+    } catch (InvalidPerformanceFileException ignored) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.PERFORMANCE_FILE_INVALID);
     }
+  }
+
+  /**
+   * 성과파일의 삭제 방지 태그를 지운다.
+   */
+  private void confirmPerformanceFiles(List<String> rawFileKeys) {
+    rawFileKeys.forEach(key -> {
+      try {
+        performanceFileStorage.confirm(key);
+      } catch (RuntimeException e) {
+        log.warn("성과파일 태그 확정에 실패했습니다. key={}", key, e);
+      }
+    });
   }
 }

@@ -64,7 +64,7 @@ public class S3PerformanceFileStorage implements PerformanceFileStorage {
   }
 
   @Override
-  public String verifyAndConfirm(String key) {
+  public String verify(String key) {
     if (!key.startsWith(KEY_PREFIX)) {
       log.warn("허용되지 않은 성과파일 경로입니다. key={}", key);
       throw new InvalidPerformanceFileException("허용되지 않은 성과파일 경로입니다. key=" + key);
@@ -92,12 +92,15 @@ public class S3PerformanceFileStorage implements PerformanceFileStorage {
       throw new InvalidPerformanceFileException("성과파일 크기 조건을 만족하지 않습니다. key=" + key);
     }
 
+    return "s3://" + properties.bucket() + "/" + key;
+  }
+
+  @Override
+  public void confirm(String key) {
     s3Client.putObjectTagging(request -> request
         .bucket(properties.bucket())
         .key(key)
         .tagging(tagging -> tagging.tagSet(List.of())));
-
-    return "s3://" + properties.bucket() + "/" + key;
   }
 
   private static String extensionOf(String fileNameOrKey) {
