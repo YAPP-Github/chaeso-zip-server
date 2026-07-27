@@ -45,7 +45,9 @@ public class SecurityConfig {
       "/api/v1/auth/google/link",
       "/api/v1/auth/signup/google",
       "/api/v1/channels",
-      "/api/v1/channels/*"
+      "/api/v1/channels/*",
+      "/api/v1/onboarding",
+      "/api/v1/onboarding/ad-history/presigned-urls"
   };
 
   private final JwtTokenProvider jwtTokenProvider;
