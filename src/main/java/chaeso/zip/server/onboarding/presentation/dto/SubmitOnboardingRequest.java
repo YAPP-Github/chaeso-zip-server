@@ -34,7 +34,7 @@ public record SubmitOnboardingRequest(
     @Schema(description = "주요 연령대. 1개 이상", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty List<AgeBand> targetAgeBands,
 
-    @Schema(description = "광고 목표(단일 선택). 서비스 형태가 앱이면 APP_INSTALL/IN_APP_ACTION 도 선택할 수 있다",
+    @Schema(description = "광고 목표(단일 선택). 앱이면 APP_INSTALL/IN_APP_ACTION도 가능",
         requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull CampaignObjective campaignObjective,
 
@@ -52,9 +52,13 @@ public record SubmitOnboardingRequest(
     @Schema(description = "집행 경험 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull AdExperience adExperience,
 
-    @Schema(description = "집행 내역. 경험 없음이면 빈 배열",
+    @Schema(description = "직접 입력한 집행 내역. 경험 없음이면 빈 배열. 최대 3건",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull @Valid List<AdHistoryRequest> adHistory) {
+    @NotNull @Valid @Size(max = 3) List<AdHistoryRequest> adHistory,
+
+    @Schema(description = "업로드 완료한 성과파일 key 목록. 경험 없음이면 빈 배열. 최대 5개",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull @Size(max = 5) List<String> rawFileKeys) {
 
   public SubmitOnboardingCommand toCommand() {
     return new SubmitOnboardingCommand(
@@ -67,6 +71,7 @@ public record SubmitOnboardingRequest(
         budgetMax,
         period,
         adExperience,
-        adHistory.stream().map(AdHistoryRequest::toCommand).toList());
+        adHistory.stream().map(AdHistoryRequest::toCommand).toList(),
+        rawFileKeys);
   }
 }

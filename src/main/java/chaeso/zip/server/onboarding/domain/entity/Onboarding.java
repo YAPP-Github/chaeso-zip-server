@@ -69,12 +69,17 @@ public class Onboarding extends BaseEntity {
   @Column(name = "target_age_bands")
   private List<AgeBand> targetAgeBands;
 
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "raw_file_urls")
+  private List<String> rawFileUrls;
+
   @Column(name = "is_active", nullable = false)
   private boolean isActive = true;
 
   private Onboarding(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience) {
+      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      List<String> rawFileUrls) {
     this.userId = userId;
     this.serviceName = serviceName;
     this.industry = industry;
@@ -85,12 +90,14 @@ public class Onboarding extends BaseEntity {
     this.budgetMax = budgetMax;
     this.period = period;
     this.adExperience = adExperience;
+    this.rawFileUrls = rawFileUrls;
     this.isActive = true;
   }
 
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience) {
+      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      List<String> rawFileUrls) {
     if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
@@ -98,7 +105,7 @@ public class Onboarding extends BaseEntity {
       throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);
     }
     return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, period, adExperience);
+        campaignObjective, budgetMin, budgetMax, period, adExperience, rawFileUrls);
   }
 
   /** 새 온보딩이 제출되면 이전 응답을 비활성으로 내린다. */
