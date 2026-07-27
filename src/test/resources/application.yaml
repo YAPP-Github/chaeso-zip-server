@@ -57,3 +57,8 @@ app:
   login-method-lookup:
     max-attempts: 30
     window: PT1M
+  onboarding:
+    s3:
+      bucket: test-onboarding-bucket
+      region: ap-northeast-2
+      presign-ttl: PT5M
