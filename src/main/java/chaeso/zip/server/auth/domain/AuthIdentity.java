@@ -69,6 +69,9 @@ public class AuthIdentity {
 
     /** 구글 로그인. 비밀번호가 없고 providerUid 는 구글 {@code sub}. */
     public static AuthIdentity createGoogle(UUID userId, String providerUid) {
+        if (providerUid == null || providerUid.isBlank()) {
+            throw new IllegalArgumentException("GOOGLE identity requires a providerUid.");
+        }
         return new AuthIdentity(userId, AuthProvider.GOOGLE, providerUid, null);
     }
 

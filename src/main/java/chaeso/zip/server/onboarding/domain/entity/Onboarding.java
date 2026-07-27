@@ -4,8 +4,11 @@ import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.common.entity.BaseEntity;
+import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
+import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
+import chaeso.zip.server.onboarding.domain.vo.ObjectivePolicy;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -88,6 +91,12 @@ public class Onboarding extends BaseEntity {
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
       Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience) {
+    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
+    }
+    if (!ObjectivePolicy.allows(serviceType, campaignObjective)) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);
+    }
     return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
         campaignObjective, budgetMin, budgetMax, period, adExperience);
   }
