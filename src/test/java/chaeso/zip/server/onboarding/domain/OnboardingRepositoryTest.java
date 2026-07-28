@@ -54,7 +54,7 @@ class OnboardingRepositoryTest {
   }
 
   @Test
-  @DisplayName("집행 실적을 ad_performances에 저장하고 userId로 조회한다")
+  @DisplayName("집행 실적을 저장하고 사용자 기준으로 조회한다")
   void savesAdPerformances() {
     UUID userId = persistUser();
 
@@ -72,7 +72,7 @@ class OnboardingRepositoryTest {
   }
 
   @Test
-  @DisplayName("userId로 조회하면 활성 온보딩만 나온다")
+  @DisplayName("사용자 기준으로 조회하면 활성 온보딩만 조회된다")
   void findsOnlyActiveResponses() {
     UUID userId = persistUser();
     Onboarding old = OnboardingFixture.onboarding(userId);

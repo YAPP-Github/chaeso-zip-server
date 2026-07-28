@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
@@ -53,7 +54,7 @@ class S3PerformanceFileStorageTest {
   }
 
   @Test
-  @DisplayName("presign()은 ad-history/ prefix와 원본 확장자를 유지한 key를 발급한다")
+  @DisplayName("업로드용 presigned URL은 ad-history/ prefix와 원본 확장자를 유지한 key로 발급된다")
   void presignReturnsKeyWithExtension() throws Exception {
     given(s3Presigner.presignPutObject(
         ArgumentMatchers.<Consumer<PutObjectPresignRequest.Builder>>any()))
@@ -73,70 +74,75 @@ class S3PerformanceFileStorageTest {
         .isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
 
-  @Test
-  @DisplayName("verify()는 10MB 이하 파일이면 s3 URI를 돌려주고 태그는 건드리지 않는다")
-  void verifyReturnsUriWithoutTouchingTag() {
-    given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
-        .willReturn(HeadObjectResponse.builder().contentLength(2048L).build());
+  @Nested
+  @DisplayName("성과파일을 검증한다")
+  class Verify {
 
-    String result = storage.verify("ad-history/abc.csv");
+    @Test
+    @DisplayName("10MB 이하 파일이면 s3 URI를 돌려주고 태그는 건드리지 않는다")
+    void verifyReturnsUriWithoutTouchingTag() {
+      given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
+          .willReturn(HeadObjectResponse.builder().contentLength(2048L).build());
 
-    assertThat(result).isEqualTo("s3://test-bucket/ad-history/abc.csv");
-    then(s3Client).should(never())
-        .putObjectTagging(ArgumentMatchers.<Consumer<PutObjectTaggingRequest.Builder>>any());
+      String result = storage.verify("ad-history/abc.csv");
+
+      assertThat(result).isEqualTo("s3://test-bucket/ad-history/abc.csv");
+      then(s3Client).should(never())
+          .putObjectTagging(ArgumentMatchers.<Consumer<PutObjectTaggingRequest.Builder>>any());
+    }
+
+    @Test
+    @DisplayName("10MB를 초과하면 거부한다")
+    void verifyRejectsOversizedFile() {
+      given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
+          .willReturn(HeadObjectResponse.builder().contentLength(11 * 1024 * 1024L).build());
+
+      assertThatThrownBy(() -> storage.verify("ad-history/abc.csv"))
+          .isInstanceOf(InvalidPerformanceFileException.class);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 파일이면 거부한다")
+    void verifyRejectsMissingObject() {
+      willThrow(S3Exception.builder().statusCode(404).build())
+          .given(s3Client).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
+
+      assertThatThrownBy(() -> storage.verify("ad-history/missing.csv"))
+          .isInstanceOf(InvalidPerformanceFileException.class);
+    }
+
+    @Test
+    @DisplayName("파일 크기 정보가 없으면 예외 없이 거부한다")
+    void verifyRejectsNullContentLength() {
+      given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
+          .willReturn(HeadObjectResponse.builder().build());
+
+      assertThatThrownBy(() -> storage.verify("ad-history/abc.csv"))
+          .isInstanceOf(InvalidPerformanceFileException.class);
+    }
+
+    @Test
+    @DisplayName("허용되지 않은 확장자를 S3 호출 없이 거부한다")
+    void verifyRejectsDisallowedExtension() {
+      assertThatThrownBy(() -> storage.verify("ad-history/abc.pdf"))
+          .isInstanceOf(InvalidPerformanceFileException.class);
+      then(s3Client).should(never()).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
+    }
+
+    @Test
+    @DisplayName("ad-history/ prefix가 아닌 key를 S3 호출 없이 거부한다")
+    void verifyRejectsWrongPrefix() {
+      assertThatThrownBy(() -> storage.verify("other-bucket-path/abc.xlsx"))
+          .isInstanceOf(InvalidPerformanceFileException.class);
+      then(s3Client).should(never()).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
+    }
   }
 
   @Test
-  @DisplayName("confirm()은 삭제 방지 태그를 지운다")
+  @DisplayName("삭제 방지 태그를 지운다")
   void confirmClearsTag() {
     storage.confirm("ad-history/abc.csv");
 
     then(s3Client).should().putObjectTagging(ArgumentMatchers.<Consumer<PutObjectTaggingRequest.Builder>>any());
-  }
-
-  @Test
-  @DisplayName("verify()는 10MB를 초과하면 InvalidPerformanceFileException")
-  void verifyRejectsOversizedFile() {
-    given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
-        .willReturn(HeadObjectResponse.builder().contentLength(11 * 1024 * 1024L).build());
-
-    assertThatThrownBy(() -> storage.verify("ad-history/abc.csv"))
-        .isInstanceOf(InvalidPerformanceFileException.class);
-  }
-
-  @Test
-  @DisplayName("verify()는 객체가 없으면(404) InvalidPerformanceFileException")
-  void verifyRejectsMissingObject() {
-    willThrow(S3Exception.builder().statusCode(404).build())
-        .given(s3Client).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
-
-    assertThatThrownBy(() -> storage.verify("ad-history/missing.csv"))
-        .isInstanceOf(InvalidPerformanceFileException.class);
-  }
-
-  @Test
-  @DisplayName("verify()는 Content-Length가 없으면 NPE 대신 InvalidPerformanceFileException")
-  void verifyRejectsNullContentLength() {
-    given(s3Client.headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any()))
-        .willReturn(HeadObjectResponse.builder().build());
-
-    assertThatThrownBy(() -> storage.verify("ad-history/abc.csv"))
-        .isInstanceOf(InvalidPerformanceFileException.class);
-  }
-
-  @Test
-  @DisplayName("verify()는 허용되지 않은 확장자를 S3 호출 없이 거부한다")
-  void verifyRejectsDisallowedExtension() {
-    assertThatThrownBy(() -> storage.verify("ad-history/abc.pdf"))
-        .isInstanceOf(InvalidPerformanceFileException.class);
-    then(s3Client).should(never()).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
-  }
-
-  @Test
-  @DisplayName("verify()는 ad-history/ prefix가 아닌 key를 S3 호출 없이 거부한다")
-  void verifyRejectsWrongPrefix() {
-    assertThatThrownBy(() -> storage.verify("other-bucket-path/abc.xlsx"))
-        .isInstanceOf(InvalidPerformanceFileException.class);
-    then(s3Client).should(never()).headObject(ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
   }
 }
