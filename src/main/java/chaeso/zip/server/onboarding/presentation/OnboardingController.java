@@ -4,8 +4,13 @@ import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.onboarding.application.OnboardingService;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
+import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
+import chaeso.zip.server.onboarding.presentation.dto.PerformanceFileMeta;
+import chaeso.zip.server.onboarding.presentation.dto.PresignPerformanceFilesRequest;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,6 +37,15 @@ public class OnboardingController implements OnboardingApiDocs {
   public ApiResponse<OnboardingSubmitResponse> submit(
       @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SubmitOnboardingRequest request) {
-    return ApiResponse.success(onboardingService.submit(principal.userId(), request.toCommand()));
+    UUID userId = principal == null ? null : principal.userId();
+    return ApiResponse.success(onboardingService.submit(userId, request.toCommand()));
+  }
+
+  @Override
+  @PostMapping("/ad-history/presigned-urls")
+  public ApiResponse<List<PresignedFileUploadResult>> presignPerformanceFiles(
+      @Valid @RequestBody PresignPerformanceFilesRequest request) {
+    return ApiResponse.success(onboardingService.issuePresignedUrls(
+        request.files().stream().map(PerformanceFileMeta::toCommand).toList()));
   }
 }

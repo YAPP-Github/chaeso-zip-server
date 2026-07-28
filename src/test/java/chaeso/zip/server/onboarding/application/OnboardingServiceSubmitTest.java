@@ -35,7 +35,6 @@ import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +43,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class OnboardingServiceSubmitTest {
@@ -59,6 +59,12 @@ class OnboardingServiceSubmitTest {
 
   @Mock
   private ChannelRepository channelRepository;
+
+  @Mock
+  private PerformanceFileStorage performanceFileStorage;
+
+  @Mock
+  private PlatformTransactionManager transactionManager;
 
   @InjectMocks
   private OnboardingServiceImpl onboardingService;
@@ -85,11 +91,25 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
+  @DisplayName("userId가 없으면 익명으로 저장되고 기존 활성 응답 조회는 건너뛴다")
+  void savesResponseAnonymouslyWhenUserIdIsNull() {
+    given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    onboardingService.submit(null, OnboardingFixture.submitCommand());
+
+    ArgumentCaptor<Onboarding> captor = ArgumentCaptor.forClass(Onboarding.class);
+    then(onboardingRepository).should().saveAndFlush(captor.capture());
+    assertThat(captor.getValue().getUserId()).isNull();
+    then(onboardingRepository).should(never()).findByUserIdAndIsActiveTrue(any());
+  }
+
+  @Test
   @DisplayName("재제출하면 이전 활성 응답이 비활성화된다")
   void deactivatesPreviousActiveResponse() {
     Onboarding previous = Onboarding.create(
         USER_ID, "이전", Category.OTHERS, ServiceType.WEB, List.of(AgeBand.AGE_30S),
-        CampaignObjective.AWARENESS, 1L, 2L, CampaignPeriod.M1, AdExperience.NONE);
+        CampaignObjective.AWARENESS, 1L, 2L, CampaignPeriod.M1, AdExperience.NONE, List.of());
     given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID))
         .willReturn(List.of(previous));
     given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
@@ -152,7 +172,7 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
-  @DisplayName("경험 있음인데 집행 내역이 비면 ONB-003")
+  @DisplayName("경험 있음인데 집행 내역도 성과파일도 없으면 ONB-003")
   void rejectsEmptyHistoryWhenExperienced() {
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
         CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, List.of());
@@ -164,18 +184,128 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
-  @DisplayName("집행 내역이 50건을 넘으면 ONB-004")
-  void rejectsTooManyHistoryRows() {
-    List<AdHistoryCommand> rows = IntStream.rangeClosed(1, 51)
-        .mapToObj(i -> new AdHistoryCommand(null, "채널" + i, 1000L, null, null, null, null, null))
-        .toList();
+  @DisplayName("경험 있음이어도 수동 입력 없이 성과파일만 있으면 통과한다")
+  void allowsExperiencedWithOnlyFileKeysNoManualHistory() {
+    given(performanceFileStorage.verify("ad-history/abc.xlsx"))
+        .willReturn("s3://bucket/ad-history/abc.xlsx");
+    given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+    given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
-        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, rows);
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, List.of(),
+        List.of("ad-history/abc.xlsx"));
+
+    onboardingService.submit(USER_ID, command);
+
+    then(onboardingRepository).should().saveAndFlush(any(Onboarding.class));
+    then(adPerformanceRepository).should().saveAll(List.of());
+  }
+
+  @Test
+  @DisplayName("파일 없이 수동 입력 필드가 1개뿐이면 ONB-010")
+  void rejectsManualRowWithOnlyOneField() {
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED,
+        List.of(new AdHistoryCommand(null, "인스타그램", 1000L, null, null, null, null, null)));
 
     assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
         .isInstanceOf(OnboardingBusinessException.class)
         .extracting("errorCode")
-        .isEqualTo(OnboardingErrorCode.TOO_MANY_AD_HISTORY);
+        .isEqualTo(OnboardingErrorCode.TOO_FEW_MANUAL_FIELDS);
+    then(onboardingRepository).should(never()).saveAndFlush(any());
+  }
+
+  @Test
+  @DisplayName("파일 없이 수동 입력 필드가 하나도 없으면 ONB-010")
+  void rejectsManualRowWithNoFields() {
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED,
+        List.of(new AdHistoryCommand(null, "인스타그램", null, null, null, null, null, null)));
+
+    assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+        .isInstanceOf(OnboardingBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(OnboardingErrorCode.TOO_FEW_MANUAL_FIELDS);
+  }
+
+  @Test
+  @DisplayName("파일 없이 수동 입력 필드가 정확히 2개면 통과한다")
+  void allowsManualRowWithExactlyTwoFields() {
+    given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+    given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED,
+        List.of(new AdHistoryCommand(null, "인스타그램", 1000L, null, null, null,
+            LocalDate.of(2025, Month.MARCH, 1), null)));
+
+    onboardingService.submit(USER_ID, command);
+
+    then(onboardingRepository).should().saveAndFlush(any(Onboarding.class));
+  }
+
+  @Test
+  @DisplayName("수동 입력 3건과 성과파일 5건을 함께 제출하면 통과하고, ad_performances는 수동 3건만 저장된다")
+  void allowsManualHistoryAndFileKeysTogether() {
+    List<AdHistoryCommand> manualRows = List.of(
+        new AdHistoryCommand(null, "채널1", 1000L, 10_000L, null, null, null, null),
+        new AdHistoryCommand(null, "채널2", 1000L, 10_000L, null, null, null, null),
+        new AdHistoryCommand(null, "채널3", 1000L, 10_000L, null, null, null, null));
+    List<String> rawFileKeys = List.of("ad-history/1.xlsx", "ad-history/2.xlsx",
+        "ad-history/3.xlsx", "ad-history/4.xlsx", "ad-history/5.xlsx");
+    rawFileKeys.forEach(key -> given(performanceFileStorage.verify(key))
+        .willReturn("s3://bucket/" + key));
+    given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+    given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, manualRows, rawFileKeys);
+
+    onboardingService.submit(USER_ID, command);
+
+    ArgumentCaptor<List<AdPerformance>> captor = ArgumentCaptor.forClass(List.class);
+    then(adPerformanceRepository).should().saveAll(captor.capture());
+    assertThat(captor.getValue()).hasSize(3);
+    rawFileKeys.forEach(key -> {
+      then(performanceFileStorage).should().verify(key);
+      then(performanceFileStorage).should().confirm(key);
+    });
+  }
+
+  @Test
+  @DisplayName("성과파일 key를 검증/확정하고 온보딩의 raw_file_urls로 저장한다")
+  void confirmsRawFileKeysAndStoresUrlsOnOnboarding() {
+    given(performanceFileStorage.verify("ad-history/abc.xlsx"))
+        .willReturn("s3://bucket/ad-history/abc.xlsx");
+    given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+    given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, List.of(),
+        List.of("ad-history/abc.xlsx"));
+
+    onboardingService.submit(USER_ID, command);
+
+    ArgumentCaptor<Onboarding> captor = ArgumentCaptor.forClass(Onboarding.class);
+    then(onboardingRepository).should().saveAndFlush(captor.capture());
+    assertThat(captor.getValue().getRawFileUrls())
+        .containsExactly("s3://bucket/ad-history/abc.xlsx");
+  }
+
+  @Test
+  @DisplayName("성과파일 검증에 실패하면 ONB-008이고 저장되지 않는다")
+  void rejectsInvalidPerformanceFile() {
+    given(performanceFileStorage.verify("ad-history/bad.xlsx"))
+        .willThrow(new InvalidPerformanceFileException("invalid file"));
+    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED, List.of(),
+        List.of("ad-history/bad.xlsx"));
+
+    assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+        .isInstanceOf(OnboardingBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(OnboardingErrorCode.PERFORMANCE_FILE_INVALID);
+    then(onboardingRepository).should(never()).saveAndFlush(any());
   }
 
   @Test
@@ -185,7 +315,8 @@ class OnboardingServiceSubmitTest {
     given(channelRepository.findAllById(List.of(unknown))).willReturn(List.of());
     SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
         CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED,
-        List.of(new AdHistoryCommand(unknown, "인스타그램", 1000L, null, null, null, null, null)));
+        List.of(new AdHistoryCommand(unknown, "인스타그램", 1000L, 10_000L, null, null, null,
+            null)));
 
     assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
         .isInstanceOf(ChannelNotFoundException.class)
@@ -194,23 +325,7 @@ class OnboardingServiceSubmitTest {
   }
 
   @Test
-  @DisplayName("집행 종료일이 시작일보다 빠르면 ONB-005")
-  void rejectsInvertedAdPeriod() {
-    UUID channelId = UUID.randomUUID();
-    SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
-        CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.EXPERIENCED,
-        List.of(new AdHistoryCommand(channelId, "인스타그램", 1000L, null, null, null,
-            LocalDate.of(2025, Month.MAY, 31), LocalDate.of(2025, Month.MARCH, 1))));
-
-    assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
-        .isInstanceOf(OnboardingBusinessException.class)
-        .extracting("errorCode")
-        .isEqualTo(OnboardingErrorCode.INVALID_AD_PERIOD);
-    then(onboardingRepository).should(never()).saveAndFlush(any());
-  }
-
-  @Test
-  @DisplayName("집행 내역이 ad_performances 행으로 저장된다")
+  @DisplayName("집행 내역이 ad_performances 행으로 MANUAL sourceType으로 저장된다")
   void savesHistoryRows() {
     UUID channelId = UUID.randomUUID();
     Channel channel = mock(Channel.class);
@@ -234,6 +349,9 @@ class OnboardingServiceSubmitTest {
     assertThat(performance.getSourceType()).isEqualTo(PerfSource.MANUAL);
     assertThat(performance.getChannelId()).isEqualTo(channelId);
     assertThat(performance.getExternalChannelName()).isEqualTo("인스타그램");
+    assertThat(performance.getRawFileUrl()).isNull();
+    then(performanceFileStorage).should(never()).verify(any());
+    then(performanceFileStorage).should(never()).confirm(any());
 
     ArgumentCaptor<List<OnboardingAdHistorySnapshot>> snapshotCaptor =
         ArgumentCaptor.forClass(List.class);

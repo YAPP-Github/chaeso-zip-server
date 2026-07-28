@@ -39,6 +39,7 @@ dependencies {
     implementation libs.flyway.postgresql
     implementation libs.jjwt.api
     implementation libs.google.api.client
+    implementation libs.aws.sdk.s3
     implementation variantOf(libs.querydsl.jpa) { classifier('jakarta') }
     annotationProcessor variantOf(libs.querydsl.apt) { classifier('jakarta') }
     annotationProcessor libs.jakarta.annotation.api

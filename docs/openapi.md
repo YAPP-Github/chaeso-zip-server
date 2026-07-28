@@ -59,7 +59,6 @@ String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노
 ```json
 {
   "success": false,
-  "data": null,
   "error": {
     "code": "C-001",
     "message": "입력값이 올바르지 않습니다.",
@@ -79,7 +78,6 @@ String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노
 ```json
 {
   "success": false,
-  "data": null,
   "error": {
     "code": "AUTH-002",
     "message": "이미 사용 중인 이메일입니다.",

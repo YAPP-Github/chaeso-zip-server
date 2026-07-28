@@ -3,15 +3,17 @@ package chaeso.zip.server.onboarding.presentation;
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
+import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
+import chaeso.zip.server.onboarding.presentation.dto.PresignPerformanceFilesRequest;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -71,34 +73,12 @@ public interface OnboardingApiDocs {
       }
       """;
 
-  String TOO_MANY_AD_HISTORY_EXAMPLE = """
-      {
-        "success": false,
-        "error": {
-          "code": "ONB-004",
-          "message": "집행 내역은 최대 50건까지 입력할 수 있습니다.",
-          "fieldErrors": []
-        }
-      }
-      """;
-
   String CHANNEL_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
         "error": {
           "code": "CH-001",
           "message": "존재하지 않는 채널입니다.",
-          "fieldErrors": []
-        }
-      }
-      """;
-
-  String INVALID_AD_PERIOD_EXAMPLE = """
-      {
-        "success": false,
-        "error": {
-          "code": "ONB-005",
-          "message": "집행 종료일은 시작일보다 빠를 수 없습니다.",
           "fieldErrors": []
         }
       }
@@ -115,35 +95,43 @@ public interface OnboardingApiDocs {
       }
       """;
 
-  String UNAUTHORIZED_EXAMPLE = """
+  String PERFORMANCE_FILE_INVALID_EXAMPLE = """
       {
         "success": false,
         "error": {
-          "code": "C-004",
-          "message": "인증이 필요합니다.",
+          "code": "ONB-008",
+          "message": "첨부한 성과파일을 확인할 수 없습니다.",
           "fieldErrors": []
         }
       }
       """;
 
-  @SecurityRequirement(name = "bearerAuth")
+  String TOO_FEW_MANUAL_FIELDS_EXAMPLE = """
+      {
+        "success": false,
+        "error": {
+          "code": "ONB-010",
+          "message": "직접 입력한 집행 내역은 예산/집행기간/노출수/클릭수/전환수 중 2개 이상을 입력해야 합니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
   @Operation(operationId = "submitOnboarding", summary = "온보딩 제출",
-      description = "온보딩 정보를 저장한다. 이미 제출한 적이 있으면 이전 응답은 비활성으로 내려가고 새 응답이 활성이 된다.")
+      description = "온보딩 정보를 인증 없이 저장한다. 로그인 상태면 결과를 사용자와 연결하고, 비로그인 "
+          + "상태면 익명으로 저장한다. 기존 활성 응답이 있으면 비활성으로 내리고 새 응답을 활성으로 만든다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "제출 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
-      description = "입력값 검증 실패(C-001) 또는 값 사이의 관계 규칙 위반(ONB-001~005)",
+      description = "입력값 검증 실패(C-001) 또는 값 사이의 관계 규칙 위반(ONB-001~003, ONB-008, ONB-010)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
               @ExampleObject(name = "INVALID_BUDGET_RANGE", value = INVALID_BUDGET_RANGE_EXAMPLE),
               @ExampleObject(name = "OBJECTIVE_NOT_ALLOWED", value = OBJECTIVE_NOT_ALLOWED_EXAMPLE),
               @ExampleObject(name = "AD_EXPERIENCE_MISMATCH", value = AD_EXPERIENCE_MISMATCH_EXAMPLE),
-              @ExampleObject(name = "TOO_MANY_AD_HISTORY", value = TOO_MANY_AD_HISTORY_EXAMPLE),
-              @ExampleObject(name = "INVALID_AD_PERIOD", value = INVALID_AD_PERIOD_EXAMPLE)
+              @ExampleObject(name = "PERFORMANCE_FILE_INVALID", value = PERFORMANCE_FILE_INVALID_EXAMPLE),
+              @ExampleObject(name = "TOO_FEW_MANUAL_FIELDS", value = TOO_FEW_MANUAL_FIELDS_EXAMPLE)
           }))
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "미인증 요청(C-004)",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "UNAUTHORIZED", value = UNAUTHORIZED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 채널(CH-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -155,4 +143,15 @@ public interface OnboardingApiDocs {
   ApiResponse<OnboardingSubmitResponse> submit(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SubmitOnboardingRequest request);
+
+  @Operation(operationId = "presignOnboardingPerformanceFiles", summary = "성과파일 presigned URL 발급",
+      description = "집행 이력에 첨부할 성과파일(xlsx/csv)의 S3 업로드용 presigned PUT URL을 인증 없이 "
+          + "발급한다. PUT 시 응답의 contentType 값과 x-amz-tagging: retain=pending 헤더를 보낸다.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발급 성공")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+      description = "파일 개수(최대 5) 또는 확장자(xlsx/csv)나 크기(10MB) 위반(C-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  ApiResponse<List<PresignedFileUploadResult>> presignPerformanceFiles(
+      @Valid @RequestBody PresignPerformanceFilesRequest request);
 }

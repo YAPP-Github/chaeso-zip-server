@@ -21,5 +21,6 @@ public record SubmitOnboardingCommand(
     Long budgetMax,
     CampaignPeriod period,
     AdExperience adExperience,
-    List<AdHistoryCommand> adHistory) {
+    List<AdHistoryCommand> adHistory,
+    List<String> rawFileKeys) {
 }
