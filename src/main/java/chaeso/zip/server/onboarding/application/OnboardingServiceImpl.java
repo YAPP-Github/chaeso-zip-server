@@ -31,7 +31,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import software.amazon.awssdk.core.exception.SdkException;
 
 /**
  * 온보딩 애플리케이션 서비스 구현체.
@@ -180,7 +179,7 @@ public class OnboardingServiceImpl implements OnboardingService {
   private void confirmPerformanceFile(String key) {
     try {
       performanceFileStorage.confirm(key);
-    } catch (SdkException e) {
+    } catch (PerformanceFileStorageException e) {
       log.error("성과파일 태그 확정에 실패했습니다. 1일 뒤 lifecycle로 객체가 삭제될 수 있습니다. "
           + "key={}", key, e);
     }

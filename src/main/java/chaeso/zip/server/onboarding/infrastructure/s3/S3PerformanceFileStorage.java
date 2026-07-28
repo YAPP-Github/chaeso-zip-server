@@ -2,6 +2,7 @@ package chaeso.zip.server.onboarding.infrastructure.s3;
 
 import chaeso.zip.server.onboarding.application.InvalidPerformanceFileException;
 import chaeso.zip.server.onboarding.application.PerformanceFileStorage;
+import chaeso.zip.server.onboarding.application.PerformanceFileStorageException;
 import chaeso.zip.server.onboarding.application.dto.PresignPerformanceFileCommand;
 import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -97,10 +99,14 @@ public class S3PerformanceFileStorage implements PerformanceFileStorage {
 
   @Override
   public void confirm(String key) {
-    s3Client.putObjectTagging(request -> request
-        .bucket(properties.bucket())
-        .key(key)
-        .tagging(tagging -> tagging.tagSet(List.of())));
+    try {
+      s3Client.putObjectTagging(request -> request
+          .bucket(properties.bucket())
+          .key(key)
+          .tagging(tagging -> tagging.tagSet(List.of())));
+    } catch (SdkException e) {
+      throw new PerformanceFileStorageException("성과파일 태그 확정에 실패했습니다. key=" + key, e);
+    }
   }
 
   private static String extensionOf(String fileNameOrKey) {

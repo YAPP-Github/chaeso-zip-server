@@ -27,6 +27,7 @@ public interface PerformanceFileStorage {
    * 성과파일의 삭제 방지 태그를 지운다.
    *
    * @param key 파일 식별자
+   * @throws PerformanceFileStorageException 저장소 호출이 실패한 경우
    */
   void confirm(String key);
 }
