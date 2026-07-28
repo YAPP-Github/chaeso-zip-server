@@ -1,5 +1,7 @@
 # 인프라 구조 / 접속 가이드
 
+프로덕션(AWS) 기준입니다. dev 환경(홈서버)은 [test-infra.md](./test-infra.md) 참고.
+
 ## 1. 코드 구조
 
 ```
@@ -15,6 +17,8 @@ infra/
 └── modules/aws/
     ├── network/                 # VPC/subnet/IGW/SG
     └── app/                     # EC2/EIP/EBS/instance profile + startup-script
+        ├── schedule.tf          # EventBridge Scheduler 야간 자동 정지/기동
+        └── s3-ad-history.tf     # 온보딩 광고 이력 업로드용 S3 (§5)
 ```
 
 ---
@@ -81,3 +85,19 @@ make ps        # 컨테이너 상태
 | `make check` | 컨테이너/DB/볼륨 종합 점검 |
 | `make ps` | 컨테이너 상태 |
 | `make logs` | 실시간 로그 |
+
+---
+
+## 4. AWS 새벽시간대 자동 정지 스케줄링
+
+- 서버 비용 절감을 위해 AWS 운영서버를 새벽 12시 ~ 아침 9시(9시간) 동안 정지 예정입니다.
+- EventBridge Scheduler와 Global Target를 적용했습니다. (테스트 서버는 상시 동작합니다)
+
+상세 코드는 `../infra/modules/aws/app/schedule.tf`를 참고해주세요.
+
+| 스케줄 | cron (Asia/Seoul) | 동작 |
+|---|---|---|
+| `chaeso-zip-stop-night` | `0 0 * * ? *` (매일 00:00) | `StopInstances` (Force=false, graceful) |
+| `chaeso-zip-start-morning` | `0 9 * * ? *` (매일 09:00) | `StartInstances` |
+
+---

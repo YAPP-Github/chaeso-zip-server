@@ -66,7 +66,12 @@ validate_caddy() {
     return 1
   fi
 }
-deploy() { docker compose pull && docker compose up -d && docker compose up -d --force-recreate caddy; }
+deploy() {
+  docker compose pull
+  docker compose up -d --no-deps db redis app
+  docker compose up -d --force-recreate --no-deps caddy
+  docker compose up -d || echo "모니터링 사이드카(alloy/exporter) 기동 실패 — 핵심 서비스는 정상, 계속 진행" >&2
+}
 healthy() {
   local mgmt_port cid
   mgmt_port=$(grep '^MANAGEMENT_PORT=' .env | cut -d= -f2)

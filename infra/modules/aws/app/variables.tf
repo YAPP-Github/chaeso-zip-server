@@ -3,6 +3,14 @@ variable "name_prefix" {
   default = "chaeso-zip"
 }
 
+variable "region" {
+  type = string
+}
+
+variable "availability_zone" {
+  type = string
+}
+
 variable "subnet_id" {
   type = string
 }
@@ -92,4 +100,9 @@ variable "grafana_token" {
   type      = string
   default   = ""
   sensitive = true
+}
+
+variable "ad_history_cors_allowed_origins" {
+  type    = list(string)
+  default = ["http://localhost:3000"]
 }

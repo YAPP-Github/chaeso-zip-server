@@ -24,7 +24,8 @@ if [ -b "$data_dev" ]; then
   fi
   mkdir -p /data
   mount "$data_dev" /data
-  grep -q "$data_dev" /etc/fstab || echo "$data_dev /data ext4 defaults,nofail 0 2" >> /etc/fstab
+  data_uuid=$(blkid -s UUID -o value "$data_dev")
+  grep -q " /data " /etc/fstab || echo "UUID=$data_uuid /data ext4 defaults,nofail 0 2" >> /etc/fstab
   mkdir -p /data/postgres /data/redis
 else
   echo "데이터 볼륨($data_dev)이 60초 내 감지되지 않음 — 마운트 스킵하고 계속 진행" >&2
@@ -43,6 +44,15 @@ apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 systemctl enable --now docker
 usermod -aG docker ubuntu
+
+%{ if embedded_db ~}
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/require-data-mount.conf <<'UNIT'
+[Unit]
+RequiresMountsFor=/data
+UNIT
+systemctl daemon-reload
+%{ endif ~}
 
 # 1-0) ECR keyless pull
 apt-get install -y amazon-ecr-credential-helper
@@ -71,23 +81,34 @@ echo "DOPPLER_TOKEN=${doppler_token}" >/opt/app/doppler.env
 %{ endif ~}
 
 %{ if grafana_prom_url != "" ~}
+(
+  set -e
 
-cat > /opt/app/config.alloy <<'ALLOY'
-prometheus.scrape "app" {
-  targets         = [{ "__address__" = "app:${management_port}", "__metrics_path__" = "/actuator/prometheus" }]
-  forward_to      = [prometheus.remote_write.gc.receiver]
-  scrape_interval = "30s"
-}
-prometheus.remote_write "gc" {
-  endpoint {
-    url = "${grafana_prom_url}"
-    basic_auth {
-      username = "${grafana_prom_user}"
-      password = "${grafana_token}"
-    }
-  }
-}
-ALLOY
+  if ! command -v aws >/dev/null 2>&1; then
+    command -v unzip >/dev/null 2>&1 || apt-get install -y unzip
+    curl -fsSL --retry 3 "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
+    rm -rf /tmp/awscliv2.zip /tmp/aws
+  fi
+
+  cat > /opt/app/sync-alloy-config.sh <<'SYNC'
+#!/usr/bin/env bash
+set -euo pipefail
+NEW=$(aws ssm get-parameter --name "${alloy_config_param_name}" --with-decryption \
+  --region "${region}" --query Parameter.Value --output text || true)
+[ -z "$NEW" ] && exit 0
+CUR=$(cat /opt/app/config.alloy 2>/dev/null || true)
+if [ "$NEW" != "$CUR" ]; then
+  echo "$NEW" > /opt/app/config.alloy
+  chmod 600 /opt/app/config.alloy
+  cd /opt/app && docker compose up -d --force-recreate alloy
+fi
+SYNC
+  chmod +x /opt/app/sync-alloy-config.sh
+
+  /opt/app/sync-alloy-config.sh
+) || echo "Alloy config sync 설정 실패 — 모니터링 영향, 앱 배포 계속 진행" >&2
 %{ endif ~}
 
 cat > /opt/app/infra.env <<'INFRA'

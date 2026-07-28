@@ -63,6 +63,10 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        jvm.gc.pause: true
 
 sentry:
   dsn: ${SENTRY_DSN:}
@@ -79,6 +83,9 @@ jwt:
   access-ttl: ${JWT_ACCESS_TTL:PT30M}
   refresh-ttl: ${JWT_REFRESH_TTL:P14D}
   refresh-absolute-ttl: ${JWT_REFRESH_ABSOLUTE_TTL:P90D}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
 
 app:
   google:
@@ -97,3 +104,7 @@ app:
   login-method-lookup:
     max-attempts: ${LOGIN_METHOD_LOOKUP_MAX_ATTEMPTS:30}
     window: ${LOGIN_METHOD_LOOKUP_WINDOW:PT1M}
+  onboarding:
+    s3:
+      bucket: ${AD_HISTORY_BUCKET}
+      presign-ttl: ${ONBOARDING_S3_PRESIGN_TTL:PT5M}
