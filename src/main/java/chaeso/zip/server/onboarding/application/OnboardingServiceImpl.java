@@ -15,7 +15,6 @@ import chaeso.zip.server.onboarding.domain.entity.OnboardingAdHistorySnapshot;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapshotRepository;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
-import chaeso.zip.server.onboarding.domain.vo.ObjectivePolicy;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
@@ -32,6 +31,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import software.amazon.awssdk.core.exception.SdkException;
 
 /**
  * 온보딩 애플리케이션 서비스 구현체.
@@ -55,7 +55,6 @@ public class OnboardingServiceImpl implements OnboardingService {
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public OnboardingSubmitResponse submit(UUID userId, SubmitOnboardingCommand command) {
     validateSubmission(command.adExperience(), command.adHistory(), command.rawFileKeys());
-    validateBudgetAndObjective(command);
 
     List<String> fileUrls = verifyPerformanceFiles(command.rawFileKeys());
 
@@ -85,6 +84,7 @@ public class OnboardingServiceImpl implements OnboardingService {
     if (userId != null) {
       onboardingRepository.findByUserIdAndIsActiveTrue(userId)
           .forEach(Onboarding::deactivate);
+      onboardingRepository.flush();
     }
 
     Onboarding saved = saveResponse(response);
@@ -102,17 +102,6 @@ public class OnboardingServiceImpl implements OnboardingService {
         .toList());
 
     return OnboardingSubmitResponse.from(saved);
-  }
-
-  private void validateBudgetAndObjective(SubmitOnboardingCommand command) {
-    Long budgetMin = command.budgetMin();
-    Long budgetMax = command.budgetMax();
-    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
-      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
-    }
-    if (!ObjectivePolicy.allows(command.serviceType(), command.campaignObjective())) {
-      throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);
-    }
   }
 
   @Override
@@ -185,12 +174,15 @@ public class OnboardingServiceImpl implements OnboardingService {
    * 성과파일의 삭제 방지 태그를 지운다.
    */
   private void confirmPerformanceFiles(List<String> rawFileKeys) {
-    rawFileKeys.forEach(key -> {
-      try {
-        performanceFileStorage.confirm(key);
-      } catch (RuntimeException e) {
-        log.warn("성과파일 태그 확정에 실패했습니다. key={}", key, e);
-      }
-    });
+    rawFileKeys.forEach(this::confirmPerformanceFile);
+  }
+
+  private void confirmPerformanceFile(String key) {
+    try {
+      performanceFileStorage.confirm(key);
+    } catch (SdkException e) {
+      log.error("성과파일 태그 확정에 실패했습니다. 1일 뒤 lifecycle로 객체가 삭제될 수 있습니다. "
+          + "key={}", key, e);
+    }
   }
 }
