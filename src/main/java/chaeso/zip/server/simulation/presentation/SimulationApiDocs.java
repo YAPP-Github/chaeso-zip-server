@@ -26,6 +26,7 @@ public interface SimulationApiDocs {
           "period": "M1",
           "totalEstImpressions": 1150000,
           "totalEstClicks": 23000,
+          "executableChannelCount": 1,
           "items": [
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
@@ -35,7 +36,7 @@ public interface SimulationApiDocs {
               "allocationPct": 66.7,
               "estImpressions": { "min": 566667, "max": 766667 },
               "estClicks": { "min": 11333, "max": 15333 },
-              "cpcWon": null,
+              "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
               "shortfallWon": null,
@@ -69,6 +70,7 @@ public interface SimulationApiDocs {
           "period": "M1",
           "totalEstImpressions": 1150000,
           "totalEstClicks": 23000,
+          "executableChannelCount": 1,
           "items": [
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
@@ -78,7 +80,7 @@ public interface SimulationApiDocs {
               "allocationPct": 100,
               "estImpressions": { "min": 850000, "max": 1150000 },
               "estClicks": { "min": 17000, "max": 23000 },
-              "cpcWon": null,
+              "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
               "shortfallWon": null,
@@ -122,7 +124,9 @@ public interface SimulationApiDocs {
           매체별 예산 배분에 대한 예상 노출·클릭을 계산해 반환한다. 저장하지 않으므로 응답에 \
           simulationId 가 없다. 로그인 없이 호출할 수 있다. \
           매체별로 단가가 가장 싼 상품을 대표로 삼으며, CTR 이 없는 상품은 카탈로그 전체 평균 CTR 로 \
-          클릭을 계산한다. 집행 가능 여부는 기간과 무관하게 배분 예산이 단가를 넘는지로만 판단한다.""")
+          클릭을 계산한다. 집행 가능 여부는 기간과 무관하게 배분 예산이 단가를 넘는지로만 판단한다. \
+          cpcWon 은 모든 매체를 클릭당 비용 하나로 통일해 보여주는 값으로, 클릭당 과금 매체는 단가 \
+          그대로이고 그 외 매체는 배분 예산 / 예상 클릭 수(중앙값)로 환산한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "계산 성공",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "SIMULATION", value = SIMULATION_EXAMPLE)))

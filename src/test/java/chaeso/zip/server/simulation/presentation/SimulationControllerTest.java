@@ -86,7 +86,8 @@ class SimulationControllerTest {
         .andExpect(jsonPath("$.data.items[0].channelName").value("11번가 광고"))
         .andExpect(jsonPath("$.data.items[0].estImpressions.min").value(850_000))
         .andExpect(jsonPath("$.data.items[0].estImpressions.max").value(1_150_000))
-        .andExpect(jsonPath("$.data.items[0].cpmWon").value(3000))
+        .andExpect(jsonPath("$.data.executableChannelCount").value(1))
+        .andExpect(jsonPath("$.data.items[0].cpcWon").value(120))
         .andExpect(jsonPath("$.data.items[0].isExecutable").value(true))
         .andExpect(jsonPath("$.data.items[0].basisNote").value(BasisNote.COMMON));
   }
@@ -263,8 +264,8 @@ class SimulationControllerTest {
     SimulationItemResponse item = new SimulationItemResponse(
         CHANNEL_ID, "11번가 광고", PRODUCT_ID, 3_000_000L, new BigDecimal("100"),
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
-        null, new BigDecimal("3000"), true, null, BasisNote.COMMON);
+        new BigDecimal("120"), new BigDecimal("3000"), true, null, BasisNote.COMMON);
     return new SimulationResponse(simulationId, 3_000_000L, SimPeriod.M1, 1_000_000L, 25_000L,
-        List.of(item));
+        1, List.of(item));
   }
 }

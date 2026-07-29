@@ -102,9 +102,11 @@ class SimulationServiceImplTest {
       // 평균 CTR 2.5% 적용
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(21_250, 28_750));
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
-      assertThat(item.cpcWon()).isNull();
+      // 클릭당 비용으로 통일 표시: 3,000,000 / 25,000 클릭(중앙값) = 120 원
+      assertThat(item.cpcWon()).isEqualByComparingTo("120");
       assertThat(response.totalEstImpressions()).isEqualTo(1_000_000);
       assertThat(response.totalEstClicks()).isEqualTo(25_000);
+      assertThat(response.executableChannelCount()).isEqualTo(1);
     }
 
     @Test
@@ -148,7 +150,8 @@ class SimulationServiceImplTest {
 
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);
       assertThat(item.estImpressions()).isNotNull();
-      assertThat(item.cpcWon()).isNull();
+      // 구좌형이어도 클릭당 비용으로 환산된다: 1,000,000 / 2,000 클릭 = 500 원
+      assertThat(item.cpcWon()).isEqualByComparingTo("500");
     }
 
     @Test
@@ -214,8 +217,8 @@ class SimulationServiceImplTest {
     }
 
     @Test
-    @DisplayName("CPC 단가는 cpcWon 으로, 그 외 과금 모델은 둘 다 비워 둔다")
-    void exposesUnitPriceByPricingModel() {
+    @DisplayName("클릭당 과금 매체는 단가를 환산 없이 그대로 클릭당 비용으로 쓴다")
+    void usesCpcPriceAsIs() {
       givenCatalog(product(PRODUCT_ID, CHANNEL_ID, null, 100_000L, "1개월"),
           pricing(PRODUCT_ID, PricingModel.CPC, "500"));
 
@@ -224,6 +227,34 @@ class SimulationServiceImplTest {
 
       assertThat(item.cpcWon()).isEqualByComparingTo("500");
       assertThat(item.cpmWon()).isNull();
+    }
+
+    @Test
+    @DisplayName("예상 클릭이 없는 매체는 클릭당 비용을 환산할 수 없어 비워 둔다")
+    void leavesCpcEmptyWithoutClickEstimate() {
+      // 노출 정보가 없어 클릭을 못 내는 구좌형 상품
+      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
+          pricing(PRODUCT_ID, PricingModel.SLOT, "1000000"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(2_000_000, SimPeriod.M1, allocation(2_000_000, "100"))).items().getFirst();
+
+      assertThat(item.isExecutable()).isTrue();
+      assertThat(item.estClicks()).isNull();
+      assertThat(item.cpcWon()).isNull();
+    }
+
+    @Test
+    @DisplayName("집행 불가 매체는 클릭 추정이 없으므로 클릭당 비용도 비워 둔다")
+    void leavesCpcEmptyWhenNotExecutable() {
+      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
+          pricing(PRODUCT_ID, PricingModel.CPM, "5000000"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(1_000_000, SimPeriod.W1, allocation(1_000_000, "100"))).items().getFirst();
+
+      assertThat(item.isExecutable()).isFalse();
+      assertThat(item.cpcWon()).isNull();
     }
 
     @Test
@@ -363,6 +394,7 @@ class SimulationServiceImplTest {
       assertThat(response.items().get(1).isExecutable()).isFalse();
       assertThat(response.totalEstImpressions()).isEqualTo(1_000_000);   // 첫 매체 몫만
       assertThat(response.totalEstClicks()).isEqualTo(25_000);
+      assertThat(response.executableChannelCount()).isEqualTo(1);        // 2개 중 1개만
     }
 
     @Test
@@ -412,6 +444,7 @@ class SimulationServiceImplTest {
       assertThat(saved.getEstImpressionsMax()).isEqualTo(1_150_000);
       assertThat(saved.getEstClicksMin()).isEqualTo(21_250);
       assertThat(saved.getEstClicksMax()).isEqualTo(28_750);
+      assertThat(saved.getCpcWon()).isEqualByComparingTo("120");   // 환산값도 스냅샷에 남는다
       assertThat(saved.getCpmWon()).isEqualByComparingTo("3000");
       assertThat(saved.isExecutable()).isTrue();
       assertThat(saved.getBasisNote()).isEqualTo(
@@ -477,6 +510,7 @@ class SimulationServiceImplTest {
               .estImpressionsMax(1_150_000L)
               .estClicksMin(21_250L)
               .estClicksMax(28_750L)
+              .cpcWon(new BigDecimal("120"))
               .cpmWon(new BigDecimal("3000"))
               .executable(true)
               .basisNote("저장 당시 고지")
@@ -497,8 +531,10 @@ class SimulationServiceImplTest {
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(850_000, 1_150_000));
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(21_250, 28_750));
+      assertThat(item.cpcWon()).isEqualByComparingTo("120");   // 저장 당시 환산값이 그대로
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.basisNote()).isEqualTo("저장 당시 고지");
+      assertThat(response.executableChannelCount()).isEqualTo(1);   // 항목에서 센다
 
       // 재계산하지 않았음: 상품·단가 조회도, CTR 집계도 하지 않는다
       verifyNoInteractions(channelProductRepository, channelPricingRepository,

@@ -24,6 +24,9 @@ public record SimulationResponse(
     @Schema(description = "집행 가능한 매체들의 추정 클릭 수 합(범위 중앙값 기준)", example = "24000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     long totalEstClicks,
+    @Schema(description = "집행 가능한 매체 개수", example = "2",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    int executableChannelCount,
     @Schema(description = "매체별 결과. 요청한 순서를 유지한다",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<SimulationItemResponse> items) {
@@ -32,7 +35,7 @@ public record SimulationResponse(
   public static SimulationResponse of(long totalBudgetWon, SimPeriod period,
       long totalEstImpressions, long totalEstClicks, List<SimulationItemResponse> items) {
     return new SimulationResponse(null, totalBudgetWon, period, totalEstImpressions,
-        totalEstClicks, items);
+        totalEstClicks, executableChannelCount(items), items);
   }
 
   /** 저장된 스냅샷을 그대로 되살린다. 재계산하지 않는다. */
@@ -44,12 +47,17 @@ public record SimulationResponse(
         simulation.getPeriod(),
         simulation.getTotalEstImpressions(),
         simulation.getTotalEstClicks(),
+        executableChannelCount(items),
         items);
   }
 
   /** 저장이 끝난 뒤 발급된 id 를 붙인다. */
   public SimulationResponse withSimulationId(UUID simulationId) {
     return new SimulationResponse(simulationId, totalBudgetWon, period, totalEstImpressions,
-        totalEstClicks, items);
+        totalEstClicks, executableChannelCount, items);
+  }
+
+  private static int executableChannelCount(List<SimulationItemResponse> items) {
+    return (int) items.stream().filter(SimulationItemResponse::isExecutable).count();
   }
 }

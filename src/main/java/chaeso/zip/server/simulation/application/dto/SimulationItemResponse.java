@@ -7,6 +7,7 @@ import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Schema(description = "매체별 시뮬레이션 결과")
@@ -26,9 +27,11 @@ public record SimulationItemResponse(
     CountRangeResponse estImpressions,
     @Schema(description = "추정 클릭 수 범위. 추정 불가 시 null", nullable = true)
     CountRangeResponse estClicks,
-    @Schema(description = "클릭당 단가(원). 대표 단가가 CPC 일 때만 채워진다", nullable = true)
+    @Schema(description = "클릭당 비용(원). 클릭당 과금 매체는 단가 그대로, 그 외 매체는 "
+        + "배분 예산 / 예상 클릭 수(중앙값)로 환산한다. 예상 클릭이 없으면 null", nullable = true)
     BigDecimal cpcWon,
-    @Schema(description = "1000회 노출당 단가(원). 대표 단가가 CPM 일 때만 채워진다", nullable = true)
+    @Schema(description = "1000회 노출당 단가(원). 대표 단가가 CPM 일 때만 채워진다. "
+        + "화면에는 쓰지 않고 어떤 단가로 추정했는지 남기는 값", nullable = true)
     BigDecimal cpmWon,
     @Schema(description = "배분 예산으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
@@ -50,7 +53,7 @@ public record SimulationItemResponse(
       UUID channelProductId, BigDecimal allocationPct, EstimationPricing pricing,
       Long shortfallWon) {
     return new SimulationItemResponse(channelId, channelName, channelProductId, 0L, allocationPct,
-        null, null, cpcWon(pricing), cpmWon(pricing), false, shortfallWon,
+        null, null, cpcWon(pricing, 0L, null), cpmWon(pricing), false, shortfallWon,
         BasisNote.notAllocated());
   }
 
@@ -60,15 +63,18 @@ public record SimulationItemResponse(
       EstimationPricing pricing, EstimationResult result, Long shortfallWon) {
     boolean executable = result.isExecutable();
     boolean hasImpressionData = result.impressions() != null;
+    CountRangeResponse impressions =
+        executable ? CountRangeResponse.from(result.impressions()) : null;
+    CountRangeResponse clicks = executable ? CountRangeResponse.from(result.clicks()) : null;
     return new SimulationItemResponse(
         channelId,
         channelName,
         channelProductId,
         allocatedBudgetWon,
         allocationPct,
-        executable ? CountRangeResponse.from(result.impressions()) : null,
-        executable ? CountRangeResponse.from(result.clicks()) : null,
-        cpcWon(pricing),
+        impressions,
+        clicks,
+        cpcWon(pricing, allocatedBudgetWon, clicks),
         cpmWon(pricing),
         executable,
         shortfallWon,
@@ -99,8 +105,24 @@ public record SimulationItemResponse(
     return hasImpressionData ? BasisNote.common() : BasisNote.noImpressionData();
   }
 
-  private static BigDecimal cpcWon(EstimationPricing pricing) {
-    return pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
+  /**
+   * 매체를 하나의 "클릭당 비용"으로 통일해 보여주기 위한 값.
+   *
+   * <p>클릭당 과금 매체는 단가를 그대로 쓰고, 그렇지 않은 매체는 배분 예산을 예상 클릭 수
+   * 중앙값으로 나눠 환산한다. 예상 클릭이 없으면(추정 근거가 없거나 집행 불가) 환산할 수 없어
+   * {@code null} 이다.
+   */
+  private static BigDecimal cpcWon(EstimationPricing pricing, long allocatedBudgetWon,
+      CountRangeResponse clicks) {
+    if (pricing.pricingModel() == PricingModel.CPC) {
+      return pricing.value();
+    }
+    if (allocatedBudgetWon <= 0 || clicks == null || clicks.midpoint() <= 0) {
+      return null;
+    }
+    // 표시용 파생값이라 원 단위로 반올림한다
+    return BigDecimal.valueOf(allocatedBudgetWon)
+        .divide(BigDecimal.valueOf(clicks.midpoint()), 0, RoundingMode.HALF_UP);
   }
 
   private static BigDecimal cpmWon(EstimationPricing pricing) {
