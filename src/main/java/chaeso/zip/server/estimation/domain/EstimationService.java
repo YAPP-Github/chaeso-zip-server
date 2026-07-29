@@ -10,6 +10,7 @@ import chaeso.zip.server.estimation.domain.vo.ImpressionRange;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -45,6 +46,16 @@ public final class EstimationService {
   private static final MathContext MC = new MathContext(20, RoundingMode.HALF_UP);
   private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
 
+  /**
+   * 대표 단가 선택 순서. 값이 같을 때를 대비해 추정 결과에 영향을 주는 나머지 필드까지 비교하므로,
+   * 이 순서로 동등한 두 단가는 어느 쪽을 골라도 같은 추정치를 낸다.
+   */
+  private static final Comparator<EstimationPricing> CHEAPEST_FIRST = Comparator
+      .comparing(EstimationPricing::value)
+      .thenComparing(EstimationPricing::pricingModel)
+      .thenComparing(EstimationPricing::valueMax, Comparator.nullsFirst(Comparator.naturalOrder()))
+      .thenComparing(EstimationPricing::unitDays, Comparator.nullsFirst(Comparator.naturalOrder()));
+
   private EstimationService() {
   }
 
@@ -67,7 +78,7 @@ public final class EstimationService {
       throw new IllegalArgumentException("Period days must be positive.");
     }
 
-    EstimationPricing pricing = selectRepresentative(product.pricings());
+    EstimationPricing pricing = representativePricing(product);
     if (pricing == null) {
       return null;
     }
@@ -85,14 +96,22 @@ public final class EstimationService {
   }
 
   /**
-   * 대표 단가를 고른다. 값이 있는 단가 중 판매가를 우선하고, 없으면 첫 번째를 쓴다.
+   * 노출·클릭 추정에 실제로 사용되는 대표 단가를 고른다. 값이 있는 단가 중 판매가를 우선하고,
+   * 후보가 여럿이면 가장 싼 것을 쓴다. 호출자가 집행 가능 판정의 기준 금액이나
+   * 과금 모델(CPC/CPM 표시)을 알아야 할 때도 이 메서드를 쓴다.
    *
-   * @return 대표 단가. 후보가 없으면 {@code null}
+   * <p>결과는 {@code pricings} 의 순서에 의존하지 않는다. 단가는 정렬 없이 조회되는 경우가 많아
+   * 순서에 기대면 같은 입력이 실행마다 다른 추정치를 낼 수 있다.
+   *
+   * @return 대표 단가. 값이 있는 단가가 없으면 {@code null}
    */
-  private static EstimationPricing selectRepresentative(List<EstimationPricing> pricings) {
+  public static EstimationPricing representativePricing(EstimationProduct product) {
+    Objects.requireNonNull(product, "product 는 null 일 수 없습니다");
+    List<EstimationPricing> pricings = product.pricings();
     if (pricings == null) {
       return null;
     }
+    // 0 이하 단가는 나눗셈의 분모가 되므로 후보에서 제외한다
     List<EstimationPricing> candidates = pricings.stream()
         .filter(pricing -> pricing != null && pricing.value() != null
             && pricing.value().signum() > 0)
@@ -102,8 +121,9 @@ public final class EstimationService {
     }
     return candidates.stream()
         .filter(pricing -> pricing.priceType() == PriceType.SALE)
-        .findFirst()
-        .orElse(candidates.getFirst());
+        .min(CHEAPEST_FIRST)
+        .or(() -> candidates.stream().min(CHEAPEST_FIRST))
+        .orElseThrow();
   }
 
   /**
@@ -113,6 +133,10 @@ public final class EstimationService {
    */
   private static Bounds impressionBounds(EstimationProduct product, EstimationPricing pricing,
       BigDecimal budget, int periodDays) {
+    if (!hasImpressionBasis(product, pricing)) {
+      return null;
+    }
+
     BigDecimal price = pricing.value();
 
     if (pricing.pricingModel() == PricingModel.CPM) {
@@ -125,16 +149,28 @@ public final class EstimationService {
       return spread(mid);
     }
 
-    if (SLOT_BASED_MODELS.contains(pricing.pricingModel())
-        && product.expectedImpressions() != null) {
-      BigDecimal slotDays = resolveSlotDays(pricing, product.expectedPeriod());
-      BigDecimal slotsByPeriod = BigDecimal.valueOf(periodDays).divide(slotDays, MC);
-      BigDecimal slotsByBudget = budget.divide(price, MC);
-      BigDecimal actualSlots = slotsByPeriod.min(slotsByBudget);   // 기간·예산 중 빡센 쪽으로 제한
-      return spread(BigDecimal.valueOf(product.expectedImpressions()).multiply(actualSlots));
-    }
+    BigDecimal slotDays = resolveSlotDays(pricing, product.expectedPeriod());
+    BigDecimal slotsByPeriod = BigDecimal.valueOf(periodDays).divide(slotDays, MC);
+    BigDecimal slotsByBudget = budget.divide(price, MC);
+    BigDecimal actualSlots = slotsByPeriod.min(slotsByBudget);   // 기간·예산 중 빡센 쪽으로 제한
+    return spread(BigDecimal.valueOf(product.expectedImpressions()).multiply(actualSlots));
+  }
 
-    return null;
+  /**
+   * 이 상품으로 노출·클릭까지 추정할 수 있는지. 대표 단가의 과금 모델과 상품의 기대 노출 정보로
+   * 정해진다. 호출자가 여러 상품 중 실제로 추정치를 낼 수 있는 쪽을 고를 때 쓴다.
+   */
+  public static boolean estimatesImpressions(EstimationProduct product) {
+    EstimationPricing pricing = representativePricing(product);
+    return pricing != null && hasImpressionBasis(product, pricing);
+  }
+
+  private static boolean hasImpressionBasis(EstimationProduct product, EstimationPricing pricing) {
+    if (pricing.pricingModel() == PricingModel.CPM) {
+      return true;   // 예산과 단가만으로 노출을 환산할 수 있다
+    }
+    return SLOT_BASED_MODELS.contains(pricing.pricingModel())
+        && product.expectedImpressions() != null;
   }
 
   /** 구좌 1개가 차지하는 일수를 구한다. */
