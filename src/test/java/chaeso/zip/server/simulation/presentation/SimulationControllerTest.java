@@ -193,6 +193,54 @@ class SimulationControllerTest {
   }
 
   @Test
+  @DisplayName("같은 채널에 두 번 배분하면 400 C-001 을 반환한다")
+  void rejectsDuplicateChannel() throws Exception {
+    // 그대로 통과시키면 그 채널이 두 항목으로 계산되어 노출·클릭 합계가 이중 계산된다
+    SimulationRequest request = new SimulationRequest(3_000_000, SimPeriod.M1, List.of(
+        new AllocationRequest(CHANNEL_ID, 2_000_000, new BigDecimal("67")),
+        new AllocationRequest(CHANNEL_ID, 1_000_000, new BigDecimal("33"))));
+
+    mockMvc.perform(post("/api/v1/simulations/estimate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].reason")
+            .value("같은 채널에 예산을 두 번 배분할 수 없습니다"));
+  }
+
+  @Test
+  @DisplayName("배분 예산의 합이 총 예산을 넘으면 400 C-001 을 반환한다")
+  void rejectsAllocationsExceedingTotalBudget() throws Exception {
+    SimulationRequest request = new SimulationRequest(1_000_000, SimPeriod.M1, List.of(
+        new AllocationRequest(CHANNEL_ID, 600_000, new BigDecimal("50")),
+        new AllocationRequest(UUID.randomUUID(), 600_000, new BigDecimal("50"))));
+
+    mockMvc.perform(post("/api/v1/simulations/estimate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].reason")
+            .value("배분한 예산의 합이 총 예산을 넘을 수 없습니다"));
+  }
+
+  @Test
+  @DisplayName("총 예산을 다 나누지 않은 배분은 허용한다")
+  void allowsPartiallyAllocatedBudget() throws Exception {
+    // 배분을 마치지 않은 정상 단계로 본다
+    given(simulationService.estimate(any(SimulationCommand.class))).willReturn(response(null));
+    SimulationRequest request = new SimulationRequest(5_000_000, SimPeriod.M1,
+        List.of(new AllocationRequest(CHANNEL_ID, 1_000_000, new BigDecimal("20"))));
+
+    mockMvc.perform(post("/api/v1/simulations/estimate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+  }
+
+  @Test
   @DisplayName("존재하지 않는 채널을 배분하면 404 CH-001 을 반환한다")
   void rejectsUnknownChannel() throws Exception {
     willThrow(new ChannelNotFoundException(CHANNEL_ID))
