@@ -1,7 +1,7 @@
 package chaeso.zip.server.simulation.domain.entity;
 
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.domain.vo.BudgetBasis;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -42,7 +42,7 @@ public class BudgetSimulation {
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 20)
-  private SimPeriod period;
+  private CampaignPeriod period;
 
   @Column(name = "total_est_impressions", nullable = false)
   private long totalEstImpressions;
@@ -55,7 +55,7 @@ public class BudgetSimulation {
   private LocalDateTime createdAt;
 
   @Builder
-  private BudgetSimulation(UUID userId, long totalBudgetWon, SimPeriod period,
+  private BudgetSimulation(UUID userId, long totalBudgetWon, CampaignPeriod period,
       long totalEstImpressions, long totalEstClicks) {
     if (userId == null) {
       throw new IllegalArgumentException("BudgetSimulation requires a userId.");

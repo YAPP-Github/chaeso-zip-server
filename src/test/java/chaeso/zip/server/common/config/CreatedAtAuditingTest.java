@@ -6,6 +6,7 @@ import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.onboarding.domain.entity.OnboardingAdHistorySnapshot;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapshotRepository;
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
@@ -13,7 +14,6 @@ import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -82,7 +82,7 @@ class CreatedAtAuditingTest {
     BudgetSimulation saved = budgetSimulationRepository.save(BudgetSimulation.builder()
         .userId(UUID.randomUUID())
         .totalBudgetWon(3_000_000L)
-        .period(SimPeriod.M1)
+        .period(CampaignPeriod.M1)
         .totalEstImpressions(1_000_000L)
         .totalEstClicks(25_000L)
         .build());

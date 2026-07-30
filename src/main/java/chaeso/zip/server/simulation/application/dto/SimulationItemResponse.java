@@ -27,11 +27,14 @@ public record SimulationItemResponse(
     CountRangeResponse estImpressions,
     @Schema(description = "추정 클릭 수 범위. 추정 불가 시 null", nullable = true)
     CountRangeResponse estClicks,
-    @Schema(description = "클릭당 비용(원). 클릭당 과금 매체는 단가 그대로, 그 외 매체는 "
-        + "배분 예산 / 예상 클릭 수(중앙값)로 환산한다. 예상 클릭이 없으면 null", nullable = true)
+    @Schema(description = """
+        클릭당 비용(원). 클릭당 과금 매체는 단가 그대로, 그 외 매체는 \
+        배분 예산 / 예상 클릭 수(중앙값)로 환산한다. 예상 클릭이 없으면 null""",
+        nullable = true)
     BigDecimal cpcWon,
-    @Schema(description = "1000회 노출당 단가(원). 대표 단가가 CPM 일 때만 채워진다. "
-        + "화면에는 쓰지 않고 어떤 단가로 추정했는지 남기는 값", nullable = true)
+    @Schema(description = """
+        1000회 노출당 단가(원). 대표 단가가 CPM 일 때만 채워진다. \
+        화면에는 쓰지 않고 어떤 단가로 추정했는지 남기는 값""", nullable = true)
     BigDecimal cpmWon,
     @Schema(description = "배분 예산으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
