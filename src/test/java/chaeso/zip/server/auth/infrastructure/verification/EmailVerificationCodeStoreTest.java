@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -52,24 +53,61 @@ class EmailVerificationCodeStoreTest {
     assertThat(store.findCode("user@chaeso.zip")).contains("123456");
   }
 
-  @Test
-  @DisplayName("일치하는 코드는 소비되고 인증완료 상태로 전환된다")
-  void verifyCode_matching_consumesAndMarksVerified() {
-    store.saveCode("user@chaeso.zip", "123456");
+  @Nested
+  @DisplayName("코드 검증")
+  class VerifyCode {
 
-    assertThat(store.verifyCode("user@chaeso.zip", "123456")).isTrue();
-    assertThat(store.findCode("user@chaeso.zip")).isEmpty();
-    assertThat(store.isVerified("user@chaeso.zip")).isTrue();
-  }
+    @Test
+    @DisplayName("일치하는 코드는 소비되고 인증완료 상태로 전환된다")
+    void matching_consumesAndMarksVerified() {
+      store.saveCode("user@chaeso.zip", "123456");
 
-  @Test
-  @DisplayName("재발송으로 교체된 이전 코드는 인증에 쓸 수 없다")
-  void verifyCode_replaced_fails() {
-    store.saveCode("user@chaeso.zip", "123456");
-    store.saveCode("user@chaeso.zip", "654321");
+      assertThat(store.verifyCode("user@chaeso.zip", "123456")).isTrue();
+      assertThat(store.findCode("user@chaeso.zip")).isEmpty();
+      assertThat(store.isVerified("user@chaeso.zip")).isTrue();
+    }
 
-    assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
-    assertThat(store.isVerified("user@chaeso.zip")).isFalse();
+    @Test
+    @DisplayName("재발송으로 교체된 이전 코드는 인증에 쓸 수 없다")
+    void replaced_fails() {
+      store.saveCode("user@chaeso.zip", "123456");
+      store.saveCode("user@chaeso.zip", "654321");
+
+      assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
+      assertThat(store.isVerified("user@chaeso.zip")).isFalse();
+    }
+
+    @Test
+    @DisplayName("틀린 코드로 검증하면 실패하고 기존 코드는 소비되지 않는다")
+    void wrongCode_doesNotConsume() {
+      store.saveCode("user@chaeso.zip", "123456");
+
+      assertThat(store.verifyCode("user@chaeso.zip", "000000")).isFalse();
+      assertThat(store.findCode("user@chaeso.zip")).contains("123456");
+      assertThat(store.isVerified("user@chaeso.zip")).isFalse();
+    }
+
+    @Test
+    @DisplayName("허용 횟수를 초과해 틀리면 코드가 무효화되어 정답으로도 검증되지 않는다")
+    void exceedsMaxAttempts_invalidatesCode() {
+      store.saveCode("user@chaeso.zip", "123456");
+
+      for (int i = 0; i < 3; i++) {
+        assertThat(store.verifyCode("user@chaeso.zip", "000000")).isFalse();
+      }
+
+      assertThat(store.findCode("user@chaeso.zip")).isEmpty();
+      assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 검증에 성공한 코드는 재사용할 수 없다")
+    void replay_afterSuccessFails() {
+      store.saveCode("user@chaeso.zip", "123456");
+      store.verifyCode("user@chaeso.zip", "123456");
+
+      assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
+    }
   }
 
   @Test
@@ -87,38 +125,6 @@ class EmailVerificationCodeStoreTest {
   @DisplayName("아무 것도 저장하지 않으면 인증완료가 아니다")
   void isVerified_defaultFalse() {
     assertThat(store.isVerified("none@chaeso.zip")).isFalse();
-  }
-
-  @Test
-  @DisplayName("틀린 코드로 검증하면 실패하고 기존 코드는 소비되지 않는다")
-  void verifyCode_wrongCode_doesNotConsume() {
-    store.saveCode("user@chaeso.zip", "123456");
-
-    assertThat(store.verifyCode("user@chaeso.zip", "000000")).isFalse();
-    assertThat(store.findCode("user@chaeso.zip")).contains("123456");
-    assertThat(store.isVerified("user@chaeso.zip")).isFalse();
-  }
-
-  @Test
-  @DisplayName("허용 횟수를 초과해 틀리면 코드가 무효화되어 정답으로도 검증되지 않는다")
-  void verifyCode_exceedsMaxAttempts_invalidatesCode() {
-    store.saveCode("user@chaeso.zip", "123456");
-
-    for (int i = 0; i < 3; i++) {
-      assertThat(store.verifyCode("user@chaeso.zip", "000000")).isFalse();
-    }
-
-    assertThat(store.findCode("user@chaeso.zip")).isEmpty();
-    assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
-  }
-
-  @Test
-  @DisplayName("이미 검증에 성공한 코드는 재사용할 수 없다")
-  void verifyCode_replay_afterSuccessFails() {
-    store.saveCode("user@chaeso.zip", "123456");
-    store.verifyCode("user@chaeso.zip", "123456");
-
-    assertThat(store.verifyCode("user@chaeso.zip", "123456")).isFalse();
   }
 
   @Test
