@@ -20,7 +20,7 @@ public record SignupRequest(
     @Schema(description = "비밀번호(8~64자, 영·숫자·특수문자 각 1자 이상)", example = "P@ssw0rd!", minLength = 8, maxLength = 64, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     @Size(min = 8, max = 64, message = "비밀번호는 8자 이상 64자 이하로 입력해 주세요")
-    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[!@#$%^&*(),.?\":{}|<>])\\S+$",
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[!@#$%^&*(),.?\":{}|<>~_+\\-=\\[\\]\\\\;'`/])\\S+$",
         message = "비밀번호는 영어, 숫자, 특수문자를 각각 1개 이상 포함해 주세요")
     String password,
 

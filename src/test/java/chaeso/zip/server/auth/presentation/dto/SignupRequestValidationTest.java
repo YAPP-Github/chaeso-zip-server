@@ -33,6 +33,18 @@ class SignupRequestValidationTest {
   }
 
   @Test
+  @DisplayName("언더바(_), 하이픈(-), 물결(~) 등 다양한 특수문자 포함 비밀번호도 검사에 통과한다")
+  void variousSpecialCharacters_validPassword() {
+    SignupRequest underscoreReq = new SignupRequest("user@chaeso.zip", "Password1_", "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT, true, false);
+    SignupRequest hyphenReq = new SignupRequest("user@chaeso.zip", "Password1-", "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT, true, false);
+    SignupRequest tildeReq = new SignupRequest("user@chaeso.zip", "Password1~", "채소러버", "채소컴퍼니", Occupation.DEVELOPMENT, true, false);
+
+    assertThat(validator.validate(underscoreReq)).isEmpty();
+    assertThat(validator.validate(hyphenReq)).isEmpty();
+    assertThat(validator.validate(tildeReq)).isEmpty();
+  }
+
+  @Test
   @DisplayName("비밀번호에 특수문자가 없으면 password 위반이 발생한다")
   void weakPassword_violatesPassword() {
     SignupRequest request = new SignupRequest("user@chaeso.zip", "password123", "채소러버", "채소컴퍼니",
