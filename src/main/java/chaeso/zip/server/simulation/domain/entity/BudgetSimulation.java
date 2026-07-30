@@ -4,22 +4,24 @@ import chaeso.zip.server.simulation.domain.vo.BudgetBasis;
 import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Getter
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "budget_simulations")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BudgetSimulation {
@@ -48,13 +50,9 @@ public class BudgetSimulation {
   @Column(name = "total_est_clicks", nullable = false)
   private long totalEstClicks;
 
+  @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
-
-  @PrePersist
-  private void prePersist() {
-    this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
-  }
 
   @Builder
   private BudgetSimulation(UUID userId, long totalBudgetWon, SimPeriod period,

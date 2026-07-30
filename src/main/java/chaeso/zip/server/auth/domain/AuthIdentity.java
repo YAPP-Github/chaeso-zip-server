@@ -2,26 +2,28 @@ package chaeso.zip.server.auth.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 한 유저에 연결된 로그인 방식(자체/구글 등). 유저당 provider 1개(uq_auth_identities_user_provider).
- * 생성 후 갱신되지 않아 BaseTimeEntity 대신 {@code @PrePersist} 로 created_at만 업데이트
+ * 생성 후 갱신되지 않아 BaseTimeEntity 대신 created_at 만 감사(auditing)로 채운다
  */
 @Getter
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "auth_identities",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "provider"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -47,13 +49,9 @@ public class AuthIdentity {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    private void prePersist() {
-        this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
-    }
 
     private AuthIdentity(UUID userId, AuthProvider provider, String providerUid, String passwordHash) {
         this.userId = userId;
