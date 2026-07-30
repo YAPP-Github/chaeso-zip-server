@@ -2,24 +2,26 @@ package chaeso.zip.server.simulation.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 저장된 예산 시뮬레이션의 매체별 결과 스냅샷
  */
 @Getter
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "budget_simulation_items")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BudgetSimulationItem {
@@ -76,13 +78,9 @@ public class BudgetSimulationItem {
   @Column(name = "basis_note", length = 500)
   private String basisNote;
 
+  @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
-
-  @PrePersist
-  private void prePersist() {
-    this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
-  }
 
   @Builder
   private BudgetSimulationItem(UUID budgetSimulationId, UUID channelId, UUID channelProductId,
