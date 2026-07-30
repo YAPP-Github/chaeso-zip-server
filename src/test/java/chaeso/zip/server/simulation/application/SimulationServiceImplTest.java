@@ -20,6 +20,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.application.dto.AllocationCommand;
 import chaeso.zip.server.simulation.application.dto.CountRangeResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
@@ -29,7 +30,6 @@ import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -89,7 +89,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "3000"));
 
       SimulationResponse response = simulationService.estimate(
-          command(3_000_000, SimPeriod.M1, allocation(3_000_000, "100")));
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100")));
 
       SimulationItemResponse item = response.items().getFirst();
       assertThat(response.simulationId()).isNull();          // 저장하지 않았다
@@ -122,7 +122,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "3000")));
 
       SimulationResponse response = simulationService.estimate(
-          command(3_000_000, SimPeriod.M1, allocation(3_000_000, "100")));
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100")));
 
       SimulationItemResponse item = response.items().getFirst();
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);
@@ -146,7 +146,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.SLOT, PriceType.LIST, "150000", null, "1")));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.W1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.LE_1W, allocation(1_000_000, "100"))).items().getFirst();
 
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);
       assertThat(item.estImpressions()).isNotNull();
@@ -168,7 +168,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.SLOT, PriceType.LIST, "150000", null, "1")));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.W1, allocation(0, "0"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.LE_1W, allocation(0, "0"))).items().getFirst();
 
       assertThat(item.shortfallWon()).isEqualTo(150_000);   // 10 원이 아니다
       assertThat(item.basisNote()).startsWith("미집행 (배분 예산 0원)");
@@ -181,7 +181,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPC, "500"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);   // 견적 문의로 빠지지 않는다
       assertThat(item.isExecutable()).isTrue();
@@ -208,7 +208,7 @@ class SimulationServiceImplTest {
           .willReturn(products, products.reversed());
       given(channelPricingRepository.findByChannelProductIdIn(anyList())).willReturn(pricings);
 
-      SimulationCommand command = command(3_000_000, SimPeriod.M1, allocation(3_000_000, "100"));
+      SimulationCommand command = command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100"));
 
       assertThat(simulationService.estimate(command).items().getFirst().channelProductId())
           .isEqualTo(lowerId);
@@ -223,7 +223,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPC, "500"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(3_000_000, SimPeriod.M1, allocation(3_000_000, "100"))).items().getFirst();
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100"))).items().getFirst();
 
       assertThat(item.cpcWon()).isEqualByComparingTo("500");
       assertThat(item.cpmWon()).isNull();
@@ -237,7 +237,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.SLOT, "1000000"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(2_000_000, SimPeriod.M1, allocation(2_000_000, "100"))).items().getFirst();
+          command(2_000_000, CampaignPeriod.M1, allocation(2_000_000, "100"))).items().getFirst();
 
       assertThat(item.isExecutable()).isTrue();
       assertThat(item.estClicks()).isNull();
@@ -251,7 +251,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "5000000"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.W1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.LE_1W, allocation(1_000_000, "100"))).items().getFirst();
 
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.cpcWon()).isNull();
@@ -264,7 +264,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "5000000"));
 
       SimulationResponse response = simulationService.estimate(
-          command(1_000_000, SimPeriod.W1, allocation(1_000_000, "100")));
+          command(1_000_000, CampaignPeriod.LE_1W, allocation(1_000_000, "100")));
 
       SimulationItemResponse item = response.items().getFirst();
       assertThat(item.isExecutable()).isFalse();
@@ -283,7 +283,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "3000"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.M1, allocation(0, "0"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.M1, allocation(0, "0"))).items().getFirst();
 
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.allocatedBudgetWon()).isZero();
@@ -304,7 +304,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, PriceType.LIST, null, null, null)));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
       assertThat(item.channelProductId()).isNull();
       assertThat(item.isExecutable()).isFalse();
@@ -322,7 +322,7 @@ class SimulationServiceImplTest {
       given(channelProductRepository.findByChannelIdIn(anyList())).willReturn(List.of());
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
       assertThat(item.basisNote()).startsWith("견적 문의 필요");
       assertThat(item.isExecutable()).isFalse();
@@ -335,7 +335,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.SLOT, "1000000"));
 
       SimulationResponse response = simulationService.estimate(
-          command(2_000_000, SimPeriod.M1, allocation(2_000_000, "100")));
+          command(2_000_000, CampaignPeriod.M1, allocation(2_000_000, "100")));
 
       SimulationItemResponse item = response.items().getFirst();
       assertThat(item.isExecutable()).isTrue();
@@ -353,7 +353,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "1000"));
 
       SimulationItemResponse item = simulationService.estimate(
-          command(1_000_000, SimPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
+          command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
       // 노출 850,000~1,150,000 에 구간 평균 2% 적용 (평균 CTR 2.5% 였다면 21,250~28,750)
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(17_000, 23_000));
@@ -363,11 +363,11 @@ class SimulationServiceImplTest {
     @DisplayName("구좌형 상품은 기간과 예산 중 빡센 쪽으로 구좌 수가 제한된다")
     void limitsSlotsByPeriodOrBudget() {
       givenCatalog(product(PRODUCT_ID, CHANNEL_ID, new BigDecimal("2"), 100_000L, null),
-          pricing(PRODUCT_ID, PricingModel.SLOT, PriceType.LIST, "500000", null, "7"));
+          pricing(PRODUCT_ID, PricingModel.SLOT, PriceType.LIST, "500000", null, "15"));
 
-      // 기간 14일 / 구좌 7일 = 2구좌, 예산 3,000,000 / 500,000 = 6구좌 → 2구좌
+      // 기간 30일 / 구좌 15일 = 2구좌, 예산 3,000,000 / 500,000 = 6구좌 → 2구좌
       SimulationItemResponse item = simulationService.estimate(
-          command(3_000_000, SimPeriod.W2, allocation(3_000_000, "100"))).items().getFirst();
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100"))).items().getFirst();
 
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(170_000, 230_000));
     }
@@ -386,7 +386,7 @@ class SimulationServiceImplTest {
           pricing(otherProductId, PricingModel.CPM, "9000000")));   // 배분 예산으로 집행 불가
 
       SimulationResponse response = simulationService.estimate(new SimulationCommand(
-          4_000_000, SimPeriod.M1,
+          4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")),
               new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")))));
 
@@ -402,7 +402,7 @@ class SimulationServiceImplTest {
     void rejectsUnknownChannel() {
       given(channelRepository.findAllById(anyList())).willReturn(List.of());
 
-      SimulationCommand command = command(1_000_000, SimPeriod.M1, allocation(1_000_000, "100"));
+      SimulationCommand command = command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"));
 
       assertThatThrownBy(() -> simulationService.estimate(command))
           .isInstanceOf(ChannelNotFoundException.class);
@@ -424,14 +424,14 @@ class SimulationServiceImplTest {
           .willAnswer(invocation -> withId(invocation.getArgument(0), simulationId));
 
       SimulationResponse response = simulationService.save(USER_ID,
-          command(3_000_000, SimPeriod.M1, allocation(3_000_000, "100")));
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100")));
 
       assertThat(response.simulationId()).isEqualTo(simulationId);
 
       ArgumentCaptor<BudgetSimulation> header = ArgumentCaptor.forClass(BudgetSimulation.class);
       verify(budgetSimulationRepository).save(header.capture());
       assertThat(header.getValue().getUserId()).isEqualTo(USER_ID);
-      assertThat(header.getValue().getPeriod()).isEqualTo(SimPeriod.M1);
+      assertThat(header.getValue().getPeriod()).isEqualTo(CampaignPeriod.M1);
       assertThat(header.getValue().getTotalBudgetWon()).isEqualTo(3_000_000);
       assertThat(header.getValue().getTotalEstImpressions()).isEqualTo(1_000_000);
       assertThat(header.getValue().getTotalEstClicks()).isEqualTo(25_000);
@@ -467,7 +467,7 @@ class SimulationServiceImplTest {
       given(budgetSimulationRepository.save(any(BudgetSimulation.class)))
           .willAnswer(invocation -> withId(invocation.getArgument(0), UUID.randomUUID()));
 
-      simulationService.save(USER_ID, new SimulationCommand(4_000_000, SimPeriod.M1,
+      simulationService.save(USER_ID, new SimulationCommand(4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")),
               new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")))));
 
@@ -491,7 +491,7 @@ class SimulationServiceImplTest {
       BudgetSimulation simulation = withId(BudgetSimulation.builder()
           .userId(USER_ID)
           .totalBudgetWon(3_000_000L)
-          .period(SimPeriod.M1)
+          .period(CampaignPeriod.M1)
           .totalEstImpressions(1_000_000L)
           .totalEstClicks(25_000L)
           .build(), simulationId);
@@ -522,7 +522,7 @@ class SimulationServiceImplTest {
 
       assertThat(response.simulationId()).isEqualTo(simulationId);
       assertThat(response.totalBudgetWon()).isEqualTo(3_000_000);
-      assertThat(response.period()).isEqualTo(SimPeriod.M1);
+      assertThat(response.period()).isEqualTo(CampaignPeriod.M1);
       assertThat(response.totalEstImpressions()).isEqualTo(1_000_000);
       assertThat(response.totalEstClicks()).isEqualTo(25_000);
 
@@ -548,7 +548,7 @@ class SimulationServiceImplTest {
       BudgetSimulation simulation = withId(BudgetSimulation.builder()
           .userId(USER_ID)
           .totalBudgetWon(1_000_000L)
-          .period(SimPeriod.W1)
+          .period(CampaignPeriod.LE_1W)
           .totalEstImpressions(0L)
           .totalEstClicks(0L)
           .build(), simulationId);
@@ -604,7 +604,7 @@ class SimulationServiceImplTest {
         .willReturn(List.of(pricings));
   }
 
-  private static SimulationCommand command(int totalBudgetWon, SimPeriod period,
+  private static SimulationCommand command(int totalBudgetWon, CampaignPeriod period,
       AllocationCommand... allocations) {
     return new SimulationCommand(totalBudgetWon, period, List.of(allocations));
   }

@@ -12,13 +12,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.application.SimulationService;
 import chaeso.zip.server.simulation.application.dto.CountRangeResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
 import chaeso.zip.server.simulation.domain.BasisNote;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import chaeso.zip.server.simulation.presentation.dto.AllocationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,7 +76,7 @@ class SimulationControllerTest {
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request(3_000_000, SimPeriod.M1))))
+            .content(objectMapper.writeValueAsString(request(3_000_000, CampaignPeriod.M1))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.simulationId").doesNotExist())
@@ -102,7 +102,7 @@ class SimulationControllerTest {
 
     mockMvc.perform(post("/api/v1/simulations")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request(3_000_000, SimPeriod.M1))))
+            .content(objectMapper.writeValueAsString(request(3_000_000, CampaignPeriod.M1))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.simulationId").value(simulationId.toString()));
@@ -135,7 +135,7 @@ class SimulationControllerTest {
   void rejectsBudgetOutOfRange(int totalBudgetWon) throws Exception {
     // 배분은 두 총 예산 모두에 들어가는 금액으로 둔다. 넘치면 배분 합계 검증까지 함께 위반되고,
     // 검증 실행 순서는 보장되지 않아 어느 필드가 먼저 담길지 알 수 없다
-    SimulationRequest request = new SimulationRequest(totalBudgetWon, SimPeriod.M1,
+    SimulationRequest request = new SimulationRequest(totalBudgetWon, CampaignPeriod.M1,
         List.of(new AllocationRequest(CHANNEL_ID, 50_000, new BigDecimal("100"))));
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
@@ -161,7 +161,7 @@ class SimulationControllerTest {
   @Test
   @DisplayName("배분 목록이 비어 있으면 400 C-001 을 반환한다")
   void rejectsEmptyAllocations() throws Exception {
-    SimulationRequest request = new SimulationRequest(3_000_000, SimPeriod.M1, List.of());
+    SimulationRequest request = new SimulationRequest(3_000_000, CampaignPeriod.M1, List.of());
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
             .contentType(MediaType.APPLICATION_JSON)
@@ -174,7 +174,7 @@ class SimulationControllerTest {
   @Test
   @DisplayName("배분 비율이 100 을 넘으면 400 C-001 을 반환한다")
   void rejectsAllocationPctOverHundred() throws Exception {
-    SimulationRequest request = new SimulationRequest(3_000_000, SimPeriod.M1,
+    SimulationRequest request = new SimulationRequest(3_000_000, CampaignPeriod.M1,
         List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("101"))));
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
@@ -188,7 +188,7 @@ class SimulationControllerTest {
   @Test
   @DisplayName("배분 예산이 음수면 400 C-001 을 반환한다")
   void rejectsNegativeAllocatedBudget() throws Exception {
-    SimulationRequest request = new SimulationRequest(3_000_000, SimPeriod.M1,
+    SimulationRequest request = new SimulationRequest(3_000_000, CampaignPeriod.M1,
         List.of(new AllocationRequest(CHANNEL_ID, -1, new BigDecimal("100"))));
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
@@ -203,7 +203,7 @@ class SimulationControllerTest {
   @DisplayName("같은 채널에 두 번 배분하면 400 C-001 을 반환한다")
   void rejectsDuplicateChannel() throws Exception {
     // 그대로 통과시키면 그 채널이 두 항목으로 계산되어 노출·클릭 합계가 이중 계산된다
-    SimulationRequest request = new SimulationRequest(3_000_000, SimPeriod.M1, List.of(
+    SimulationRequest request = new SimulationRequest(3_000_000, CampaignPeriod.M1, List.of(
         new AllocationRequest(CHANNEL_ID, 2_000_000, new BigDecimal("67")),
         new AllocationRequest(CHANNEL_ID, 1_000_000, new BigDecimal("33"))));
 
@@ -219,7 +219,7 @@ class SimulationControllerTest {
   @Test
   @DisplayName("배분 예산의 합이 총 예산을 넘으면 400 C-001 을 반환한다")
   void rejectsAllocationsExceedingTotalBudget() throws Exception {
-    SimulationRequest request = new SimulationRequest(1_000_000, SimPeriod.M1, List.of(
+    SimulationRequest request = new SimulationRequest(1_000_000, CampaignPeriod.M1, List.of(
         new AllocationRequest(CHANNEL_ID, 600_000, new BigDecimal("50")),
         new AllocationRequest(UUID.randomUUID(), 600_000, new BigDecimal("50"))));
 
@@ -237,7 +237,7 @@ class SimulationControllerTest {
   void allowsPartiallyAllocatedBudget() throws Exception {
     // 배분을 마치지 않은 정상 단계로 본다
     given(simulationService.estimate(any(SimulationCommand.class))).willReturn(response(null));
-    SimulationRequest request = new SimulationRequest(5_000_000, SimPeriod.M1,
+    SimulationRequest request = new SimulationRequest(5_000_000, CampaignPeriod.M1,
         List.of(new AllocationRequest(CHANNEL_ID, 1_000_000, new BigDecimal("20"))));
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
@@ -255,13 +255,13 @@ class SimulationControllerTest {
 
     mockMvc.perform(post("/api/v1/simulations/estimate")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request(3_000_000, SimPeriod.M1))))
+            .content(objectMapper.writeValueAsString(request(3_000_000, CampaignPeriod.M1))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("CH-001"));
   }
 
-  private static SimulationRequest request(int totalBudgetWon, SimPeriod period) {
+  private static SimulationRequest request(int totalBudgetWon, CampaignPeriod period) {
     return new SimulationRequest(totalBudgetWon, period,
         List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("100"))));
   }
@@ -271,7 +271,7 @@ class SimulationControllerTest {
         CHANNEL_ID, "11번가 광고", PRODUCT_ID, 3_000_000L, new BigDecimal("100"),
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         new BigDecimal("120"), new BigDecimal("3000"), true, null, BasisNote.COMMON);
-    return new SimulationResponse(simulationId, 3_000_000L, SimPeriod.M1, 1_000_000L, 25_000L,
+    return new SimulationResponse(simulationId, 3_000_000L, CampaignPeriod.M1, 1_000_000L, 25_000L,
         1, List.of(item));
   }
 }

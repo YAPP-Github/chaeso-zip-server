@@ -1,9 +1,9 @@
 package chaeso.zip.server.simulation.application.dto;
 
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
@@ -16,8 +16,9 @@ public record SimulationResponse(
     @Schema(description = "총 예산(원)", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     long totalBudgetWon,
-    @Schema(description = "집행 기간", example = "M1", requiredMode = Schema.RequiredMode.REQUIRED)
-    SimPeriod period,
+    @Schema(description = "집행 기간(온보딩과 같은 구간)", example = "M1",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    CampaignPeriod period,
     @Schema(description = "집행 가능한 매체들의 추정 노출 수 합(범위 중앙값 기준)", example = "1200000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     long totalEstImpressions,
@@ -32,7 +33,7 @@ public record SimulationResponse(
     List<SimulationItemResponse> items) {
 
   /** 저장 전, 계산만 마친 결과. */
-  public static SimulationResponse of(long totalBudgetWon, SimPeriod period,
+  public static SimulationResponse of(long totalBudgetWon, CampaignPeriod period,
       long totalEstImpressions, long totalEstClicks, List<SimulationItemResponse> items) {
     return new SimulationResponse(null, totalBudgetWon, period, totalEstImpressions,
         totalEstClicks, executableChannelCount(items), items);

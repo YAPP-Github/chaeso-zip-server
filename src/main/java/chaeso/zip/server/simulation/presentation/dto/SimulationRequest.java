@@ -1,7 +1,7 @@
 package chaeso.zip.server.simulation.presentation.dto;
 
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
-import chaeso.zip.server.simulation.domain.vo.SimPeriod;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -21,9 +21,12 @@ public record SimulationRequest(
         requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull @Min(100_000) @Max(5_000_000) Integer totalBudgetWon,
 
-    @Schema(description = "집행 기간. W1=1주, W2=2주, M1=1개월, M3=3개월",
+    @Schema(description = """
+        집행 기간(온보딩과 같은 구간). 구간이라 계산에는 대표 일수를 쓴다 — \
+        LE_1W=1주 이하(7일), W2_3=2-3주(17일), M1=1개월(30일), M2_3=2-3개월(75일), \
+        GE_3M=3개월 이상(90일). 하루 예산을 계산할 때 프론트도 같은 일수를 써야 한다""",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull SimPeriod period,
+    @NotNull CampaignPeriod period,
 
     @Schema(description = "매체별 예산 배분. 1개 이상", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty @Valid List<AllocationRequest> allocations) {

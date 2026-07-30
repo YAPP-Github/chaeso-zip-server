@@ -20,6 +20,7 @@ import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
+import chaeso.zip.server.simulation.domain.vo.PeriodDaysPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
@@ -102,7 +103,7 @@ public class SimulationServiceImpl implements SimulationService {
   }
 
   private SimulationResponse calculate(SimulationCommand command) {
-    int periodDays = command.period().getDays();
+    int periodDays = PeriodDaysPolicy.daysOf(command.period());
     BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
 
     List<UUID> channelIds = command.allocations().stream()
