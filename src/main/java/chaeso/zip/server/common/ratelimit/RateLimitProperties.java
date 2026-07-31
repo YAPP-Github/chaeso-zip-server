@@ -3,6 +3,7 @@ package chaeso.zip.server.common.ratelimit;
 import java.time.Duration;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /** app.rate-limit.rules.* 설정.
  *
@@ -11,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.rate-limit")
 public record RateLimitProperties(Map<String, RuleConfig> rules) {
 
-  public record RuleConfig(int limit, Duration window) {
+  public record RuleConfig(int limit, Duration window, @DefaultValue("true") boolean failOpen) {
   }
 
   public RateLimitRule rule(String name) {
@@ -20,6 +21,6 @@ public record RateLimitProperties(Map<String, RuleConfig> rules) {
           "app.rate-limit.rules 에 정의되지 않은 규칙: " + name);
     }
     RuleConfig config = rules.get(name);
-    return new RateLimitRule(name, config.limit(), config.window());
+    return new RateLimitRule(name, config.limit(), config.window(), config.failOpen());
   }
 }

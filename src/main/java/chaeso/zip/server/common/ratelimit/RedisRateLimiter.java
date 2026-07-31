@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,10 +32,13 @@ public class RedisRateLimiter implements RateLimiter {
 
   private final StringRedisTemplate redis;
   private final MeterRegistry meterRegistry;
+  private final Duration failClosedRetryAfter;
 
-  public RedisRateLimiter(StringRedisTemplate redis, MeterRegistry meterRegistry) {
+  public RedisRateLimiter(StringRedisTemplate redis, MeterRegistry meterRegistry,
+      @Value("${app.rate-limit.fail-closed-retry-after:PT5S}") Duration failClosedRetryAfter) {
     this.redis = redis;
     this.meterRegistry = meterRegistry;
+    this.failClosedRetryAfter = failClosedRetryAfter;
   }
 
   @Override
@@ -50,9 +54,11 @@ public class RedisRateLimiter implements RateLimiter {
       Duration retryAfter = Duration.ofMillis(result.get(1));
       return allowed ? RateLimitResult.allow() : RateLimitResult.deny(retryAfter);
     } catch (RedisConnectionFailureException | RedisSystemException e) {
-      log.warn("Redis 장애(연결 실패 또는 메모리 초과/시스템 오류)로 rate limit을 통과시킵니다 (fail-open). rule={}", rule.name(), e);
-      meterRegistry.counter("rate_limit_fail_open_total", "rule", rule.name()).increment();
-      return RateLimitResult.allow();
+      String strategy = rule.failOpen() ? "open" : "closed";
+      log.warn("Redis 장애(연결 실패 또는 메모리 초과/시스템 오류)로 rate limit 요청을 {}합니다. rule={}, strategy={}",
+          rule.failOpen() ? "통과" : "차단", rule.name(), strategy, e);
+      meterRegistry.counter("rate_limit_fail_total", "rule", rule.name(), "strategy", strategy).increment();
+      return rule.failOpen() ? RateLimitResult.allow() : RateLimitResult.deny(failClosedRetryAfter);
     }
   }
 }
