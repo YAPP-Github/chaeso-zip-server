@@ -142,8 +142,9 @@ public interface OnboardingApiDocs {
       """;
 
   @Operation(operationId = "submitOnboarding", summary = "온보딩 제출",
-      description = "로그인 여부와 관계없이 제출할 수 있다. 로그인 상태에서 다시 제출하면 이전 제출을 "
-          + "대체하고, 비로그인은 대체 없이 각각 저장된다.")
+      description = """
+          로그인 여부와 관계없이 제출할 수 있다. 로그인 상태에서 다시 제출하면 이전 제출을 \
+          대체하고, 비로그인은 대체 없이 각각 저장된다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "제출 성공",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "SUBMIT_SUCCESS", value = SUBMIT_SUCCESS_EXAMPLE)))
@@ -171,8 +172,9 @@ public interface OnboardingApiDocs {
       @Valid @RequestBody SubmitOnboardingRequest request);
 
   @Operation(operationId = "presignOnboardingPerformanceFiles", summary = "성과파일 presigned URL 발급",
-      description = "성과파일(xlsx/csv) 업로드용 presigned PUT URL을 로그인 여부와 관계없이 발급한다. PUT "
-          + "요청 시 응답의 contentType 값과 x-amz-tagging: retain=pending 헤더를 그대로 보내야 한다.")
+      description = """
+          성과파일(xlsx/csv) 업로드용 presigned PUT URL을 로그인 여부와 관계없이 발급한다. PUT \
+          요청 시 응답의 contentType 값과 x-amz-tagging: retain=pending 헤더를 그대로 보내야 한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발급 성공",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "PRESIGN_SUCCESS", value = PRESIGN_SUCCESS_EXAMPLE)))
