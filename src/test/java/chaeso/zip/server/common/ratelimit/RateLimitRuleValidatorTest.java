@@ -43,7 +43,7 @@ class RateLimitRuleValidatorTest {
       given(handlerMapping.getHandlerMethods())
           .willReturn(Map.of(mock(RequestMappingInfo.class), known));
       RateLimitProperties properties = new RateLimitProperties(
-          Map.of("known-rule", new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1))));
+          Map.of("known-rule", new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1), true)));
       RateLimitRuleValidator validator = new RateLimitRuleValidator(handlerMapping, properties);
 
       assertThatCode(() -> validator.onApplicationEvent(mock(ContextRefreshedEvent.class)))

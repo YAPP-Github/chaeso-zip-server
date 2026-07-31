@@ -25,6 +25,7 @@ import redis.embedded.RedisServer;
 class RedisRateLimiterTest {
 
   private static final int PORT = 16385;
+  private static final Duration FAIL_CLOSED_RETRY_AFTER = Duration.ofSeconds(5);
   private static RedisServer redisServer;
 
   private StringRedisTemplate template;
@@ -51,7 +52,7 @@ class RedisRateLimiterTest {
     Assertions.assertNotNull(template.getConnectionFactory());
     template.getConnectionFactory().getConnection().serverCommands().flushAll();
     meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
-    limiter = new RedisRateLimiter(template, meterRegistry);
+    limiter = new RedisRateLimiter(template, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
   }
 
   @Nested
@@ -61,7 +62,7 @@ class RedisRateLimiterTest {
     @Test
     @DisplayName("설정된 한도 횟수까지 요청을 허용하고, 한도를 초과하면 차단한다")
     void limitBoundary() {
-      RateLimitRule rule = new RateLimitRule("test-rule", 2, Duration.ofMinutes(1));
+      RateLimitRule rule = new RateLimitRule("test-rule", 2, Duration.ofMinutes(1), true);
 
       assertThat(limiter.tryConsume("ip:203.0.113.7", rule).allowed()).isTrue();
       assertThat(limiter.tryConsume("ip:203.0.113.7", rule).allowed()).isTrue();
@@ -71,7 +72,7 @@ class RedisRateLimiterTest {
     @Test
     @DisplayName("요청이 차단되면 남은 윈도우 시간(retryAfter)을 함께 반환한다")
     void deniedResult_hasPositiveRetryAfterWithinWindow() {
-      RateLimitRule rule = new RateLimitRule("test-rule", 1, Duration.ofSeconds(30));
+      RateLimitRule rule = new RateLimitRule("test-rule", 1, Duration.ofSeconds(30), true);
 
       limiter.tryConsume("ip:203.0.113.8", rule);
       RateLimitResult result = limiter.tryConsume("ip:203.0.113.8", rule);
@@ -92,14 +93,15 @@ class RedisRateLimiterTest {
       brokenFactory.afterPropertiesSet();
       StringRedisTemplate brokenTemplate = new StringRedisTemplate(brokenFactory);
       brokenTemplate.afterPropertiesSet();
-      RedisRateLimiter brokenLimiter = new RedisRateLimiter(brokenTemplate, meterRegistry);
+      RedisRateLimiter brokenLimiter =
+          new RedisRateLimiter(brokenTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
 
       RateLimitResult result = brokenLimiter.tryConsume(
-          "ip:203.0.113.9", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1)));
+          "ip:203.0.113.9", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1), true));
 
       assertThat(result.allowed()).isTrue();
-      assertThat(meterRegistry.get("rate_limit_fail_open_total")
-          .tag("rule", "test-rule").counter().count()).isEqualTo(1.0);
+      assertThat(meterRegistry.get("rate_limit_fail_total")
+          .tag("rule", "test-rule").tag("strategy", "open").counter().count()).isEqualTo(1.0);
       brokenFactory.destroy();
     }
 
@@ -110,14 +112,34 @@ class RedisRateLimiterTest {
       given(mockTemplate.execute(any(), anyList(), any(), any()))
           .willThrow(new RedisSystemException("OOM command not allowed when used memory > 'maxmemory'", new RuntimeException()));
 
-      RedisRateLimiter systemErrorLimiter = new RedisRateLimiter(mockTemplate, meterRegistry);
+      RedisRateLimiter systemErrorLimiter =
+          new RedisRateLimiter(mockTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
 
       RateLimitResult result = systemErrorLimiter.tryConsume(
-          "ip:203.0.113.10", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1)));
+          "ip:203.0.113.10", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1), true));
 
       assertThat(result.allowed()).isTrue();
-      assertThat(meterRegistry.get("rate_limit_fail_open_total")
-          .tag("rule", "test-rule").counter().count()).isEqualTo(1.0);
+      assertThat(meterRegistry.get("rate_limit_fail_total")
+          .tag("rule", "test-rule").tag("strategy", "open").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("failOpen이 false인 규칙은 Redis 장애 시 요청을 차단(Fail-Closed)하고 실패 메트릭을 기록한다")
+    void redisDown_failClosedRule_blocksAndIncrementsMetric() {
+      StringRedisTemplate mockTemplate = mock(StringRedisTemplate.class);
+      given(mockTemplate.execute(any(), anyList(), any(), any()))
+          .willThrow(new RedisSystemException("OOM command not allowed when used memory > 'maxmemory'", new RuntimeException()));
+
+      RedisRateLimiter systemErrorLimiter =
+          new RedisRateLimiter(mockTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
+
+      RateLimitResult result = systemErrorLimiter.tryConsume(
+          "ip:203.0.113.11", new RateLimitRule("auth-login", 1, Duration.ofMinutes(1), false));
+
+      assertThat(result.allowed()).isFalse();
+      assertThat(result.retryAfter()).isEqualTo(FAIL_CLOSED_RETRY_AFTER);
+      assertThat(meterRegistry.get("rate_limit_fail_total")
+          .tag("rule", "auth-login").tag("strategy", "closed").counter().count()).isEqualTo(1.0);
     }
   }
 }
