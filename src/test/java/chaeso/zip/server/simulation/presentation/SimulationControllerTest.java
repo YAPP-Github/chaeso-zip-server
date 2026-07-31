@@ -41,6 +41,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(SimulationController.class)
 class SimulationControllerTest {
@@ -57,6 +59,9 @@ class SimulationControllerTest {
 
   @MockitoBean
   private SimulationService simulationService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @BeforeEach
   void authenticate() {

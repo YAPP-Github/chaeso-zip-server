@@ -29,6 +29,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ChannelController.class)
 class ChannelControllerTest {
@@ -38,6 +40,9 @@ class ChannelControllerTest {
 
   @MockitoBean
   private ChannelService channelService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @Test
   @DisplayName("채널 상세 조회가 성공하면 200 과 채널/상품/단가를 반환하고 enum 은 코드값으로 직렬화된다")

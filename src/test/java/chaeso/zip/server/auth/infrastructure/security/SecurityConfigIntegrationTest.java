@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +41,9 @@ class SecurityConfigIntegrationTest {
 
   @MockitoBean
   private JwtTokenProvider jwtTokenProvider;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @TestConfiguration
   static class TestBeans {
