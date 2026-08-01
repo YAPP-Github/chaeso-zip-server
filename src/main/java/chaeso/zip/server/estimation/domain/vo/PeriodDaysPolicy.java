@@ -1,4 +1,4 @@
-package chaeso.zip.server.simulation.domain.vo;
+package chaeso.zip.server.estimation.domain.vo;
 
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 
