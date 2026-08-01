@@ -12,6 +12,10 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 /**
  * 채널 카탈로그 특수 컬럼 매핑을 실제 적재된 데이터로 검증하는 통합 테스트
@@ -25,6 +29,37 @@ class ChannelRepositoryTest {
   private ChannelProductRepository channelProductRepository;
   @Autowired
   private ChannelPricingRepository channelPricingRepository;
+
+  @Test
+  @DisplayName("unpaged 로 조회하면 활성 채널 전체를 이름순으로 반환한다")
+  void searchActiveChannels_unpagedReturnsAll() {
+    List<String> activeNames = channelRepository.findAll().stream()
+        .filter(Channel::isActive)
+        .map(Channel::getName)
+        .toList();
+
+    Page<Channel> page =
+        channelRepository.searchActiveChannels(null, Pageable.unpaged(Sort.by("name")));
+
+    assertThat(page.getContent()).extracting(Channel::getName)
+        .containsExactlyInAnyOrderElementsOf(activeNames);
+    assertThat(page.getTotalElements()).isEqualTo(activeNames.size());
+    assertThat(page.getTotalPages()).isEqualTo(1);
+    // 이름순 정렬은 전체 조회에도 적용된다 (정렬 기준은 DB collation)
+    assertThat(page.getContent().getFirst().getName())
+        .isEqualTo(channelRepository.searchActiveChannels(null, PageRequest.of(0, 1, Sort.by("name")))
+            .getContent().getFirst().getName());
+  }
+
+  @Test
+  @DisplayName("page 지정 시에는 요청한 크기만큼만 반환한다")
+  void searchActiveChannels_pagedLimitsContent() {
+    Page<Channel> page =
+        channelRepository.searchActiveChannels(null, PageRequest.of(0, 2, Sort.by("name")));
+
+    assertThat(page.getContent()).hasSizeLessThanOrEqualTo(2);
+    assertThat(page.getSize()).isEqualTo(2);
+  }
 
   @Test
   @DisplayName("전체 채널·상품·단가의 배열/단일 enum 이 예외 없이 매핑된다 (빈 배열·null 포함)")
