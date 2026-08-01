@@ -48,6 +48,7 @@ public class SecurityConfig {
       "/api/v1/channels/*",
       "/api/v1/onboarding",
       "/api/v1/onboarding/ad-history/presigned-urls",
+      "/api/v1/recommendations",
       "/api/v1/simulations/estimate"
   };
 
