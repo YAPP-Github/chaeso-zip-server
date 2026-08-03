@@ -104,6 +104,8 @@ app:
   login-method-lookup:
     max-attempts: ${LOGIN_METHOD_LOOKUP_MAX_ATTEMPTS:30}
     window: ${LOGIN_METHOD_LOOKUP_WINDOW:PT1M}
+  rate-limit:
+    fail-closed-retry-after: ${RATE_LIMIT_FAIL_CLOSED_RETRY_AFTER:PT5S}
   onboarding:
     s3:
       bucket: ${AD_HISTORY_BUCKET}

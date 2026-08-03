@@ -57,6 +57,8 @@ app:
   login-method-lookup:
     max-attempts: 30
     window: PT1M
+  rate-limit:
+    fail-closed-retry-after: PT5S
   onboarding:
     s3:
       bucket: test-onboarding-bucket
