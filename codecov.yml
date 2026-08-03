@@ -1,0 +1,35 @@
+coverage:
+  range: "60...100"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true
+
+comment:
+  layout: "condensed_header, diff, files, components, condensed_footer"
+  require_changes: true
+  require_head: true
+
+component_management:
+  individual_components:
+    - component_id: auth
+      paths: [src/main/java/chaeso/zip/server/auth/**]
+    - component_id: channel
+      paths: [src/main/java/chaeso/zip/server/channel/**]
+    - component_id: onboarding
+      paths: [src/main/java/chaeso/zip/server/onboarding/**]
+    - component_id: estimation
+      paths: [src/main/java/chaeso/zip/server/estimation/**]
+    - component_id: performance
+      paths: [src/main/java/chaeso/zip/server/performance/**]
+    - component_id: simulation
+      paths: [src/main/java/chaeso/zip/server/simulation/**]
+    - component_id: user
+      paths: [src/main/java/chaeso/zip/server/user/**]
