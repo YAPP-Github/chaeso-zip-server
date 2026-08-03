@@ -20,16 +20,16 @@ comment:
 component_management:
   individual_components:
     - component_id: auth
-      paths: [chaeso/zip/server/auth/**]
+      paths: [src/main/java/chaeso/zip/server/auth/**]
     - component_id: channel
-      paths: [chaeso/zip/server/channel/**]
+      paths: [src/main/java/chaeso/zip/server/channel/**]
     - component_id: onboarding
-      paths: [chaeso/zip/server/onboarding/**]
+      paths: [src/main/java/chaeso/zip/server/onboarding/**]
     - component_id: estimation
-      paths: [chaeso/zip/server/estimation/**]
+      paths: [src/main/java/chaeso/zip/server/estimation/**]
     - component_id: performance
-      paths: [chaeso/zip/server/performance/**]
+      paths: [src/main/java/chaeso/zip/server/performance/**]
     - component_id: simulation
-      paths: [chaeso/zip/server/simulation/**]
+      paths: [src/main/java/chaeso/zip/server/simulation/**]
     - component_id: user
-      paths: [chaeso/zip/server/user/**]
+      paths: [src/main/java/chaeso/zip/server/user/**]
