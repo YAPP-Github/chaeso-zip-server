@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +27,8 @@ class RedisRateLimiterTest {
 
   private static final int PORT = 16385;
   private static final Duration FAIL_CLOSED_RETRY_AFTER = Duration.ofSeconds(5);
+  private static final RateLimitProperties PROPERTIES =
+      new RateLimitProperties(Map.of(), FAIL_CLOSED_RETRY_AFTER);
   private static RedisServer redisServer;
 
   private StringRedisTemplate template;
@@ -52,7 +55,7 @@ class RedisRateLimiterTest {
     Assertions.assertNotNull(template.getConnectionFactory());
     template.getConnectionFactory().getConnection().serverCommands().flushAll();
     meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
-    limiter = new RedisRateLimiter(template, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
+    limiter = new RedisRateLimiter(template, meterRegistry, PROPERTIES);
   }
 
   @Nested
@@ -94,7 +97,7 @@ class RedisRateLimiterTest {
       StringRedisTemplate brokenTemplate = new StringRedisTemplate(brokenFactory);
       brokenTemplate.afterPropertiesSet();
       RedisRateLimiter brokenLimiter =
-          new RedisRateLimiter(brokenTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
+          new RedisRateLimiter(brokenTemplate, meterRegistry, PROPERTIES);
 
       RateLimitResult result = brokenLimiter.tryConsume(
           "ip:203.0.113.9", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1), true));
@@ -113,7 +116,7 @@ class RedisRateLimiterTest {
           .willThrow(new RedisSystemException("OOM command not allowed when used memory > 'maxmemory'", new RuntimeException()));
 
       RedisRateLimiter systemErrorLimiter =
-          new RedisRateLimiter(mockTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
+          new RedisRateLimiter(mockTemplate, meterRegistry, PROPERTIES);
 
       RateLimitResult result = systemErrorLimiter.tryConsume(
           "ip:203.0.113.10", new RateLimitRule("test-rule", 1, Duration.ofMinutes(1), true));
@@ -131,7 +134,7 @@ class RedisRateLimiterTest {
           .willThrow(new RedisSystemException("OOM command not allowed when used memory > 'maxmemory'", new RuntimeException()));
 
       RedisRateLimiter systemErrorLimiter =
-          new RedisRateLimiter(mockTemplate, meterRegistry, FAIL_CLOSED_RETRY_AFTER);
+          new RedisRateLimiter(mockTemplate, meterRegistry, PROPERTIES);
 
       RateLimitResult result = systemErrorLimiter.tryConsume(
           "ip:203.0.113.11", new RateLimitRule("auth-login", 1, Duration.ofMinutes(1), false));

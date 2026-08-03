@@ -42,7 +42,8 @@ class RateLimitInterceptorTest {
   void setUp() {
     rateLimiter = mock(RateLimiter.class);
     RateLimitProperties properties = new RateLimitProperties(
-        Map.of("test-rule", new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1), true)));
+        Map.of("test-rule", new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1), true)),
+        Duration.ofSeconds(5));
     interceptor = new RateLimitInterceptor(rateLimiter, properties);
     request = mock(HttpServletRequest.class);
     response = mock(HttpServletResponse.class);

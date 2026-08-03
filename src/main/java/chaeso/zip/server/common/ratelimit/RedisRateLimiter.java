@@ -4,7 +4,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,10 +34,10 @@ public class RedisRateLimiter implements RateLimiter {
   private final Duration failClosedRetryAfter;
 
   public RedisRateLimiter(StringRedisTemplate redis, MeterRegistry meterRegistry,
-      @Value("${app.rate-limit.fail-closed-retry-after:PT5S}") Duration failClosedRetryAfter) {
+      RateLimitProperties properties) {
     this.redis = redis;
     this.meterRegistry = meterRegistry;
-    this.failClosedRetryAfter = failClosedRetryAfter;
+    this.failClosedRetryAfter = properties.failClosedRetryAfter();
   }
 
   @Override

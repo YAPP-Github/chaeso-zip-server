@@ -10,7 +10,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * 규칙 이름은 맵 키, {@link RateLimited#value()} 와 1:1 대응
  */
 @ConfigurationProperties(prefix = "app.rate-limit")
-public record RateLimitProperties(Map<String, RuleConfig> rules) {
+public record RateLimitProperties(
+    Map<String, RuleConfig> rules,
+    Duration failClosedRetryAfter) {
 
   public record RuleConfig(int limit, Duration window, @DefaultValue("true") boolean failOpen) {
   }

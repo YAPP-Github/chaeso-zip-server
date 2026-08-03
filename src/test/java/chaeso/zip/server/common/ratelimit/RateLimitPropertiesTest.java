@@ -20,7 +20,8 @@ class RateLimitPropertiesTest {
     void rule_found() {
       RateLimitProperties properties = new RateLimitProperties(
           Map.of("onboarding-submit",
-              new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1), true)));
+              new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(1), true)),
+          Duration.ofSeconds(5));
 
       RateLimitRule rule = properties.rule("onboarding-submit");
 
@@ -32,7 +33,8 @@ class RateLimitPropertiesTest {
     @DisplayName("failOpen을 false로 등록하면 조회한 RateLimitRule에도 그대로 반영된다")
     void rule_failOpenFalse_isPropagated() {
       RateLimitProperties properties = new RateLimitProperties(
-          Map.of("auth-login", new RateLimitProperties.RuleConfig(10, Duration.ofMinutes(1), false)));
+          Map.of("auth-login", new RateLimitProperties.RuleConfig(10, Duration.ofMinutes(1), false)),
+          Duration.ofSeconds(5));
 
       RateLimitRule rule = properties.rule("auth-login");
 
@@ -42,7 +44,7 @@ class RateLimitPropertiesTest {
     @Test
     @DisplayName("등록되지 않은 규칙 이름을 조회하면 IllegalStateException 예외가 발생한다")
     void rule_notFound_throws() {
-      RateLimitProperties properties = new RateLimitProperties(Map.of());
+      RateLimitProperties properties = new RateLimitProperties(Map.of(), Duration.ofSeconds(5));
 
       assertThatThrownBy(() -> properties.rule("unknown-rule"))
           .isInstanceOf(IllegalStateException.class)
