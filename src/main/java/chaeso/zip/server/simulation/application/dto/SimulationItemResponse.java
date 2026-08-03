@@ -1,13 +1,14 @@
 package chaeso.zip.server.simulation.application.dto;
 
 import chaeso.zip.server.channel.domain.vo.PricingModel;
+import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
+import chaeso.zip.server.estimation.domain.ClickCostPolicy;
 import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
 import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.UUID;
 
 @Schema(description = "매체별 시뮬레이션 결과")
@@ -111,21 +112,12 @@ public record SimulationItemResponse(
   /**
    * 매체를 하나의 "클릭당 비용"으로 통일해 보여주기 위한 값.
    *
-   * <p>클릭당 과금 매체는 단가를 그대로 쓰고, 그렇지 않은 매체는 배분 예산을 예상 클릭 수
-   * 중앙값으로 나눠 환산한다. 예상 클릭이 없으면(추정 근거가 없거나 집행 불가) 환산할 수 없어
-   * {@code null} 이다.
+   * <p>예상 클릭이 없으면(추정 근거가 없거나 집행 불가) 환산할 수 없어 {@code null} 이다.
    */
   private static BigDecimal cpcWon(EstimationPricing pricing, long allocatedBudgetWon,
       CountRangeResponse clicks) {
-    if (pricing.pricingModel() == PricingModel.CPC) {
-      return pricing.value();
-    }
-    if (allocatedBudgetWon <= 0 || clicks == null || clicks.midpoint() <= 0) {
-      return null;
-    }
-    // 표시용 파생값이라 원 단위로 반올림한다
-    return BigDecimal.valueOf(allocatedBudgetWon)
-        .divide(BigDecimal.valueOf(clicks.midpoint()), 0, RoundingMode.HALF_UP);
+    return ClickCostPolicy.cpcWon(pricing, allocatedBudgetWon,
+        clicks == null ? null : clicks.midpoint());
   }
 
   private static BigDecimal cpmWon(EstimationPricing pricing) {

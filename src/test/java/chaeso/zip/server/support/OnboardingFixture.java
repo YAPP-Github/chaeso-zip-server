@@ -29,6 +29,16 @@ public final class OnboardingFixture {
         3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.EXPERIENCED, List.of());
   }
 
+  /**
+   * 매칭 축(업종·목표·연령)과 예산·기간을 직접 지정하는 온보딩.
+   * MOBILE_APP 이라 모든 광고 목표를 쓸 수 있다.
+   */
+  public static Onboarding onboarding(Category industry, CampaignObjective campaignObjective,
+      List<AgeBand> targetAgeBands, Long budgetMin, Long budgetMax, CampaignPeriod period) {
+    return Onboarding.create(null, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
+        campaignObjective, budgetMin, budgetMax, period, AdExperience.NONE, List.of());
+  }
+
   /** WEB/TRAFFIC/100만~500만원/NONE, 집행 내역 없음. */
   public static SubmitOnboardingCommand submitCommand() {
     return submitCommand(ServiceType.WEB, CampaignObjective.TRAFFIC,

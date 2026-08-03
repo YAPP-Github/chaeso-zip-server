@@ -14,7 +14,7 @@ import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.application.SimulationService;
-import chaeso.zip.server.simulation.application.dto.CountRangeResponse;
+import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;

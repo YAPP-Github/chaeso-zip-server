@@ -1,4 +1,4 @@
-package chaeso.zip.server.simulation.application;
+package chaeso.zip.server.estimation.application;
 
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import java.math.BigDecimal;

@@ -1,4 +1,4 @@
-package chaeso.zip.server.simulation.application;
+package chaeso.zip.server.estimation.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;

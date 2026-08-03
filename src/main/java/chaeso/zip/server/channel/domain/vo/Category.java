@@ -1,7 +1,9 @@
 package chaeso.zip.server.channel.domain.vo;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+@Getter
 @RequiredArgsConstructor
 public enum Category {
   GAME("게임"),
@@ -22,5 +24,6 @@ public enum Category {
   NEWS_INFORMATION("뉴스·정보"),
   OTHERS("기타");
 
+  /** 사용자에게 보여줄 업종명. 추천 근거 문장에 그대로 들어간다. */
   private final String description;
 }
