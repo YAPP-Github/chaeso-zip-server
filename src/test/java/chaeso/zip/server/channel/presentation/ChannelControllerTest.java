@@ -44,6 +44,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ChannelController.class)
 class ChannelControllerTest {
@@ -53,6 +55,9 @@ class ChannelControllerTest {
 
   @MockitoBean
   private ChannelService channelService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @Test
   @DisplayName("쿼리 파라미터 없이 조회하면 페이지네이션 없이 전체 채널을 이름순으로 반환한다")

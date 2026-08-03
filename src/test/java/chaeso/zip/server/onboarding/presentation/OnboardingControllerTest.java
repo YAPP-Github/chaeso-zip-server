@@ -48,6 +48,8 @@ import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(OnboardingController.class)
 class OnboardingControllerTest {
@@ -62,6 +64,9 @@ class OnboardingControllerTest {
 
   @MockitoBean
   private OnboardingService onboardingService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @BeforeEach
   void authenticate() {

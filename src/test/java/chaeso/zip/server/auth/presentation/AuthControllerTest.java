@@ -48,6 +48,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import chaeso.zip.server.user.domain.Occupation;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 /**
  * 인증 표현 계층 슬라이스 테스트. 공통 응답과 검증 에러 포맷을 검증한다.
  */
@@ -63,6 +65,9 @@ class AuthControllerTest {
 
   @MockitoBean
   private AuthService authService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   private static final UUID AUTHENTICATED_USER_ID =
       UUID.fromString("11111111-1111-1111-1111-111111111111");

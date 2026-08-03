@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+
 /**
  * 표현 계층 슬라이스 테스트 컨벤션. {@code @WebMvcTest} 는 {@code @RestControllerAdvice}(GlobalExceptionHandler)
  * 도 함께 로드하므로 공통 응답/검증 에러 포맷까지 검증할 수 있다.
@@ -37,6 +39,9 @@ class SampleControllerTest {
 
   @MockitoBean
   private SampleService sampleService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @Test
   @DisplayName("샘플 생성 요청이 성공하면 201 과 공통 응답 포맷을 반환한다")

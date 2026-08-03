@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import chaeso.zip.server.channel.domain.vo.PricingModel;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
@@ -34,6 +35,9 @@ class RecommendationControllerTest {
 
   @MockitoBean
   private RecommendationService recommendationService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
 
   @Test
   @DisplayName("추천 조회가 성공하면 200 과 적합도·추정값을 반환하고 enum 은 코드값으로 직렬화된다")
