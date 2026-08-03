@@ -1,4 +1,4 @@
-package chaeso.zip.server.simulation.application.dto;
+package chaeso.zip.server.estimation.application.dto;
 
 import chaeso.zip.server.estimation.domain.vo.ClickRange;
 import chaeso.zip.server.estimation.domain.vo.ImpressionRange;

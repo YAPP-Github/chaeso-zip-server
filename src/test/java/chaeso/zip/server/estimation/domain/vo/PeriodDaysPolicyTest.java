@@ -1,4 +1,4 @@
-package chaeso.zip.server.simulation.domain.vo;
+package chaeso.zip.server.estimation.domain.vo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

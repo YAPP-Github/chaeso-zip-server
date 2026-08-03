@@ -33,13 +33,14 @@ public class ChannelRepositoryImpl implements ChannelRepositoryCustom {
     BooleanExpression activeOnly = channel.active.isTrue();
     BooleanExpression nameMatch = nameContainsIgnoreCase(channel, name);
 
-    List<Channel> content = queryFactory
+    JPAQuery<Channel> contentQuery = queryFactory
         .selectFrom(channel)
         .where(activeOnly, nameMatch)
-        .orderBy(toOrderSpecifiers(pageable.getSort()))
-        .offset(pageable.getOffset())
-        .limit(pageable.getPageSize())
-        .fetch();
+        .orderBy(toOrderSpecifiers(pageable.getSort()));
+    if (pageable.isPaged()) {   // unpaged 는 offset/limit 없이 전체를 조회한다
+      contentQuery.offset(pageable.getOffset()).limit(pageable.getPageSize());
+    }
+    List<Channel> content = contentQuery.fetch();
 
     JPAQuery<Long> countQuery = queryFactory
         .select(channel.count())

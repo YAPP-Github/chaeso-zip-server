@@ -7,12 +7,13 @@ import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
+import chaeso.zip.server.estimation.application.DefaultCtrProvider;
+import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.estimation.domain.EstimationService;
-import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
-import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
+import chaeso.zip.server.estimation.domain.RepresentativeProduct;
 import chaeso.zip.server.estimation.domain.vo.EstimationResult;
+import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.simulation.application.dto.AllocationCommand;
-import chaeso.zip.server.simulation.application.dto.CountRangeResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
@@ -20,10 +21,8 @@ import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
-import chaeso.zip.server.simulation.domain.vo.PeriodDaysPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,14 +45,6 @@ public class SimulationServiceImpl implements SimulationService {
   private final ChannelPricingRepository channelPricingRepository;
   private final BudgetSimulationRepository budgetSimulationRepository;
   private final BudgetSimulationItemRepository budgetSimulationItemRepository;
-
-  /**
-   * 대표 상품 선택 순서
-   */
-  private static final Comparator<Candidate> BEST_PRODUCT = Comparator
-      .comparing(Candidate::estimatesImpressions, Comparator.reverseOrder())
-      .thenComparing(candidate -> candidate.pricing().value())
-      .thenComparing(Candidate::productId);
 
   private final DefaultCtrProvider defaultCtrProvider;
 
@@ -139,25 +130,22 @@ public class SimulationServiceImpl implements SimulationService {
       int periodDays, BigDecimal defaultCtrPercent) {
     UUID channelId = allocation.channelId();
 
-    Candidate candidate = products.stream()
-        .map(product -> toCandidate(product,
-            pricingsByProduct.getOrDefault(product.getId(), List.of()), defaultCtrPercent))
-        .filter(Objects::nonNull)
-        .min(BEST_PRODUCT)
+    RepresentativeProduct representative = RepresentativeProduct
+        .select(products, pricingsByProduct, defaultCtrPercent)
         .orElse(null);
 
-    if (candidate == null) {
+    if (representative == null) {
       return SimulationItemResponse.quoteRequired(channelId, channelName, allocation.budgetWon(),
           allocation.allocationPct());
     }
 
-    BigDecimal price = candidate.pricing().value();
+    BigDecimal price = representative.pricing().value();
     if (allocation.budgetWon() <= 0) {
-      return SimulationItemResponse.notAllocated(channelId, channelName, candidate.productId(),
-          allocation.allocationPct(), candidate.pricing(), shortfallWon(price, 0));
+      return SimulationItemResponse.notAllocated(channelId, channelName, representative.productId(),
+          allocation.allocationPct(), representative.pricing(), shortfallWon(price, 0));
     }
 
-    EstimationResult result = EstimationService.estimate(candidate.product(),
+    EstimationResult result = EstimationService.estimate(representative.product(),
         allocation.budgetWon(), periodDays);
     if (result == null) {
       return SimulationItemResponse.quoteRequired(channelId, channelName, allocation.budgetWon(),
@@ -165,17 +153,9 @@ public class SimulationServiceImpl implements SimulationService {
     }
 
     Long shortfall = result.isExecutable() ? null : shortfallWon(price, allocation.budgetWon());
-    return SimulationItemResponse.estimated(channelId, channelName, candidate.productId(),
-        allocation.budgetWon(), allocation.allocationPct(), candidate.pricing(), result, shortfall);
-  }
-
-  private static Candidate toCandidate(ChannelProduct product, List<ChannelPricing> pricings,
-      BigDecimal defaultCtrPercent) {
-    EstimationProduct estimationProduct =
-        EstimationProduct.from(product, pricings, defaultCtrPercent);
-    EstimationPricing pricing = EstimationService.representativePricing(estimationProduct);
-    return pricing == null ? null : new Candidate(product.getId(), estimationProduct, pricing,
-        EstimationService.estimatesImpressions(estimationProduct));
+    return SimulationItemResponse.estimated(channelId, channelName, representative.productId(),
+        allocation.budgetWon(), allocation.allocationPct(), representative.pricing(), result,
+        shortfall);
   }
 
   private Map<UUID, Channel> loadChannels(List<UUID> channelIds) {
@@ -252,12 +232,5 @@ public class SimulationServiceImpl implements SimulationService {
     }
 
     return builder.build();
-  }
-
-  /**
-   * 매체의 대표 상품 후보와 그 상품의 대표 단가
-   */
-  private record Candidate(UUID productId, EstimationProduct product, EstimationPricing pricing,
-                           boolean estimatesImpressions) {
   }
 }

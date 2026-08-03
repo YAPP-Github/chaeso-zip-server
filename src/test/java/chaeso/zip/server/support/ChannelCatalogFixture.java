@@ -3,9 +3,14 @@ package chaeso.zip.server.support;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.entity.ChannelProduct;
+import chaeso.zip.server.channel.domain.vo.AgeBand;
+import chaeso.zip.server.channel.domain.vo.CampaignObjective;
+import chaeso.zip.server.channel.domain.vo.Category;
+import chaeso.zip.server.channel.domain.vo.Gender;
 import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -20,6 +25,24 @@ public final class ChannelCatalogFixture {
     set(channel, "id", id);
     set(channel, "name", name);
     return channel;
+  }
+
+  /** 추천 매칭 축(적합 업종·연령대)과 주요 타깃까지 채운 채널. */
+  public static Channel channel(UUID id, String name, List<Category> suitableCategories,
+      List<AgeBand> ageBandCodes, String primaryAgeBand, Gender primaryGender) {
+    Channel channel = channel(id, name);
+    set(channel, "suitableCategories", suitableCategories);
+    set(channel, "ageBandCodes", ageBandCodes);
+    set(channel, "primaryAgeBand", primaryAgeBand);
+    set(channel, "primaryGender", primaryGender);
+    return channel;
+  }
+
+  /** 상품이 지원하는 광고 목적을 지정한다. */
+  public static ChannelProduct withObjectives(ChannelProduct product,
+      CampaignObjective... objectives) {
+    set(product, "supportedObjectives", List.of(objectives));
+    return product;
   }
 
   /** CTR·노출 정보가 전혀 없는 상품. */
