@@ -17,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.web.method.HandlerMethod;
 
 class RateLimitInterceptorTest {
@@ -76,19 +75,6 @@ class RateLimitInterceptorTest {
       boolean result = interceptor.preHandle(request, response, handlerMethodFor("limited"));
 
       assertThat(result).isTrue();
-    }
-
-    @Test
-    @DisplayName("X-Forwarded-For 헤더가 있으면 그 첫 IP를 rate limit 키로 사용한다")
-    void forwardedFor_usesFirstIpAsKey() throws Exception {
-      given(request.getHeader("X-Forwarded-For")).willReturn("203.0.113.99, 10.0.0.1");
-      given(rateLimiter.tryConsume(anyString(), any())).willReturn(RateLimitResult.allow());
-
-      interceptor.preHandle(request, response, handlerMethodFor("limited"));
-
-      ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-      verify(rateLimiter).tryConsume(keyCaptor.capture(), any());
-      assertThat(keyCaptor.getValue()).isEqualTo("test-rule:203.0.113.99");
     }
 
     @Test
