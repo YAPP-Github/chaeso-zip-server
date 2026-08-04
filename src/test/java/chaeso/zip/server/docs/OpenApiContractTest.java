@@ -236,7 +236,7 @@ class OpenApiContractTest {
 
       spec.path("components").path("schemas").properties().forEach(entry ->
           assertThat(entry.getValue().path("nullable").asBoolean())
-              .as("%s는 nullable일 수 없습니다." + "필드에는 nullable 대신 requiredMode = NOT_REQUIRED를 사용하세요)", entry.getKey())
+              .as("%s는 nullable일 수 없습니다. 필드에는 nullable 대신 requiredMode = NOT_REQUIRED를 사용하세요.", entry.getKey())
               .isFalse());
     }
   }
