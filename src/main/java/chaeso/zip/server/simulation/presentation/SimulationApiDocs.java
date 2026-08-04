@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -128,7 +129,8 @@ public interface SimulationApiDocs {
           cpcWon 은 모든 매체를 클릭당 비용 하나로 통일해 보여주는 값으로, 클릭당 과금 매체는 단가 \
           그대로이고 그 외 매체는 배분 예산 / 예상 클릭 수(중앙값)로 환산한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "계산 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "SIMULATION", value = SIMULATION_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "입력값 검증 실패(C-001). 총 예산 범위(10만~500만), 기간, 배분 목록을 확인한다",
@@ -141,19 +143,19 @@ public interface SimulationApiDocs {
   ApiResponse<SimulationResponse> estimateSimulation(
       @Valid @RequestBody SimulationRequest request);
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "saveSimulation", summary = "예산 시뮬레이션 결과 저장",
       description = """
           계산 결과를 스냅샷으로 저장하고 simulationId 를 포함해 반환한다. 사용자당 저장 개수에 \
           제한이 없으며, 저장된 결과는 수정되지 않는다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "저장 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "SIMULATION_SAVED", value = SIMULATION_SAVED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
-      description = "인증 필요(C-004)")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 채널(CH-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -162,17 +164,17 @@ public interface SimulationApiDocs {
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SimulationRequest request);
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getLatestSimulation", summary = "최신 시뮬레이션 결과 불러오기",
       description = """
           사용자가 가장 최근에 저장한 결과를 재계산 없이 그대로 반환한다. \
           저장된 결과가 없으면 본문 없이 204 를 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "SIMULATION_SAVED", value = SIMULATION_SAVED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204",
-      description = "저장된 결과 없음")
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
-      description = "인증 필요(C-004)")
+      description = "저장된 결과 없음", content = @Content)
   ResponseEntity<ApiResponse<SimulationResponse>> getLatestSimulation(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 }

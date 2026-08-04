@@ -125,7 +125,8 @@ public interface ChannelApiDocs {
           name 지정 시 채널명으로 필터링. \
           정렬은 name, createdAt 만 지원한다(형식: sort=name,desc / 기본값 name,asc)""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "CHANNEL_LIST", value = CHANNEL_LIST_EXAMPLE)))
   ApiResponse<PageResponse<ChannelListItemResponse>> getChannels(
       @ParameterObject ChannelSearchRequest request,
@@ -137,7 +138,8 @@ public interface ChannelApiDocs {
           채널 정보와 함께 광고 상품 목록, 오디언스 규모 지표, 집행 사례를 반환한다. \
           상품이 없는 채널은 products 를 빈 배열로 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "CHANNEL_DETAIL", value = CHANNEL_DETAIL_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 채널(CH-001)",

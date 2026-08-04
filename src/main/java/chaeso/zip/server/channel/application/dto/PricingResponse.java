@@ -12,15 +12,15 @@ import java.math.BigDecimal;
 public record PricingResponse(
     @Schema(description = "과금 모델 코드값", example = "CPM", requiredMode = Schema.RequiredMode.REQUIRED)
     PricingModel pricingModel,
-    @Schema(description = "단가 값", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 값", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     BigDecimal value,
-    @Schema(description = "단가 상한값(구간형 단가)", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 상한값(구간형 단가)", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     BigDecimal valueMax,
-    @Schema(description = "단가 적용 단위 기간", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 적용 단위 기간", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String unitPeriod,
-    @Schema(description = "단가 적용 단위 일수", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 적용 단위 일수", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     BigDecimal unitDays,
-    @Schema(description = "단가 적용 세그먼트", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 적용 세그먼트", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String segment,
     @Schema(description = "가격 유형 코드값", example = "LIST", requiredMode = Schema.RequiredMode.REQUIRED)
     PriceType priceType,
@@ -29,7 +29,7 @@ public record PricingResponse(
     Vat vat,
     @Schema(description = "통화 코드값", example = "KRW", requiredMode = Schema.RequiredMode.REQUIRED)
     CurrencyType currency,
-    @Schema(description = "단가 유효 기간", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단가 유효 기간", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String validPeriod) {
 
   public static PricingResponse from(ChannelPricing pricing) {

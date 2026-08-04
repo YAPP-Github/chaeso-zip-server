@@ -84,7 +84,8 @@ public interface AuthApiDocs {
           그 외: 발송 후 200.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "발송 성공. 구글로만 가입된 이메일이면 발송 없이 안내 코드만 실린다",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "EMAIL_ALREADY_USED_WITH_GOOGLE",
               value = EMAIL_ALREADY_USED_WITH_GOOGLE_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
@@ -218,12 +219,15 @@ public interface AuthApiDocs {
   @Operation(operationId = "loginMethods", summary = "로그인 수단 조회",
       description = """
           이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용. \
-          methods [LOCAL]: 비밀번호 입력창. \
+          
+          methods \
+          [LOCAL]: 비밀번호 입력창. \
           [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼. \
           [GOOGLE]: 구글로 가입된 계정 안내. \
           []: 미가입 -> 회원가입 화면.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = {
               @ExampleObject(name = "REGISTERED", value = LOGIN_METHODS_EXAMPLE),
               @ExampleObject(name = "NOT_REGISTERED", value = LOGIN_METHODS_EMPTY_EXAMPLE)
@@ -336,12 +340,14 @@ public interface AuthApiDocs {
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
       description = """
           구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다. \
+          
           LOGIN: 토큰 발급. \
           LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출. \
           SIGNUP_REQUIRED: signupRequired 와 일회성 signupToken, 프리필 값을 내려준다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "로그인 성공 / 연결 확인 필요 / 가입 필요",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = {
               @ExampleObject(name = "LOGIN", value = GOOGLE_LOGIN_EXAMPLE),
               @ExampleObject(name = "LINK_REQUIRED", value = GOOGLE_LINK_REQUIRED_EXAMPLE),
@@ -378,7 +384,8 @@ public interface AuthApiDocs {
           연결하고 토큰을 발급한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "연결 완료(code: GOOGLE_ACCOUNT_LINKED) 및 토큰 발급",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "GOOGLE_ACCOUNT_LINKED", value = GOOGLE_ACCOUNT_LINKED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -418,7 +425,8 @@ public interface AuthApiDocs {
           신규 회원가입을 완료하고 토큰을 발급한다. \
           가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "가입 성공, 토큰 발급",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "SIGNUP_SUCCESS", value = GOOGLE_SIGNUP_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "입력값 검증 실패(C-001) 또는 signupToken 만료/무효(AUTH-011)",
@@ -442,7 +450,7 @@ public interface AuthApiDocs {
   @Operation(operationId = "logout", summary = "로그아웃",
       description = """
           제출한 Refresh Token 의 세션(family)을 폐기한다. 인증된 사용자만 호출할 수 있고, \
-          토큰 소유자가 인증 사용자와 다르면 401. 이미 폐기된 세션이어도 200 을 반환한다(멱등).""")
+          토큰 소유자가 인증 사용자와 다르면 401. 이미 폐기된 세션이어도 200 을 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그아웃 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),

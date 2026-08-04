@@ -1,7 +1,8 @@
 # OpenAPI / API Client 가이드
 
-프론트는 **OpenAPI Generator**로 API client를 자동 생성합니다. 그 입력이 되는 OpenAPI 스펙은
-백엔드 코드(어노테이션)에서 자동 생성됩니다. 아래 컨벤션만 지키면 스펙 품질이 유지됩니다.
+프론트는 **openapi-typescript(openapi-ts)** 또는 **OpenAPI Generator**로 API 타입과 client를 자동 생성합니다.
+그 입력이 되는 OpenAPI 스펙은 백엔드 코드(어노테이션)에서 자동 생성됩니다.
+아래 컨벤션만 지키면 스펙 품질이 유지됩니다.
 
 ---
 
@@ -38,8 +39,42 @@ String name
 ### enum은 Java enum으로 둔다
 String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노출되어 프론트가 타입으로 분기할 수 있습니다.
 
+### 성공 응답은 `ApiResponse<T>`의 `T`까지 연결한다
+
+실제 응답이 `ApiResponse<TokenResponse>`여도 성공 응답 annotation을 raw `ApiResponse.class`로
+지정하면 제네릭 타입 `T`가 사라집니다. 이 경우 openapi-typescript가 `data`를 `unknown`으로 생성합니다.
+
+```java
+// 잘못된 예: data의 실제 타입을 알 수 없다.
+@ApiResponse(responseCode = "200",
+    content = @Content(schema = @Schema(implementation = ApiResponse.class)))
+ApiResponse<TokenResponse> signupGoogle(
+    @Valid @RequestBody GoogleSignupRequest request);
+```
+
+examples와 메서드 반환형을 함께 사용할 때는
+@Schema(implementation = ApiResponse.class)를 사용하지 않고,
+`useReturnTypeSchema = true`로 반환형 schema를 병합합니다.
+
+```java
+@ApiResponse(
+    responseCode = "200",
+    description = "가입 성공, 토큰 발급",
+    useReturnTypeSchema = true,
+    content = @Content(
+        examples = @ExampleObject(name = "SIGNUP_SUCCESS", value = SIGNUP_SUCCESS_EXAMPLE)
+    )
+)
+ApiResponse<TokenResponse> signupGoogle(
+    @Valid @RequestBody GoogleSignupRequest request);
+```
+
+생성된 OpenAPI 구조가 만족해야 할 구체적인 조건은 아래 "OpenAPI 계약 테스트" 항목을 참고하세요.
+
 ### 에러 응답
 - 어디서나 날 수 있는 **500은 자동으로 모든 API에 부착**됩니다 (`CommonResponsesCustomizer`).
+- `@SecurityRequirement(name = "bearerAuth")`가 선언된 API에는 공통 **401(C-004)이 자동으로 부착**됩니다.
+   endpoint 전용 401 응답이 있으면 직접 선언한 응답이 우선합니다.
 - 도메인별 4xx(400/404 등)는 컨트롤러에 직접 선언합니다.
 - 모든 에러 응답은 공통 래퍼 `ApiResponse<Void>` 형태입니다.
 - 프론트는 비즈니스 에러를 `error.code` 기준으로 매핑합니다. 예: `AUTH-002`.
@@ -86,9 +121,33 @@ String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노
 }
 ```
 
+### 본문이 없는 응답
+
+메서드 반환형이 `ResponseEntity<ApiResponse<T>>`여도 204 응답은 본문이 없습니다.
+`content`를 생략하면 Springdoc이 반환형 schema를 204에도 자동으로 넣을 수 있으므로 빈 `@Content`를 명시합니다.
+
+```java
+@ApiResponse(responseCode = "204", description = "조회 결과 없음", content = @Content)
+```
+
 ### 참고할 정답 예시
 `sample` 도메인(`SampleController`, `SampleResponse`, `CreateSampleRequest`)이 위 컨벤션을 모두 반영한
 레퍼런스입니다. 새 도메인은 이 구조를 따라가면 됩니다.
+
+### OpenAPI 계약 테스트
+`OpenApiContractTest`는 `/v3/api-docs`를 직접 읽어 API client 생성에 필요한 계약을 검증합니다.
+
+```bash
+./gradlew test --tests chaeso.zip.server.docs.OpenApiContractTest
+```
+
+- 본문이 있는 2xx 응답은 raw `ApiResponse`가 아닌 구체 wrapper를 참조해야 한다
+- void가 아닌 wrapper의 `data`에는 구체 `$ref`, 타입 또는 배열 항목 schema가 있어야 한다
+- 페이지 응답의 `data.content.items`도 구체 schema를 참조해야 한다
+- examples가 있는 응답에는 schema도 함께 있어야 한다
+- 모든 응답 본문은 `application/json`이어야 하며 `*/*`가 남으면 실패한다
+- `SecurityConfig` 인증 대상 API는 `bearerAuth`를 선언하고, 401에는 성공 DTO가 아닌 공통 오류 Schema를 사용해야 한다
+- 204 응답에는 `content/schema`가 없어야 한다
 
 ---
 
@@ -113,6 +172,13 @@ String 상수 대신 Java `enum`을 쓰면 스펙에 `enum` 값이 그대로 노
 > 노출 여부는 `SWAGGER_ENABLED` 환경변수로 제어합니다 (기본 `false`).
 > 개발 서버 `.env` 에 `SWAGGER_ENABLED=true` 를 두면 노출되고, 운영은 미설정(=비공개)으로 둡니다.
 > 로컬은 `docker-compose.yml` 에서 기본 `true`, IDE 직접 실행 시 `SWAGGER_ENABLED=true` 지정.
+
+openapi-typescript 예시:
+```bash
+npx openapi-typescript \
+  http://<개발 서버 호스트>/v3/api-docs \
+  -o ./src/api/schema.d.ts
+```
 
 OpenAPI Generator 예시:
 ```bash
