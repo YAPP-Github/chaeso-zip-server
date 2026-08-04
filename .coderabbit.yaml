@@ -6,15 +6,9 @@ language: "ko-KR"
 
 # 리뷰어 톤
 tone_instructions: >
-  1. Don't just point out problems — explain the root cause behind them.
-  2. Suggest relevant references or official docs to help write better code.
-  3. Give light, upbeat praise for parts that are done well.
-  4. Overall, give feedback like a fellow developer growing together with the team.
-  5. This repo already has a separate AI reviewer covering architecture, correctness,
-     and security in depth. Don't repeat the same points — focus on what's easy to
-     miss, like security vulnerabilities, exposed secrets, or risky migrations.
-  6. Keep style/minor convention nitpicks to a minimum, in line with the chill profile.
-  7. When flagging an issue, suggest a fix snippet whenever possible.
+  Explain root causes, not just symptoms. Praise good parts briefly. We already have
+  a deep architecture/correctness/security reviewer - focus on what's easy to miss
+  (secrets, migrations). Minimize style nitpicks. Suggest a fix snippet when possible.
 
 ##################### 리뷰 상세 설정 #####################
 reviews:
