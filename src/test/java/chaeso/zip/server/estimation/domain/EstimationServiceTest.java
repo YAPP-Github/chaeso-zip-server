@@ -300,6 +300,45 @@ class EstimationServiceTest {
   }
 
   @Nested
+  @DisplayName("노출 추정 가능 여부")
+  class EstimatesImpressions {
+
+    @Test
+    @DisplayName("CPM 은 예산과 단가만으로 노출을 낼 수 있다")
+    void cpmAlwaysEstimates() {
+      assertThat(EstimationService.estimatesImpressions(product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "3000", null, null)))).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PricingModel.class, names = {"SLOT", "FLAT", "PACKAGE"})
+    @DisplayName("구좌형은 기대 노출이 있을 때만 노출을 낼 수 있다")
+    void slotBasedNeedsExpectedImpressions(PricingModel pricingModel) {
+      EstimationPricing pricing = pricing(pricingModel, PriceType.LIST, "500000", null, "7");
+
+      assertThat(EstimationService.estimatesImpressions(
+          product(null, 100_000L, null, pricing))).isTrue();
+      assertThat(EstimationService.estimatesImpressions(
+          product(null, null, null, pricing))).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PricingModel.class, names = {"CPC", "CPA", "CPV", "PER_UNIT", "OTHER"})
+    @DisplayName("노출 계산 규칙이 없는 과금 모델은 기대 노출이 있어도 노출을 낼 수 없다")
+    void unsupportedModelsCannotEstimate(PricingModel pricingModel) {
+      assertThat(EstimationService.estimatesImpressions(product(null, 100_000L, "1개월",
+          pricing(pricingModel, PriceType.LIST, "500", null, null)))).isFalse();
+    }
+
+    @Test
+    @DisplayName("값이 있는 단가가 없으면 노출을 낼 수 없다")
+    void noUsablePricingCannotEstimate() {
+      assertThat(EstimationService.estimatesImpressions(product(null, 100_000L, "1개월",
+          pricing(PricingModel.CPM, PriceType.LIST, null, null, null)))).isFalse();
+    }
+  }
+
+  @Nested
   @DisplayName("대표 단가 선택")
   class RepresentativePricing {
 
@@ -318,15 +357,61 @@ class EstimationServiceTest {
 
     @Test
     @DisplayName("판매가가 없으면 첫 번째 단가를 선택한다")
-    void fallsBackToFirstPricing() {
-      // LIST 10,000 선택 → 100,000 노출
+    void fallsBackToCheapestPricing() {
+      // DISCOUNT 5,000 선택 → 200,000 노출
       EstimationProduct product = product(null, null, null,
           pricing(PricingModel.CPM, PriceType.LIST, "10000", null, null),
           pricing(PricingModel.CPM, PriceType.DISCOUNT, "5000", null, null));
 
       EstimationResult result = EstimationService.estimate(product, 1_000_000L, 30);
 
-      assertThat(result.impressions()).isEqualTo(new ImpressionRange(85_000, 115_000));
+      assertThat(result.impressions()).isEqualTo(new ImpressionRange(170_000, 230_000));
+    }
+
+    @Test
+    @DisplayName("판매가가 여러 개면 가장 싼 판매가를 선택한다")
+    void picksCheapestSalePrice() {
+      // SALE 4,000 선택 → 250,000 노출 (더 싼 LIST 1,000 이 있어도 판매가가 우선한다)
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.SALE, "8000", null, null),
+          pricing(PricingModel.CPM, PriceType.LIST, "1000", null, null),
+          pricing(PricingModel.CPM, PriceType.SALE, "4000", null, null));
+
+      EstimationResult result = EstimationService.estimate(product, 1_000_000L, 30);
+
+      assertThat(result.impressions()).isEqualTo(new ImpressionRange(212_500, 287_500));
+    }
+
+    @Test
+    @DisplayName("단가 목록의 순서가 바뀌어도 같은 대표 단가를 고른다")
+    void isIndependentOfPricingOrder() {
+      // 단가는 정렬 없이 조회되므로, 순서에 기대면 같은 입력이 실행마다 다른 결과를 낸다
+      EstimationPricing cheap = pricing(PricingModel.CPM, PriceType.LIST, "5000", null, null);
+      EstimationPricing expensive = pricing(PricingModel.CPM, PriceType.LIST, "10000", null, null);
+      EstimationPricing middle = pricing(PricingModel.CPM, PriceType.LIST, "8000", null, null);
+
+      EstimationResult ascending = EstimationService.estimate(
+          product(null, null, null, cheap, middle, expensive), 1_000_000L, 30);
+      EstimationResult descending = EstimationService.estimate(
+          product(null, null, null, expensive, middle, cheap), 1_000_000L, 30);
+      EstimationResult shuffled = EstimationService.estimate(
+          product(null, null, null, middle, expensive, cheap), 1_000_000L, 30);
+
+      assertThat(ascending.impressions()).isEqualTo(new ImpressionRange(170_000, 230_000));
+      assertThat(descending.impressions()).isEqualTo(ascending.impressions());
+      assertThat(shuffled.impressions()).isEqualTo(ascending.impressions());
+    }
+
+    @Test
+    @DisplayName("대표 단가 조회도 목록 순서에 의존하지 않는다")
+    void representativePricingIsIndependentOfOrder() {
+      EstimationPricing cheap = pricing(PricingModel.CPC, PriceType.LIST, "500", null, null);
+      EstimationPricing expensive = pricing(PricingModel.CPM, PriceType.LIST, "9000", null, null);
+
+      assertThat(EstimationService.representativePricing(product(null, null, null, cheap,
+          expensive))).isEqualTo(cheap);
+      assertThat(EstimationService.representativePricing(product(null, null, null, expensive,
+          cheap))).isEqualTo(cheap);
     }
 
     @Test

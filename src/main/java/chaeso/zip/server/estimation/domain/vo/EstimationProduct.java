@@ -3,6 +3,7 @@ package chaeso.zip.server.estimation.domain.vo;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 /**
@@ -16,11 +17,31 @@ import java.util.List;
 public record EstimationProduct(BigDecimal ctr, Long expectedImpressions, String expectedPeriod,
                                 List<EstimationPricing> pricings) {
 
+  private static final BigDecimal TWO = new BigDecimal("2");
+  private static final int CTR_SCALE = 4;
+
   public static EstimationProduct from(ChannelProduct product, List<ChannelPricing> pricings) {
+    return from(product, pricings, null);
+  }
+
+  public static EstimationProduct from(ChannelProduct product, List<ChannelPricing> pricings,
+      BigDecimal defaultCtrPercent) {
     return new EstimationProduct(
-        product.getCtr(),
+        resolveCtr(product, defaultCtrPercent),
         product.getExpectedImpressions(),
         product.getExpectedPeriod(),
         pricings.stream().map(EstimationPricing::from).toList());
+  }
+
+  private static BigDecimal resolveCtr(ChannelProduct product, BigDecimal defaultCtrPercent) {
+    if (product.getCtr() != null) {
+      return product.getCtr();
+    }
+    BigDecimal min = product.getCtrMin();
+    BigDecimal max = product.getCtrMax();
+    if (min != null && max != null) {
+      return min.add(max).divide(TWO, CTR_SCALE, RoundingMode.HALF_UP);
+    }
+    return defaultCtrPercent;
   }
 }

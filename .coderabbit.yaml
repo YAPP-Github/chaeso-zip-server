@@ -1,0 +1,96 @@
+
+##################### 🐰 CodeRabbit 설정 파일  #####################
+
+# 리뷰 언어
+language: "ko-KR"
+
+# 리뷰어 톤
+tone_instructions: >
+  1. Don't just point out problems — explain the root cause behind them.
+  2. Suggest relevant references or official docs to help write better code.
+  3. Give light, upbeat praise for parts that are done well.
+  4. Overall, give feedback like a fellow developer growing together with the team.
+  5. This repo already has a separate AI reviewer covering architecture, correctness,
+     and security in depth. Don't repeat the same points — focus on what's easy to
+     miss, like security vulnerabilities, exposed secrets, or risky migrations.
+  6. Keep style/minor convention nitpicks to a minimum, in line with the chill profile.
+  7. When flagging an issue, suggest a fix snippet whenever possible.
+
+##################### 리뷰 상세 설정 #####################
+reviews:
+  # 리뷰 강도
+  # assertive(꼼꼼) / chill(부드럽게)
+  profile: "chill"
+
+  # 모든 리뷰 코멘트가 resolve시 자동 승인 (비활성화)
+  request_changes_workflow: false
+
+  # PR 요약
+  high_level_summary: true       # PR 전체 변경 내용
+  changed_files_summary: true    # 파일별 변경 내용
+
+  # 워크스루를 접힌 상태로 표시
+  collapse_walkthrough: true
+
+  # 빌드 산출물은 리뷰 대상에서 제외
+  path_filters:
+    - "!build/**"
+    - "!.gradle/**"
+
+  # 코드 로직 시퀀스 다이어그램 생성
+  sequence_diagrams: true
+
+  # 연결된 이슈를 분석해 리뷰에 맥락 추가
+  assess_linked_issues: true
+
+  # 관련 이슈/PR 자동 링크 (비활성화)
+  related_issues: false
+  related_prs: true
+
+  # 레이블 자동 제안/적용 (수동)
+  suggested_labels: false
+  auto_apply_labels: false
+
+  # 리뷰어 추천/자동 할당 (수동)
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+
+  # PR 요약에 시 추가
+  poem: false
+
+  ##################### 자동 리뷰 #####################
+  auto_review:
+    # PR 생성 시 자동 리뷰
+    enabled: true
+    # dev로 가는 PR 자동 리뷰 실행
+    base_branches:
+      - "dev"
+    # 기존 리뷰가 있는 PR에 새 커밋이 추가되면 변경분만 다시 리뷰
+    auto_incremental_review: true
+
+  ##################### 린터/정적분석 #####################
+  tools:
+    # 시크릿 스캐너
+    gitleaks:
+      enabled: true
+    # GitHub Actions 워크플로 린터
+    actionlint:
+      enabled: true
+    # Postgres 마이그레이션 린터
+    squawk:
+      enabled: true
+
+##################### 채팅 #####################
+chat:
+  # @coderabbitai 멘션 없이도 PR 코멘트에 자동 응답
+  auto_reply: true
+
+##################### 지식 베이스 #####################
+knowledge_base:
+  # 리뷰 시 최신 문서나 정보를 웹에서 검색해 참고
+  web_search:
+    enabled: true
+
+  # 레포에 코딩 컨벤션이나 가이드라인 문서가 있다면 리뷰에 반영
+  code_guidelines:
+    enabled: true

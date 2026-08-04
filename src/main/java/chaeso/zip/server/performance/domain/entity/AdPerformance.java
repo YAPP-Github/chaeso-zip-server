@@ -3,27 +3,29 @@ package chaeso.zip.server.performance.domain.entity;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 사용자 소유의 광고 집행 실적.
  */
 @Getter
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "ad_performances")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AdPerformance {
@@ -72,13 +74,9 @@ public class AdPerformance {
   @Column(name = "raw_file_url")
   private String rawFileUrl;
 
+  @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
-
-  @PrePersist
-  private void prePersist() {
-    this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
-  }
 
   private AdPerformance(UUID userId, PerfSource sourceType, UUID channelId,
       String externalChannelName, Long budgetWon, Long impressions, Long clicks, Long conversions,

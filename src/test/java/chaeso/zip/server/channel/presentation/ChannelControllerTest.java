@@ -1,6 +1,11 @@
 package chaeso.zip.server.channel.presentation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -8,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import chaeso.zip.server.channel.application.ChannelService;
 import chaeso.zip.server.channel.application.dto.AudienceMetricResponse;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
+import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
 import chaeso.zip.server.channel.application.dto.PricingResponse;
 import chaeso.zip.server.channel.application.dto.ProductResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
@@ -17,17 +23,28 @@ import chaeso.zip.server.channel.domain.vo.ExecutionType;
 import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.channel.domain.vo.Vat;
+import chaeso.zip.server.common.exception.CommonErrorCode;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(ChannelController.class)
@@ -38,6 +55,75 @@ class ChannelControllerTest {
 
   @MockitoBean
   private ChannelService channelService;
+
+  @MockitoBean
+  private RateLimiter rateLimiter;
+
+  @Test
+  @DisplayName("쿼리 파라미터 없이 조회하면 페이지네이션 없이 전체 채널을 이름순으로 반환한다")
+  void getChannels_noParams_returnsAll() throws Exception {
+    ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+    List<ChannelListItemResponse> channels = List.of(
+        channelListItem("11번가 광고"), channelListItem("네이버 GFA"), channelListItem("카카오모먼트"));
+    given(channelService.getChannels(isNull(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(channels, Pageable.unpaged(), channels.size()));
+
+    mockMvc.perform(get("/api/v1/channels"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.content.length()").value(3))
+        .andExpect(jsonPath("$.data.number").value(0))
+        .andExpect(jsonPath("$.data.size").value(3))
+        .andExpect(jsonPath("$.data.totalElements").value(3))
+        .andExpect(jsonPath("$.data.totalPages").value(1))
+        .andExpect(jsonPath("$.data.first").value(true))
+        .andExpect(jsonPath("$.data.last").value(true));
+
+    verify(channelService).getChannels(isNull(), pageableCaptor.capture());
+    Pageable pageable = pageableCaptor.getValue();
+    assertThat(pageable.isUnpaged()).isTrue();
+    assertThat(pageable.getSort()).isEqualTo(Sort.by("name"));
+  }
+
+  @Test
+  @DisplayName("page 또는 size 를 지정하면 해당 값으로 페이지 조회한다 (생략된 값은 page=0, size=12)")
+  void getChannels_withPagingParams() throws Exception {
+    ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+    given(channelService.getChannels(any(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 12, Sort.by("name")), 0));
+
+    mockMvc.perform(get("/api/v1/channels").param("size", "5"))
+        .andExpect(status().isOk());
+    mockMvc.perform(get("/api/v1/channels").param("page", "2"))
+        .andExpect(status().isOk());
+
+    verify(channelService, times(2)).getChannels(isNull(), pageableCaptor.capture());
+    assertThat(pageableCaptor.getAllValues())
+        .containsExactly(
+            PageRequest.of(0, 5, Sort.by("name")),
+            PageRequest.of(2, 12, Sort.by("name")));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"0", "101"})
+  @DisplayName("size 가 1 미만이거나 상한(100)을 넘으면 400 과 공통 에러 포맷을 반환한다")
+  void getChannels_invalidSize(String size) throws Exception {
+    // 상한이 없으면 size=1000000 이 그대로 통과해 전체 채널을 한 응답에 직렬화한다
+    mockMvc.perform(get("/api/v1/channels").param("size", size))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value(CommonErrorCode.INVALID_INPUT_VALUE.getCode()));
+  }
+
+  @Test
+  @DisplayName("size 가 상한과 같으면 통과한다")
+  void getChannels_maxSize() throws Exception {
+    given(channelService.getChannels(any(), any(Pageable.class)))
+        .willReturn(Page.empty());
+
+    mockMvc.perform(get("/api/v1/channels").param("size", "100"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+  }
 
   @Test
   @DisplayName("채널 상세 조회가 성공하면 200 과 채널/상품/단가를 반환하고 enum 은 코드값으로 직렬화된다")
@@ -102,5 +188,10 @@ class ChannelControllerTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("CH-001"));
+  }
+
+  private ChannelListItemResponse channelListItem(String name) {
+    return new ChannelListItemResponse(
+        UUID.randomUUID(), name, null, null, Category.SHOPPING_COMMERCE);
   }
 }

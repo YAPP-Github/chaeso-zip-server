@@ -1,8 +1,10 @@
 springdoc:
   api-docs:
     enabled: true
+    version: OPENAPI_3_0
   swagger-ui:
     enabled: true
+  default-produces-media-type: application/json
 
 spring:
   flyway:
@@ -57,6 +59,8 @@ app:
   login-method-lookup:
     max-attempts: 30
     window: PT1M
+  rate-limit:
+    fail-closed-retry-after: PT5S
   onboarding:
     s3:
       bucket: test-onboarding-bucket

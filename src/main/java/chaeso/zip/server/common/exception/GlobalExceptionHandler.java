@@ -38,6 +38,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   /**
+   * rate limit 초과 처리. Retry-After 헤더로 재시도 시점을 안내한다.
+   */
+  @ExceptionHandler(chaeso.zip.server.common.ratelimit.RateLimitExceededException.class)
+  public ResponseEntity<ApiResponse<Void>> handleRateLimitExceeded(
+          chaeso.zip.server.common.ratelimit.RateLimitExceededException e) {
+    ErrorCode errorCode = e.getErrorCode();
+    log.warn("RateLimitExceeded: retryAfter={}", e.getRetryAfter());
+    long retryAfterSeconds = Math.max(1, (e.getRetryAfter().toMillis() + 999) / 1000);
+    return ResponseEntity.status(errorCode.getHttpStatus())
+            .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
+            .body(ApiResponse.fail(ErrorResponse.of(errorCode)));
+  }
+
+  /**
    * 처리되지 않은 모든 예외 처리. 예기치 못한 서버 오류로 간주한다.
    */
   @ExceptionHandler(Exception.class)
@@ -89,9 +103,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   private String rejectedValue(org.springframework.validation.FieldError error) {
-    if (SENSITIVE_FIELDS.contains(error.getField()) || error.getRejectedValue() == null) {
+    if (SENSITIVE_FIELDS.contains(error.getField())) {
       return "";
     }
-    return error.getRejectedValue().toString();
+    Object rejectedValue = error.getRejectedValue();
+    return rejectedValue == null ? "" : rejectedValue.toString();
   }
 }

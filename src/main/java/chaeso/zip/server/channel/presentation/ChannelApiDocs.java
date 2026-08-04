@@ -2,6 +2,7 @@ package chaeso.zip.server.channel.presentation;
 
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
+import chaeso.zip.server.channel.presentation.dto.ChannelSearchRequest;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.common.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +13,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @Tag(name = "Channel", description = "채널 카탈로그 API")
 public interface ChannelApiDocs {
@@ -118,14 +119,18 @@ public interface ChannelApiDocs {
 
   @Operation(operationId = "getChannels", summary = "채널 목록 조회",
       description = """
-          채널을 페이지 단위로 조회한다. \
-          미지정 시 이름순 12개. name 지정 시 채널명으로 필터링""")
+          채널을 조회한다. \
+          page/size 를 모두 생략하면 페이지네이션 없이 전체 채널을 반환한다. \
+          page 또는 size 중 하나라도 지정하면 페이지 조회로 동작한다(생략된 값은 page=0, size=12). size 는 최대 100. \
+          name 지정 시 채널명으로 필터링. \
+          정렬은 name, createdAt 만 지원한다(형식: sort=name,desc / 기본값 name,asc)""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "CHANNEL_LIST", value = CHANNEL_LIST_EXAMPLE)))
   ApiResponse<PageResponse<ChannelListItemResponse>> getChannels(
-      @Parameter(description = "채널명 검색어", example = "11번가") String name,
-      @ParameterObject Pageable pageable);
+      @ParameterObject ChannelSearchRequest request,
+      @ParameterObject Sort sort);
 
   @Operation(operationId = "getChannel", summary = "채널 상세 조회",
       description = """
@@ -133,7 +138,8 @@ public interface ChannelApiDocs {
           채널 정보와 함께 광고 상품 목록, 오디언스 규모 지표, 집행 사례를 반환한다. \
           상품이 없는 채널은 products 를 빈 배열로 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "CHANNEL_DETAIL", value = CHANNEL_DETAIL_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 채널(CH-001)",

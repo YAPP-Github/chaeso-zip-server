@@ -2,13 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [ main, dev ]
+    branches: [ dev ]
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -29,6 +29,15 @@ jobs:
 
       - name: Build & Test (ArchUnit 계층 규칙 + OpenAPI 계약 검증 포함)
         run: ./gradlew build --no-daemon
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          fail_ci_if_error: false
 
       - name: Upload test report
         if: always()
