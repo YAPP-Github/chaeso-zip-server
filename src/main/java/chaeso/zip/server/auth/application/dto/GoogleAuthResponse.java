@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "구글 인증 진입 응답")
 @JsonInclude(Include.NON_NULL)
 public record GoogleAuthResponse(
-    @Schema(description = "분기 판별값") Status status,
+    @Schema(description = "분기 판별값", requiredMode = Schema.RequiredMode.REQUIRED) Status status,
     @Schema(description = "액세스 토큰. 로그인 분기에만 존재", nullable = true) String accessToken,
     @Schema(description = "리프레시 토큰. 로그인 분기에만 존재", nullable = true) String refreshToken,
     @Schema(description = "액세스 토큰 만료(초)", example = "1800", nullable = true) Long accessTokenExpiresIn,

@@ -8,13 +8,13 @@ import java.math.BigDecimal;
 public record AudienceMetricResponse(
     @Schema(description = "지표명", example = "MAU", requiredMode = Schema.RequiredMode.REQUIRED)
     String metricName,
-    @Schema(description = "지표 수치값", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "지표 수치값", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     BigDecimal valueNumeric,
-    @Schema(description = "지표 텍스트값", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "지표 텍스트값", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String valueText,
-    @Schema(description = "단위", example = "명", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "단위", example = "명", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String unit,
-    @Schema(description = "집계 기간", example = "월", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "집계 기간", example = "월", requiredMode = Schema.RequiredMode.NOT_REQUIRED, nullable = true)
     String period) {
 
   public static AudienceMetricResponse from(ChannelAudienceMetric metric) {
