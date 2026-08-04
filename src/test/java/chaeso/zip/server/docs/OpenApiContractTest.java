@@ -228,6 +228,17 @@ class OpenApiContractTest {
       assertNullableProperties(spec, "AudienceMetricResponse",
           "valueNumeric", "valueText", "unit", "period");
     }
+
+    @Test
+    @DisplayName("공유 컴포넌트 스키마는 nullable을 노출하지 않는다")
+    void componentSchemasAreNeverNullable() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+
+      spec.path("components").path("schemas").properties().forEach(entry ->
+          assertThat(entry.getValue().path("nullable").asBoolean())
+              .as("%s는 nullable일 수 없습니다." + "필드에는 nullable 대신 requiredMode = NOT_REQUIRED를 사용하세요)", entry.getKey())
+              .isFalse());
+    }
   }
 
   private void assertConcreteDataSchema(JsonNode spec, JsonNode schema, String location) {

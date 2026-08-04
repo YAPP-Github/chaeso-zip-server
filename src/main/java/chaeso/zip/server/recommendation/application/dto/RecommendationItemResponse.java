@@ -37,9 +37,9 @@ public record RecommendationItemResponse(
     @Schema(description = "최소 집행 예산(원)",
         example = "3000000", nullable = true)
     Long minBudgetWon,
-    @Schema(description = "예상 노출 수 범위", nullable = true)
+    @Schema(description = "예상 노출 수 범위", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estImpressions,
-    @Schema(description = "예상 클릭 수 범위", nullable = true)
+    @Schema(description = "예상 클릭 수 범위", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estClicks,
     @Schema(description = "온보딩 예산(상한)으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
