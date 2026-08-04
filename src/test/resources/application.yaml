@@ -1,8 +1,10 @@
 springdoc:
   api-docs:
     enabled: true
+    version: OPENAPI_3_0
   swagger-ui:
     enabled: true
+  default-produces-media-type: application/json
 
 spring:
   flyway:
