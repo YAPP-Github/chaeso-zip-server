@@ -74,7 +74,8 @@ public interface RecommendationApiDocs {
           부족액(shortfallWon)을 함께 준다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "추천 성공. 맞는 채널이 없으면 빈 배열",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "RECOMMENDATION", value = RECOMMENDATION_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 온보딩(ONB-007)",

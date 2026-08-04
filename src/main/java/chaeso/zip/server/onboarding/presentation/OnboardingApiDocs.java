@@ -143,10 +143,13 @@ public interface OnboardingApiDocs {
 
   @Operation(operationId = "submitOnboarding", summary = "온보딩 제출",
       description = """
-          로그인 여부와 관계없이 제출할 수 있다. 로그인 상태에서 다시 제출하면 이전 제출을 \
-          대체하고, 비로그인은 대체 없이 각각 저장된다.""")
+          로그인 여부와 관계없이 제출할 수 있다. \
+          
+          로그인 상태에서 다시 제출하면 이전 제출은 스냅샷으로 저장후 새로운 온보딩을 진행하고,\
+          비로그인은 userId = null로 각각 저장된다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "제출 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "SUBMIT_SUCCESS", value = SUBMIT_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "형식 오류(C-001) 또는 비즈니스 규칙 위반(ONB-001~003, ONB-008, ONB-010)",
@@ -173,10 +176,11 @@ public interface OnboardingApiDocs {
 
   @Operation(operationId = "presignOnboardingPerformanceFiles", summary = "성과파일 presigned URL 발급",
       description = """
-          성과파일(xlsx/csv) 업로드용 presigned PUT URL을 로그인 여부와 관계없이 발급한다. PUT \
-          요청 시 응답의 contentType 값과 x-amz-tagging: retain=pending 헤더를 그대로 보내야 한다.""")
+          성과파일(xlsx/csv) 업로드용 presigned PUT URL을 로그인 여부와 관계없이 발급한다. \
+          PUT 요청 시 응답의 contentType 값과 x-amz-tagging: retain=pending 헤더를 그대로 보내야 한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발급 성공",
-      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+      useReturnTypeSchema = true,
+      content = @Content(
           examples = @ExampleObject(name = "PRESIGN_SUCCESS", value = PRESIGN_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "파일 개수(최대 5) 또는 확장자(xlsx/csv)나 크기(10MB) 위반(C-001)",
