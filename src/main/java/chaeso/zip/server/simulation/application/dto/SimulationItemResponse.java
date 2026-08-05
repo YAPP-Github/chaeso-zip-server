@@ -24,9 +24,9 @@ public record SimulationItemResponse(
     long allocatedBudgetWon,
     @Schema(description = "전체 예산 대비 배분 비율(%)", example = "40", nullable = true)
     BigDecimal allocationPct,
-    @Schema(description = "추정 노출 수 범위. 추정 불가 시 null", nullable = true)
+    @Schema(description = "추정 노출 수 범위. 추정 불가 시 생략", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estImpressions,
-    @Schema(description = "추정 클릭 수 범위. 추정 불가 시 null", nullable = true)
+    @Schema(description = "추정 클릭 수 범위. 추정 불가 시 생략", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estClicks,
     @Schema(description = """
         클릭당 비용(원). 클릭당 과금 매체는 단가 그대로, 그 외 매체는 \
