@@ -123,7 +123,7 @@ upload-asset: _profile
 	@bucket=$$(cd $(ENV_DIR) && terraform output -raw public_bucket_name) && \
 	for f in $(FILE); do \
 	  key=$${KEY:-$(PREFIX)$$(basename "$$f")}; \
-	  aws s3 cp "$$f" "s3://$$bucket/$$key" --cache-control "public, max-age=31536000" && \
+	  aws s3 cp "$$f" "s3://$$bucket/$$key" --cache-control "public, max-age=300, must-revalidate" && \
 	  echo "✅ 업로드 완료 → https://$(ASSET_DOMAIN)/$$key (raw: https://$$bucket.s3.$(REGION).amazonaws.com/$$key)"; \
 	done
 
@@ -131,5 +131,5 @@ upload-assets: _profile
 	@test -n "$(DIR)" || { echo "사용법: make upload-assets DIR=./logos [PREFIX=channels/]"; exit 1; }
 	@bucket=$$(cd $(ENV_DIR) && terraform output -raw public_bucket_name) && \
 	prefix="$(PREFIX)" && \
-	aws s3 sync "$(DIR)" "s3://$$bucket/$$prefix" --cache-control "public, max-age=31536000" && \
+	aws s3 sync "$(DIR)" "s3://$$bucket/$$prefix" --cache-control "public, max-age=300, must-revalidate" && \
 	echo "✅ 전체 업로드 완료 → https://$(ASSET_DOMAIN)/$$prefix (raw: https://$$bucket.s3.$(REGION).amazonaws.com/$$prefix)"
