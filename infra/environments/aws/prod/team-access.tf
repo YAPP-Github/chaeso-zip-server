@@ -42,3 +42,24 @@ resource "aws_iam_user_policy_attachment" "teammate_ssm" {
   user       = aws_iam_user.teammate[0].name
   policy_arn = aws_iam_policy.ssm_shell.arn
 }
+
+resource "aws_iam_user_policy" "teammate_public_s3" {
+  count = var.teammate_username != "" ? 1 : 0
+  name  = "chaeso-zip-teammate-public-s3"
+  user  = aws_iam_user.teammate[0].name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${module.app.public_bucket_name}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${module.app.public_bucket_name}/*"
+      },
+    ]
+  })
+}

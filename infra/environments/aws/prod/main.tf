@@ -58,3 +58,7 @@ output "public_ip" {
 output "ad_history_bucket_name" {
   value = module.app.ad_history_bucket_name
 }
+
+output "public_bucket_name" {
+  value = module.app.public_bucket_name
+}
