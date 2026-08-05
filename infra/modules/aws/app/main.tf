@@ -122,7 +122,9 @@ resource "aws_instance" "this" {
   tags = { Name = "${var.name_prefix}-vm" }
 
   root_block_device {
-    encrypted = true
+    encrypted   = true
+    volume_size = 30
+    volume_type = "gp3"
   }
 
   lifecycle {
