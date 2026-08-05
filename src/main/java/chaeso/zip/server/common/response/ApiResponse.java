@@ -27,14 +27,13 @@ public class ApiResponse<T> {
   @Schema(description = "요청 성공 여부", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
   private final boolean success;
 
-  @Schema(description = "성공 시 응답 본문. 실패 시 null", nullable = true)
+  @Schema(description = "성공 시 응답 본문. 실패 시 생략")
   private final T data;
 
-  @Schema(description = "실패 시 에러 정보. 성공 시 null", nullable = true)
+  @Schema(description = "실패 시 에러 정보. 성공 시 생략")
   private final ErrorResponse error;
 
-  @Schema(description = "성공 안내 코드. 안내할 것이 없으면 응답에서 생략된다", example = "GOOGLE_ACCOUNT_LINKED",
-      nullable = true)
+  @Schema(description = "성공 안내 코드. 안내할 것이 없으면 응답에서 생략")
   private final String code;
 
   public static <T> ApiResponse<T> success(T data) {

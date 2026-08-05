@@ -25,7 +25,7 @@ public record GoogleAuthResponse(
     @Schema(description = "가입 이력이 없어 추가정보 입력이 필요함", example = "true", nullable = true)
     Boolean signupRequired,
     @Schema(description = "최종가입에 되돌려줄 일회성 티켓", nullable = true) String signupToken,
-    @Schema(description = "최종가입 폼 프리필 값", nullable = true) Prefill prefill) {
+    @Schema(description = "최종가입 폼 프리필 값", requiredMode = Schema.RequiredMode.NOT_REQUIRED) Prefill prefill) {
 
   public enum Status {
     LOGIN, LINK_REQUIRED, SIGNUP_REQUIRED
