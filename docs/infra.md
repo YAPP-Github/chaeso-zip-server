@@ -18,7 +18,8 @@ infra/
     ├── network/                 # VPC/subnet/IGW/SG
     └── app/                     # EC2/EIP/EBS/instance profile + startup-script
         ├── schedule.tf          # EventBridge Scheduler 야간 자동 정지/기동
-        └── s3-ad-history.tf     # 온보딩 광고 이력 업로드용 S3 (§5)
+        ├── s3-ad-history.tf     # 온보딩 광고 이력 업로드용 S3 (private, presigned)
+        └── s3-public.tf         # 공개 정적 자산용 S3 (§5)
 ```
 
 ---
@@ -85,6 +86,8 @@ make ps        # 컨테이너 상태
 | `make check` | 컨테이너/DB/볼륨 종합 점검 |
 | `make ps` | 컨테이너 상태 |
 | `make logs` | 실시간 로그 |
+| `make upload-asset FILE=./logo.png [KEY=channels/xxx.png]` | 공개 자산 업로드(1개/여러 개, §5) |
+| `make upload-assets DIR=./logos [PREFIX=channels/]` | 공개 자산 폴더 전체 업로드 (§5) |
 
 ---
 
@@ -99,5 +102,16 @@ make ps        # 컨테이너 상태
 |---|---|---|
 | `chaeso-zip-stop-night` | `0 0 * * ? *` (매일 00:00) | `StopInstances` (Force=false, graceful) |
 | `chaeso-zip-start-morning` | `0 9 * * ? *` (매일 09:00) | `StartInstances` |
+
+---
+
+## 5. 공개 static S3 버킷
+
+- 채널 로고, 프로필 이미지 등 공개 이미지 저장용 버킷입니다.
+- 버킷명 입력 없이 — `make upload-asset`/`upload-assets`로 파일을 업로드 가능합니다.
+- 버킷은 하나만 두고 `channels/<channel-id>.png`, `users/<user-id>.png`처럼 키 prefix로 용도를 구분합니다.
+- 서빙 도메인은 `https://assets.chaeso-zip.com`입니다.
+
+상세 코드는 `../infra/modules/aws/app/s3-public.tf`를 참고해주세요.
 
 ---
