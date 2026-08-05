@@ -64,5 +64,4 @@ app:
   onboarding:
     s3:
       bucket: test-onboarding-bucket
-      region: ap-northeast-2
       presign-ttl: PT5M
