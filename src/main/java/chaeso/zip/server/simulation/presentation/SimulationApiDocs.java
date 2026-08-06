@@ -2,7 +2,10 @@ package chaeso.zip.server.simulation.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
+import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
+import chaeso.zip.server.simulation.presentation.dto.SimulationPageRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,8 +15,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "Simulation", description = "예산 시뮬레이터 API")
@@ -88,6 +94,44 @@ public interface SimulationApiDocs {
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
+        }
+      }
+      """;
+
+  String SIMULATION_LIST_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "content": [
+            {
+              "simulationId": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+              "createdAt": "2026-03-14T10:22:31",
+              "totalBudgetWon": 3000000,
+              "period": "M1",
+              "totalEstImpressions": 1150000,
+              "totalEstClicks": 23000,
+              "channelCount": 2,
+              "executableChannelCount": 1,
+              "channelNames": ["11번가 광고", "당근마켓 광고"]
+            }
+          ],
+          "number": 0,
+          "size": 5,
+          "totalElements": 1,
+          "totalPages": 1,
+          "first": true,
+          "last": true
+        }
+      }
+      """;
+
+  String SIMULATION_NOT_FOUND_EXAMPLE = """
+      {
+        "success": false,
+        "error": {
+          "code": "SIM-001",
+          "message": "존재하지 않는 시뮬레이션입니다. id=3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+          "fieldErrors": []
         }
       }
       """;
@@ -177,4 +221,41 @@ public interface SimulationApiDocs {
       description = "저장된 결과 없음", content = @Content)
   ResponseEntity<ApiResponse<SimulationResponse>> getLatestSimulation(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+  @SecurityRequirement(name = "bearerAuth")
+  @Operation(operationId = "getMySimulations", summary = "내가 저장한 시뮬레이션 목록",
+      description = """
+          로그인한 사용자가 저장한 시뮬레이션을 최신순으로 반환한다. 목록은 요약만 담으며 \
+          매체별 항목은 상세 조회에서 받는다. 정렬은 최신순 고정이고 page/size 를 생략하면 \
+          0 페이지 5건을 반환한다. 저장된 결과가 없으면 빈 목록으로 200 을 반환한다.""")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      useReturnTypeSchema = true,
+      content = @Content(
+          examples = @ExampleObject(name = "SIMULATION_LIST", value = SIMULATION_LIST_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+      description = "page/size 범위 위반(C-001). size 는 1 이상 50 이하여야 한다",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+  ApiResponse<PageResponse<SimulationSummaryResponse>> getMySimulations(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @ParameterObject SimulationPageRequest request);
+
+  @SecurityRequirement(name = "bearerAuth")
+  @Operation(operationId = "getSimulation", summary = "저장된 시뮬레이션 상세",
+      description = """
+          저장된 시뮬레이션 하나를 매체별 항목까지 재계산 없이 그대로 반환한다. 본인이 저장한 것만 \
+          조회할 수 있고, 다른 사용자의 시뮬레이션은 그 id 가 존재한다는 사실을 숨기기 위해 없는 \
+          것과 같은 404(SIM-001) 로 응답한다.""")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      useReturnTypeSchema = true,
+      content = @Content(
+          examples = @ExampleObject(name = "SIMULATION_SAVED", value = SIMULATION_SAVED_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+      description = "존재하지 않거나 다른 사용자의 시뮬레이션(SIM-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "SIMULATION_NOT_FOUND",
+              value = SIMULATION_NOT_FOUND_EXAMPLE)))
+  ApiResponse<SimulationResponse> getSimulation(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @Parameter(description = "저장된 시뮬레이션 id") @PathVariable UUID simulationId);
 }

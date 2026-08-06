@@ -27,11 +27,13 @@ import chaeso.zip.server.simulation.application.dto.AllocationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
+import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +59,8 @@ class SimulationServiceImplTest {
 
   /** 카탈로그 평균 CTR. 상품에 CTR 이 없을 때 이 값이 쓰이는지로 주입을 확인한다. */
   private static final BigDecimal AVERAGE_CTR = new BigDecimal("2.5");
+
+  private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 3, 14, 10, 22, 31);
 
   @Mock
   private ChannelRepository channelRepository;
@@ -589,6 +593,60 @@ class SimulationServiceImplTest {
     }
   }
 
+  @Nested
+  @DisplayName("상세 (GET /simulations/{simulationId})")
+  class FindSimulation {
+
+    @Test
+    @DisplayName("본인이 저장한 시뮬레이션은 매체별 항목까지 재계산 없이 그대로 반환한다")
+    void restoresOwnSnapshot() {
+      UUID simulationId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId))
+          .willReturn(Optional.of(savedSimulation(simulationId, USER_ID)));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdOrderBySortOrderAsc(simulationId))
+          .willReturn(List.of(savedItem(simulationId, CHANNEL_ID, 0, true)));
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(channel(CHANNEL_ID, CHANNEL_NAME)));
+
+      SimulationResponse response = simulationService.findSimulation(USER_ID, simulationId);
+
+      assertThat(response.simulationId()).isEqualTo(simulationId);
+      assertThat(response.totalBudgetWon()).isEqualTo(3_000_000);
+      assertThat(response.executableChannelCount()).isEqualTo(1);
+      SimulationItemResponse item = response.items().getFirst();
+      assertThat(item.channelName()).isEqualTo(CHANNEL_NAME);
+      assertThat(item.allocatedBudgetWon()).isEqualTo(1_000_000);
+      assertThat(item.basisNote()).isEqualTo("저장 당시 고지");
+
+      verifyNoInteractions(channelProductRepository, channelPricingRepository, defaultCtrProvider);
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 저장한 시뮬레이션은 없는 것과 같은 404 로 숨기고 항목도 읽지 않는다")
+    void hidesOtherUsersSnapshot() {
+      UUID simulationId = UUID.randomUUID();
+      UUID otherUserId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId))
+          .willReturn(Optional.of(savedSimulation(simulationId, otherUserId)));
+
+      assertThatThrownBy(() -> simulationService.findSimulation(USER_ID, simulationId))
+          .isInstanceOf(SimulationNotFoundException.class);
+
+      verifyNoInteractions(budgetSimulationItemRepository, channelRepository);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 id 는 404 로 거부한다")
+    void rejectsUnknownId() {
+      UUID simulationId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId)).willReturn(Optional.empty());
+
+      assertThatThrownBy(() -> simulationService.findSimulation(USER_ID, simulationId))
+          .isInstanceOf(SimulationNotFoundException.class);
+    }
+  }
+
   @Captor
   private ArgumentCaptor<List<BudgetSimulationItem>> itemsCaptor;
 
@@ -618,5 +676,31 @@ class SimulationServiceImplTest {
   private static <T> T withId(T entity, UUID id) {
     ReflectionTestUtils.setField(entity, "id", id);
     return entity;
+  }
+
+  /** 이미 저장된 헤더. id 와 저장 시각은 JPA 가 채우는 값이라 목에서 직접 심는다. */
+  private static BudgetSimulation savedSimulation(UUID simulationId, UUID userId) {
+    BudgetSimulation simulation = withId(BudgetSimulation.builder()
+        .userId(userId)
+        .totalBudgetWon(3_000_000L)
+        .period(CampaignPeriod.M1)
+        .totalEstImpressions(1_000_000L)
+        .totalEstClicks(25_000L)
+        .build(), simulationId);
+    ReflectionTestUtils.setField(simulation, "createdAt", CREATED_AT);
+    return simulation;
+  }
+
+  private static BudgetSimulationItem savedItem(UUID simulationId, UUID channelId, int sortOrder,
+      boolean executable) {
+    return BudgetSimulationItem.builder()
+        .budgetSimulationId(simulationId)
+        .channelId(channelId)
+        .sortOrder(sortOrder)
+        .allocatedBudgetWon(1_000_000L)
+        .allocationPct(new BigDecimal("50"))
+        .executable(executable)
+        .basisNote("저장 당시 고지")
+        .build();
   }
 }

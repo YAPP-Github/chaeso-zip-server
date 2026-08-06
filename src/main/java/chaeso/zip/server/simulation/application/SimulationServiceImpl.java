@@ -17,6 +17,8 @@ import chaeso.zip.server.simulation.application.dto.AllocationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
+import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
+import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
@@ -32,6 +34,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +82,41 @@ public class SimulationServiceImpl implements SimulationService {
   public Optional<SimulationResponse> findLatest(UUID userId) {
     return budgetSimulationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(userId)
         .map(this::restore);
+  }
+
+  @Override
+  public Page<SimulationSummaryResponse> findMySimulations(UUID userId, Pageable pageable) {
+    Page<BudgetSimulation> simulations =
+        budgetSimulationRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+    Map<UUID, List<BudgetSimulationItem>> itemsBySimulation = itemsOf(
+        simulations.getContent().stream().map(BudgetSimulation::getId).toList());
+    Map<UUID, String> channelNames = channelNames(itemsBySimulation.values().stream()
+        .flatMap(List::stream)
+        .map(BudgetSimulationItem::getChannelId)
+        .distinct()
+        .toList());
+
+    return simulations.map(simulation -> SimulationSummaryResponse.from(simulation,
+        itemsBySimulation.getOrDefault(simulation.getId(), List.of()), channelNames));
+  }
+
+  @Override
+  public SimulationResponse findSimulation(UUID userId, UUID simulationId) {
+    // 남의 것을 조회했을 때도 없는 것과 같은 404로 응답해 그 id 가 존재한다는 사실을 알려주지 않는다
+    return budgetSimulationRepository.findById(simulationId)
+        .filter(simulation -> simulation.getUserId().equals(userId))
+        .map(this::restore)
+        .orElseThrow(() -> new SimulationNotFoundException(simulationId));
+  }
+
+  private Map<UUID, List<BudgetSimulationItem>> itemsOf(List<UUID> simulationIds) {
+    if (simulationIds.isEmpty()) {
+      return Map.of();
+    }
+    return budgetSimulationItemRepository
+        .findByBudgetSimulationIdInOrderBySortOrderAsc(simulationIds).stream()
+        .collect(Collectors.groupingBy(BudgetSimulationItem::getBudgetSimulationId));
   }
 
   private SimulationResponse restore(BudgetSimulation simulation) {
@@ -171,6 +210,9 @@ public class SimulationServiceImpl implements SimulationService {
   }
 
   private Map<UUID, String> channelNames(List<UUID> channelIds) {
+    if (channelIds.isEmpty()) {
+      return Map.of();
+    }
     return channelRepository.findAllById(channelIds).stream()
         .collect(Collectors.toMap(Channel::getId, Channel::getName));
   }
