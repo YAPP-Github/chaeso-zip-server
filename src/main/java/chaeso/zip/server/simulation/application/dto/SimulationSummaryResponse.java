@@ -34,15 +34,22 @@ public record SimulationSummaryResponse(
     @Schema(description = "집행 가능한 매체 개수", example = "2",
         requiredMode = Schema.RequiredMode.REQUIRED)
     int executableChannelCount,
-    @Schema(description = "어떤 조합이었는지 알아볼 수 있게 앞쪽 매체명만 최대 3개 보여 준다. null 이 아닌 배열",
+    @Schema(description = "어떤 조합이었는지 알아볼 수 있게 예산을 배분한 매체명만 최대 3개 보여 준다. null 이 아닌 배열",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> channelNames) {
 
   /** 목록에서 조합을 알아볼 정도로만 보여 주는 대표 매체 수 */
   private static final int PREVIEW_CHANNEL_NAMES = 3;
 
+  /**
+   * 스냅샷에는 사용자가 담아만 두고 예산을 주지 않은 매체(배분 0원)도 상세 화면을 그대로 재현하려고
+   * 남아 있다. 목록의 매체 수와 대표 매체명은 실제로 예산을 배분한 매체만 센다.
+   */
   public static SimulationSummaryResponse from(BudgetSimulation simulation,
       List<BudgetSimulationItem> items, Map<UUID, String> channelNames) {
+    List<BudgetSimulationItem> allocated = items.stream()
+        .filter(item -> item.getAllocatedBudgetWon() > 0)
+        .toList();
     return new SimulationSummaryResponse(
         simulation.getId(),
         simulation.getCreatedAt(),
@@ -50,9 +57,9 @@ public record SimulationSummaryResponse(
         simulation.getPeriod(),
         simulation.getTotalEstImpressions(),
         simulation.getTotalEstClicks(),
-        items.size(),
-        (int) items.stream().filter(BudgetSimulationItem::isExecutable).count(),
-        items.stream()
+        allocated.size(),
+        (int) allocated.stream().filter(BudgetSimulationItem::isExecutable).count(),
+        allocated.stream()
             .map(item -> channelNames.get(item.getChannelId()))
             .filter(Objects::nonNull)
             .limit(PREVIEW_CHANNEL_NAMES)

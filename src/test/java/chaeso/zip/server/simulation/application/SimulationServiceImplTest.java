@@ -656,8 +656,31 @@ class SimulationServiceImplTest {
       SimulationSummaryResponse summary =
           simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
 
-      assertThat(summary.channelCount()).isEqualTo(4);          // 개수는 전부 센다
+      assertThat(summary.channelCount()).isEqualTo(4);          // 자르는 건 대표 매체명뿐이다
       assertThat(summary.channelNames()).containsExactly("매체0", "매체1", "매체2");
+    }
+
+    @Test
+    @DisplayName("예산을 배분하지 않은 매체는 매체 수와 대표 매체명에서 뺀다")
+    void excludesUnallocatedChannels() {
+      // 담아만 두고 0원을 준 매체는 상세 재현을 위해 저장되지만, 목록에서는 배분한 매체가 아니다
+      UUID simulationId = UUID.randomUUID();
+      UUID unallocatedChannelId = UUID.randomUUID();
+      givenMyPage(savedSimulation(simulationId, USER_ID));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdInOrderBySortOrderAsc(List.of(simulationId)))
+          .willReturn(List.of(
+              savedItem(simulationId, unallocatedChannelId, 0, false, 0L),
+              savedItem(simulationId, CHANNEL_ID, 1, true)));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(
+          channel(unallocatedChannelId, "당근마켓 광고"), channel(CHANNEL_ID, CHANNEL_NAME)));
+
+      SimulationSummaryResponse summary =
+          simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
+
+      assertThat(summary.channelCount()).isEqualTo(1);
+      assertThat(summary.executableChannelCount()).isEqualTo(1);
+      assertThat(summary.channelNames()).containsExactly(CHANNEL_NAME);
     }
 
     @Test
@@ -778,11 +801,16 @@ class SimulationServiceImplTest {
 
   private static BudgetSimulationItem savedItem(UUID simulationId, UUID channelId, int sortOrder,
       boolean executable) {
+    return savedItem(simulationId, channelId, sortOrder, executable, 1_000_000L);
+  }
+
+  private static BudgetSimulationItem savedItem(UUID simulationId, UUID channelId, int sortOrder,
+      boolean executable, long allocatedBudgetWon) {
     return BudgetSimulationItem.builder()
         .budgetSimulationId(simulationId)
         .channelId(channelId)
         .sortOrder(sortOrder)
-        .allocatedBudgetWon(1_000_000L)
+        .allocatedBudgetWon(allocatedBudgetWon)
         .allocationPct(new BigDecimal("50"))
         .executable(executable)
         .basisNote("저장 당시 고지")
