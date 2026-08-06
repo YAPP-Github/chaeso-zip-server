@@ -3,7 +3,6 @@ package chaeso.zip.server.simulation.application;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
-import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
