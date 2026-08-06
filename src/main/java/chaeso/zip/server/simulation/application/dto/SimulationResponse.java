@@ -11,7 +11,8 @@ import java.util.UUID;
 @Schema(description = "예산 시뮬레이션 결과")
 @JsonInclude(Include.NON_NULL)
 public record SimulationResponse(
-    @Schema(description = "저장된 시뮬레이션 id", nullable = true)
+    @Schema(description = "저장된 시뮬레이션 id. 저장 전 계산 결과에는 생략된다",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     UUID simulationId,
     @Schema(description = "총 예산(원)", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)

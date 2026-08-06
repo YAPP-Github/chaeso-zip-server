@@ -36,7 +36,7 @@ public class BudgetSimulationItem {
   @Column(name = "channel_id", nullable = false)
   private UUID channelId;
 
-  /** 대표로 선택된 상품. 단가 정보가 있는 상품이 없으면 null */
+  /** 대표로 선택된 상품 */
   @Column(name = "channel_product_id")
   private UUID channelProductId;
 
