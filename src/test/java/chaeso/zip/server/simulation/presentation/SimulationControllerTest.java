@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,11 +19,14 @@ import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
+import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
 import chaeso.zip.server.simulation.domain.BasisNote;
+import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.presentation.dto.AllocationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +39,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -132,6 +139,100 @@ class SimulationControllerTest {
 
     mockMvc.perform(get("/api/v1/simulations/latest"))
         .andExpect(status().isNoContent());
+  }
+
+  @Test
+  @DisplayName("내 목록은 200 과 페이지 요약을 반환한다")
+  void listReturnsSummaryPage() throws Exception {
+    UUID simulationId = UUID.randomUUID();
+    given(simulationService.findMySimulations(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(summary(simulationId)), PageRequest.of(0, 10), 1));
+
+    mockMvc.perform(get("/api/v1/simulations"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.content[0].simulationId").value(simulationId.toString()))
+        .andExpect(jsonPath("$.data.content[0].createdAt").value("2026-03-14T10:22:31"))
+        .andExpect(jsonPath("$.data.content[0].period").value("M1"))
+        .andExpect(jsonPath("$.data.content[0].channelCount").value(2))
+        .andExpect(jsonPath("$.data.content[0].executableChannelCount").value(1))
+        .andExpect(jsonPath("$.data.content[0].channelNames[0]").value("11번가 광고"))
+        // 목록은 요약만 담고 매체별 항목은 상세에서 받는다
+        .andExpect(jsonPath("$.data.content[0].items").doesNotExist())
+        .andExpect(jsonPath("$.data.totalElements").value(1))
+        .andExpect(jsonPath("$.data.size").value(10));
+  }
+
+  @Test
+  @DisplayName("page/size 를 생략하면 0 페이지 5건으로 조회한다")
+  void listDefaultsToFirstPageOfFive() throws Exception {
+    given(simulationService.findMySimulations(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 5), 0));
+
+    mockMvc.perform(get("/api/v1/simulations"))
+        .andExpect(status().isOk());
+
+    verify(simulationService).findMySimulations(USER_ID, PageRequest.of(0, 5));
+  }
+
+  @Test
+  @DisplayName("요청한 page/size 를 그대로 조회에 넘긴다")
+  void listPassesRequestedPageAndSize() throws Exception {
+    given(simulationService.findMySimulations(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(2, 5), 0));
+
+    mockMvc.perform(get("/api/v1/simulations").param("page", "2").param("size", "5"))
+        .andExpect(status().isOk());
+
+    verify(simulationService).findMySimulations(USER_ID, PageRequest.of(2, 5));
+  }
+
+  @Test
+  @DisplayName("page/size 가 허용 범위를 벗어나면 400 C-001 을 반환한다")
+  void listRejectsPageSizeOutOfRange() throws Exception {
+    mockMvc.perform(get("/api/v1/simulations").param("size", "51"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("C-001"));
+  }
+
+  @Test
+  @DisplayName("상세 조회는 200 과 매체별 항목까지 담은 스냅샷을 반환한다")
+  void detailReturnsSnapshotWithItems() throws Exception {
+    UUID simulationId = UUID.randomUUID();
+    given(simulationService.findSimulation(USER_ID, simulationId))
+        .willReturn(response(simulationId));
+
+    mockMvc.perform(get("/api/v1/simulations/{simulationId}", simulationId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.simulationId").value(simulationId.toString()))
+        .andExpect(jsonPath("$.data.executableChannelCount").value(1))
+        .andExpect(jsonPath("$.data.items[0].channelName").value("11번가 광고"))
+        .andExpect(jsonPath("$.data.items[0].estClicks.min").value(21_250))
+        .andExpect(jsonPath("$.data.items[0].basisNote").value(BasisNote.COMMON));
+  }
+
+  @Test
+  @DisplayName("없는 id 나 남의 시뮬레이션을 상세 조회하면 404 SIM-001 을 반환한다")
+  void detailReturnsNotFound() throws Exception {
+    UUID simulationId = UUID.randomUUID();
+    willThrow(new SimulationNotFoundException(simulationId))
+        .given(simulationService).findSimulation(USER_ID, simulationId);
+
+    mockMvc.perform(get("/api/v1/simulations/{simulationId}", simulationId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("SIM-001"));
+  }
+
+  @Test
+  @DisplayName("상세 경로가 /latest 를 가로채지 않는다")
+  void detailDoesNotShadowLatest() throws Exception {
+    given(simulationService.findLatest(USER_ID))
+        .willReturn(Optional.of(response(UUID.randomUUID())));
+
+    mockMvc.perform(get("/api/v1/simulations/latest"))
+        .andExpect(status().isOk());
   }
 
   @ParameterizedTest
@@ -269,6 +370,12 @@ class SimulationControllerTest {
   private static SimulationRequest request(int totalBudgetWon, CampaignPeriod period) {
     return new SimulationRequest(totalBudgetWon, period,
         List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("100"))));
+  }
+
+  private static SimulationSummaryResponse summary(UUID simulationId) {
+    return new SimulationSummaryResponse(simulationId,
+        LocalDateTime.of(2026, 3, 14, 10, 22, 31), 3_000_000L, CampaignPeriod.M1,
+        1_000_000L, 25_000L, 2, 1, List.of("11번가 광고", "당근마켓 광고"));
   }
 
   private static SimulationResponse response(UUID simulationId) {
