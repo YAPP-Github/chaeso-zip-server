@@ -209,6 +209,8 @@ class SimulationControllerTest {
         .andExpect(jsonPath("$.data.executableChannelCount").value(1))
         .andExpect(jsonPath("$.data.items[0].channelName").value("11번가 광고"))
         .andExpect(jsonPath("$.data.items[0].estClicks.min").value(21_250))
+        // 값이 없는 선택 필드는 null 로 담지 않고 생략한다. 스키마의 NOT_REQUIRED 와 같은 계약
+        .andExpect(jsonPath("$.data.items[0].shortfallWon").doesNotExist())
         .andExpect(jsonPath("$.data.items[0].basisNote").value(BasisNote.COMMON));
   }
 

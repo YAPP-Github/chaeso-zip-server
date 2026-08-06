@@ -7,11 +7,14 @@ import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
 import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Schema(description = "매체별 시뮬레이션 결과")
+@JsonInclude(Include.NON_NULL)
 public record SimulationItemResponse(
     @Schema(description = "채널 id", requiredMode = Schema.RequiredMode.REQUIRED)
     UUID channelId,
@@ -42,7 +45,7 @@ public record SimulationItemResponse(
     BigDecimal cpmWon,
     @Schema(description = "배분 예산으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
-    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 null", example = "500000",
+    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 생략", example = "500000",
         requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     Long shortfallWon,
     @Schema(description = "산출 근거 고지", requiredMode = Schema.RequiredMode.REQUIRED)
