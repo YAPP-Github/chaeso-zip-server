@@ -50,7 +50,7 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
         Action    = "s3:PutObject"
         Resource  = "${aws_s3_bucket.s3_access_logs.arn}/*"
         Condition = {
-          ArnLike      = { "aws:SourceArn" = aws_s3_bucket.ad_history.arn }
+          ArnLike      = { "aws:SourceArn" = [aws_s3_bucket.ad_history.arn, aws_s3_bucket.public.arn] }
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
       },

@@ -5,3 +5,7 @@ output "public_ip" {
 output "ad_history_bucket_name" {
   value = aws_s3_bucket.ad_history.bucket
 }
+
+output "public_bucket_name" {
+  value = aws_s3_bucket.public.bucket
+}
