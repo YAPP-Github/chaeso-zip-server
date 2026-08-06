@@ -46,21 +46,14 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
-              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             },
             {
               "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
               "channelName": "당근마켓 광고",
-              "channelProductId": null,
               "allocatedBudgetWon": 1000000,
               "allocationPct": 33.3,
-              "estImpressions": null,
-              "estClicks": null,
-              "cpcWon": null,
-              "cpmWon": null,
               "isExecutable": false,
-              "shortfallWon": null,
               "basisNote": "견적 문의 필요 (등록된 단가 정보 없음) / 매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
@@ -90,7 +83,6 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
-              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
@@ -121,6 +113,17 @@ public interface SimulationApiDocs {
           "totalPages": 1,
           "first": true,
           "last": true
+        }
+      }
+      """;
+
+  String PAGE_SIZE_ERROR_EXAMPLE = """
+      {
+        "success": false,
+        "error": {
+          "code": "C-001",
+          "message": "page 는 0 이상, size 는 1 이상 50 이하여야 합니다",
+          "fieldErrors": []
         }
       }
       """;
@@ -235,7 +238,7 @@ public interface SimulationApiDocs {
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "page/size 범위 위반(C-001). size 는 1 이상 50 이하여야 한다",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
+          examples = @ExampleObject(name = "PAGE_SIZE_ERROR", value = PAGE_SIZE_ERROR_EXAMPLE)))
   ApiResponse<PageResponse<SimulationSummaryResponse>> getMySimulations(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @ParameterObject SimulationPageRequest request);
