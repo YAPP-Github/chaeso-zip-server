@@ -2,6 +2,7 @@ package chaeso.zip.server.common.ratelimit;
 
 import chaeso.zip.server.common.exception.BusinessException;
 import chaeso.zip.server.common.exception.CommonErrorCode;
+import chaeso.zip.server.common.exception.RetryAfterAware;
 import java.time.Duration;
 import lombok.Getter;
 
@@ -10,7 +11,7 @@ import lombok.Getter;
  * {@link CommonErrorCode#TOO_MANY_REQUESTS} 로 고정
  */
 @Getter
-public class RateLimitExceededException extends BusinessException {
+public class RateLimitExceededException extends BusinessException implements RetryAfterAware {
 
   private final transient Duration retryAfter;
 

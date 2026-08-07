@@ -1,8 +1,10 @@
 package chaeso.zip.server.common.exception;
 
+import chaeso.zip.server.common.ratelimit.RateLimitExceededException;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.common.response.ErrorResponse;
 import chaeso.zip.server.common.response.ErrorResponse.FieldError;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -38,17 +40,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   /**
-   * rate limit 초과 처리. Retry-After 헤더로 재시도 시점을 안내한다.
+   * 재시도 시점 안내가 필요한 비즈니스 예외 처리. Retry-After 헤더로 재시도 시점을 안내한다.
    */
-  @ExceptionHandler(chaeso.zip.server.common.ratelimit.RateLimitExceededException.class)
-  public ResponseEntity<ApiResponse<Void>> handleRateLimitExceeded(
-          chaeso.zip.server.common.ratelimit.RateLimitExceededException e) {
+  @ExceptionHandler({RateLimitExceededException.class, RetryAfterBusinessException.class})
+  public ResponseEntity<ApiResponse<Void>> handleRetryAfterException(BusinessException e) {
+    RetryAfterAware retryAfterAware = (RetryAfterAware) e;
     ErrorCode errorCode = e.getErrorCode();
-    log.warn("RateLimitExceeded: retryAfter={}", e.getRetryAfter());
-    long retryAfterSeconds = Math.max(1, (e.getRetryAfter().toMillis() + 999) / 1000);
-    return ResponseEntity.status(errorCode.getHttpStatus())
-            .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
-            .body(ApiResponse.fail(ErrorResponse.of(errorCode)));
+    Duration retryAfter = retryAfterAware.getRetryAfter();
+    log.warn("RetryAfterException: {} - retryAfter={}", errorCode.getCode(), retryAfter);
+    return retryAfterResponse(errorCode, e.getMessage(), retryAfter);
   }
 
   /**
@@ -89,8 +89,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         .body(ApiResponse.fail(ErrorResponse.of(errorCode)));
   }
 
+  /**
+   * 공통 오류 응답을 {@link ApiResponse} 형식으로 감싼다.
+   */
   private ResponseEntity<ApiResponse<Void>> toResponse(ErrorCode errorCode, ErrorResponse error) {
     return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.fail(error));
+  }
+
+  /**
+   * 재시도 가능한 오류 응답에 Retry-After 헤더를 추가한다.
+   */
+  private ResponseEntity<ApiResponse<Void>> retryAfterResponse(
+      ErrorCode errorCode, String message, Duration retryAfter) {
+    return ResponseEntity.status(errorCode.getHttpStatus())
+        .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds(retryAfter)))
+        .body(ApiResponse.fail(ErrorResponse.of(errorCode, message)));
+  }
+
+  /**
+   * Retry-After 헤더 값에 맞춰 대기 시간을 초 단위로 올림한다.
+   */
+  private long retryAfterSeconds(Duration retryAfter) {
+    return Math.max(1, (retryAfter.toMillis() + 999) / 1000);
   }
 
   private List<FieldError> toFieldErrors(BindingResult bindingResult) {
