@@ -33,8 +33,12 @@ import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
-import chaeso.zip.server.auth.infrastructure.ratelimit.LoginMethodLookupLimiter;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
+import chaeso.zip.server.common.exception.RetryAfterBusinessException;
+import chaeso.zip.server.common.ratelimit.RateLimitExceededException;
+import chaeso.zip.server.common.ratelimit.RateLimitProperties;
+import chaeso.zip.server.common.ratelimit.RateLimitResult;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.support.UserFixture;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.Occupation;
@@ -42,6 +46,7 @@ import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,11 +95,16 @@ class AuthServiceTest {
   private GoogleSignupStore googleSignupStore;
 
   @Mock
-  private LoginMethodLookupLimiter loginMethodLookupLimiter;
+  private RateLimiter rateLimiter;
 
   private static final JwtProperties JWT_PROPERTIES =
       new JwtProperties("dummy-secret", Duration.ofMinutes(30), Duration.ofDays(14),
           Duration.ofDays(90));
+
+  private static final RateLimitProperties RATE_LIMIT_PROPERTIES = new RateLimitProperties(
+      Map.of("auth-login-email",
+          new RateLimitProperties.RuleConfig(5, Duration.ofMinutes(5), false)),
+      Duration.ofSeconds(5));
 
   private static final GoogleIdTokenInfo GOOGLE_INFO =
       new GoogleIdTokenInfo("google-sub-1", "user@chaeso.zip", "홍길동");
@@ -115,7 +125,8 @@ class AuthServiceTest {
         refreshTokenStore,
         googleIdTokenVerifier,
         googleSignupStore,
-        loginMethodLookupLimiter);
+        rateLimiter,
+        RATE_LIMIT_PROPERTIES);
   }
 
   private static LoginCommand loginCommand() {
@@ -163,7 +174,8 @@ class AuthServiceTest {
     @DisplayName("미가입 이메일이면 인증 코드를 저장하고 메일을 보낸다")
     void success() {
       given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
-      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
+      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip"))
+          .willReturn(RateLimitResult.allow());
 
       String code = authService.sendSignupVerificationCode("  User@Chaeso.Zip  ");
 
@@ -176,7 +188,8 @@ class AuthServiceTest {
     @DisplayName("메일 발송이 실패하면 쿨다운 슬롯을 해제해 즉시 재요청을 허용한다")
     void mailFailureReleasesCooldown() {
       given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
-      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
+      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip"))
+          .willReturn(RateLimitResult.allow());
       willThrow(new MailSendException("smtp down"))
           .given(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
 
@@ -189,11 +202,17 @@ class AuthServiceTest {
     @DisplayName("인증 코드 발송 쿨다운 중이면 AUTH-008로 실패하고 메일을 보내지 않는다")
     void cooldown() {
       given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
-      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(false);
+      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip"))
+          .willReturn(RateLimitResult.deny(Duration.ofSeconds(42)));
 
       assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
-          .isInstanceOf(AuthBusinessException.class)
-          .extracting("errorCode").isEqualTo(AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN);
+          .isInstanceOf(RetryAfterBusinessException.class)
+          .satisfies(exception -> {
+            RetryAfterBusinessException cooldown = (RetryAfterBusinessException) exception;
+            assertThat(cooldown.getErrorCode())
+                .isEqualTo(AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN);
+            assertThat(cooldown.getRetryAfter()).isEqualTo(Duration.ofSeconds(42));
+          });
       verify(verificationMailSender, never()).sendVerificationCode(anyString(), anyString());
     }
 
@@ -323,6 +342,29 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("이메일 단위 시도 한도를 넘으면 자격증명 확인 없이 RateLimitExceededException 을 던진다")
+    void rateLimited_throwsAndSkipsCredentialCheck() {
+      given(rateLimiter.check(eq("auth-login-email:user@chaeso.zip"), any()))
+          .willReturn(RateLimitResult.deny(Duration.ofSeconds(5)));
+      LoginCommand command = loginCommand();
+
+      assertThatThrownBy(() -> authService.login(command))
+          .isInstanceOf(RateLimitExceededException.class);
+
+      verify(userRepository, never()).findByEmailAndDeletedAtIsNull(anyString());
+    }
+
+    @Test
+    @DisplayName("로그인 성공 시 이메일 단위 실패 시도 횟수를 초기화한다")
+    void success_resetsFailedLoginAttempts() {
+      stubValidLocalLogin();
+
+      authService.login(loginCommand());
+
+      verify(rateLimiter).reset(eq("auth-login-email:user@chaeso.zip"), any());
+    }
+
+    @Test
     @DisplayName("로그인 성공 시 마지막 로그인 시각/수단을 기록한다")
     void recordsLastLogin() {
       User user = stubValidLocalLogin();
@@ -422,6 +464,7 @@ class AuthServiceTest {
           .isInstanceOf(AuthBusinessException.class)
           .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
       verify(jwtTokenProvider, never()).createAccessToken(any());
+      verify(rateLimiter).tryConsume(eq("auth-login-email:user@chaeso.zip"), any());
     }
 
     @Test
@@ -934,9 +977,8 @@ class AuthServiceTest {
           .willReturn(List.of(
               AuthIdentity.createGoogle(user.getId(), "google-sub-1"),
               AuthIdentity.createLocal(user.getId(), "hashed")));
-      given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
 
-      LoginMethodsResponse response = authService.findLoginMethods("user@chaeso.zip", "203.0.113.7");
+      LoginMethodsResponse response = authService.findLoginMethods("user@chaeso.zip");
 
       assertThat(response.methods()).containsExactly(AuthProvider.LOCAL, AuthProvider.GOOGLE);
     }
@@ -946,9 +988,8 @@ class AuthServiceTest {
     void notFound_returnsEmpty() {
       given(userRepository.findByEmailAndDeletedAtIsNull("ghost@chaeso.zip"))
           .willReturn(Optional.empty());
-      given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
 
-      LoginMethodsResponse response = authService.findLoginMethods("ghost@chaeso.zip", "203.0.113.7");
+      LoginMethodsResponse response = authService.findLoginMethods("ghost@chaeso.zip");
 
       assertThat(response.methods()).isEmpty();
     }
@@ -961,24 +1002,11 @@ class AuthServiceTest {
           .willReturn(Optional.of(user));
       given(authIdentityRepository.findAllByUserId(user.getId()))
           .willReturn(List.of(AuthIdentity.createLocal(user.getId(), "hashed")));
-      given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
 
       LoginMethodsResponse response =
-          authService.findLoginMethods("  USER@Chaeso.Zip  ", "203.0.113.7");
+          authService.findLoginMethods("  USER@Chaeso.Zip  ");
 
       assertThat(response.methods()).containsExactly(AuthProvider.LOCAL);
-    }
-
-    @Test
-    @DisplayName("IP 쿨다운에 걸리면 DB 조회 없이 AUTH-012 로 거부한다")
-    void rateLimited_throwsAndSkipsLookup() {
-      given(loginMethodLookupLimiter.tryAcquire("203.0.113.7")).willReturn(false);
-
-      assertThatThrownBy(() -> authService.findLoginMethods("user@chaeso.zip", "203.0.113.7"))
-          .isInstanceOf(AuthBusinessException.class)
-          .extracting("errorCode").isEqualTo(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
-
-      verify(userRepository, never()).findByEmailAndDeletedAtIsNull(anyString());
     }
   }
 }

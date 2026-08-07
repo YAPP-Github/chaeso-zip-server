@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,7 +33,12 @@ import chaeso.zip.server.auth.presentation.dto.RefreshTokenRequest;
 import chaeso.zip.server.auth.presentation.dto.SendVerificationCodeRequest;
 import chaeso.zip.server.auth.presentation.dto.SignupRequest;
 import chaeso.zip.server.auth.presentation.dto.VerifyEmailCodeRequest;
+import chaeso.zip.server.common.exception.RetryAfterBusinessException;
+import chaeso.zip.server.common.ratelimit.RateLimitResult;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
+import chaeso.zip.server.user.domain.Occupation;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -46,9 +53,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import chaeso.zip.server.user.domain.Occupation;
-
-import chaeso.zip.server.common.ratelimit.RateLimiter;
 
 /**
  * 인증 표현 계층 슬라이스 테스트. 공통 응답과 검증 에러 포맷을 검증한다.
@@ -207,6 +211,36 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("인증 코드 재발송 쿨다운이면 429와 AUTH-008, Retry-After 헤더를 반환한다")
+    void sendCode_cooldown() throws Exception {
+      willThrow(new RetryAfterBusinessException(
+          AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN, Duration.ofSeconds(42)))
+          .given(authService).sendSignupVerificationCode(anyString());
+
+      mockMvc.perform(post("/api/v1/auth/signup/email-code")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(new SendVerificationCodeRequest("user@chaeso.zip"))))
+          .andExpect(status().isTooManyRequests())
+          .andExpect(header().string("Retry-After", "42"))
+          .andExpect(jsonPath("$.error.code").value("AUTH-008"));
+    }
+
+    @Test
+    @DisplayName("IP 단위 인증 코드 발송 한도를 넘으면 429 C-005 를 돌려준다")
+    void sendCode_rateLimited() throws Exception {
+      given(rateLimiter.tryConsume(anyString(), any()))
+          .willReturn(RateLimitResult.deny(Duration.ofSeconds(5)));
+
+      mockMvc.perform(post("/api/v1/auth/signup/email-code")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(new SendVerificationCodeRequest("user@chaeso.zip"))))
+          .andExpect(status().isTooManyRequests())
+          .andExpect(jsonPath("$.error.code").value("C-005"));
+
+      then(authService).should(never()).sendSignupVerificationCode(anyString());
+    }
+
+    @Test
     @DisplayName("구글로만 가입된 이메일이면 200과 EMAIL_ALREADY_USED_WITH_GOOGLE 안내 코드를 반환한다")
     void sendCode_googleOnly() throws Exception {
       given(authService.sendSignupVerificationCode("user@chaeso.zip"))
@@ -293,6 +327,21 @@ class AuthControllerTest {
               .content(objectMapper.writeValueAsString(validLoginRequest())))
           .andExpect(status().isUnauthorized())
           .andExpect(jsonPath("$.error.code").value("AUTH-010"));
+    }
+
+    @Test
+    @DisplayName("IP 단위 시도 한도를 넘으면 429 C-005 를 돌려준다")
+    void rateLimited_returns429() throws Exception {
+      given(rateLimiter.tryConsume(anyString(), any()))
+          .willReturn(RateLimitResult.deny(Duration.ofSeconds(5)));
+
+      mockMvc.perform(post("/api/v1/auth/login")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(validLoginRequest())))
+          .andExpect(status().isTooManyRequests())
+          .andExpect(jsonPath("$.error.code").value("C-005"));
+
+      then(authService).should(never()).login(any(LoginCommand.class));
     }
   }
 
@@ -547,7 +596,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("이메일로 로그인 수단을 조회하면 methods 배열을 돌려준다")
     void returnsMethods() throws Exception {
-      given(authService.findLoginMethods(anyString(), anyString()))
+      given(authService.findLoginMethods(anyString()))
           .willReturn(new LoginMethodsResponse(List.of(AuthProvider.LOCAL, AuthProvider.GOOGLE)));
 
       mockMvc.perform(post("/api/v1/auth/login/methods")
@@ -559,7 +608,7 @@ class AuthControllerTest {
           .andExpect(jsonPath("$.data.methods[0]").value("LOCAL"))
           .andExpect(jsonPath("$.data.methods[1]").value("GOOGLE"));
 
-      then(authService).should().findLoginMethods(eq("user@chaeso.zip"), anyString());
+      then(authService).should().findLoginMethods(eq("user@chaeso.zip"));
     }
 
     @Test
@@ -573,17 +622,19 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("조회 한도를 넘으면 429 AUTH-012 를 돌려준다")
+    @DisplayName("조회 한도를 넘으면 429 C-005 를 돌려준다")
     void rateLimited_returns429() throws Exception {
-      willThrow(new AuthBusinessException(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN))
-          .given(authService).findLoginMethods(anyString(), anyString());
+      given(rateLimiter.tryConsume(anyString(), any()))
+          .willReturn(RateLimitResult.deny(Duration.ofSeconds(5)));
 
       mockMvc.perform(post("/api/v1/auth/login/methods")
               .contentType(MediaType.APPLICATION_JSON)
               .content(objectMapper.writeValueAsString(
                   new LoginMethodsRequest("user@chaeso.zip"))))
           .andExpect(status().isTooManyRequests())
-          .andExpect(jsonPath("$.error.code").value("AUTH-012"));
+          .andExpect(jsonPath("$.error.code").value("C-005"));
+
+      then(authService).should(never()).findLoginMethods(anyString());
     }
   }
 }
