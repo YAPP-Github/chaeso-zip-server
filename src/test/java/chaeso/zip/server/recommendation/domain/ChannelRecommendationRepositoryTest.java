@@ -68,6 +68,17 @@ class ChannelRecommendationRepositoryTest {
   }
 
   @Test
+  @DisplayName("같은 온보딩에서 순위가 겹치면 유니크 제약으로 막는다")
+  void rejectsDuplicateRankInOneRecommendation() {
+    channelRecommendationRepository.saveAndFlush(recommendation(1));
+    UUID otherChannelId = entityManager.persistAndFlush(persistableChannel("당근마켓 광고")).getId();
+
+    assertThatThrownBy(() -> channelRecommendationRepository
+        .saveAndFlush(recommendation(1, otherChannelId)))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
   @DisplayName("한 트랜잭션에서 지우고 다시 넣어도 유니크 제약에 걸리지 않는다")
   void deleteThenInsertInSameTransaction() {
     // 파생 삭제였다면 INSERT 가 DELETE 보다 먼저 나가 여기서 유니크 제약에 걸린다
@@ -83,10 +94,14 @@ class ChannelRecommendationRepositoryTest {
   }
 
   private ChannelRecommendation recommendation(int rank) {
+    return recommendation(rank, channelId);
+  }
+
+  private ChannelRecommendation recommendation(int rank, UUID channel) {
     return ChannelRecommendation.builder()
         .userId(userId)
         .onboardingId(onboardingId)
-        .channelId(channelId)
+        .channelId(channel)
         .rank(rank)
         .score(78)
         .reason("쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요")

@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,7 +26,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Getter
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "channel_recommendations")
+@Table(name = "channel_recommendations", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_channel_recommendation_onboarding_channel",
+        columnNames = {"onboarding_id", "channel_id"}),
+    @UniqueConstraint(name = "uq_channel_recommendation_onboarding_rank",
+        columnNames = {"onboarding_id", "rank"})})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChannelRecommendation {
 

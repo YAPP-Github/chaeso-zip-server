@@ -440,6 +440,22 @@ class RecommendationServiceImplTest {
     }
 
     @Test
+    @DisplayName("지우고 넣기 전에 온보딩 행을 잠가 같은 온보딩의 저장을 직렬화한다")
+    void locksOnboardingBeforeRewriting() {
+      Channel channel = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      givenCatalog(entry(channel, OBJECTIVE, PricingModel.CPM, "3000"));
+
+      save(ownedOnboarding());
+
+      InOrder inOrder = inOrder(channelRepository, onboardingRepository,
+          channelRecommendationRepository);
+      inOrder.verify(channelRepository).findByActiveTrue();
+      inOrder.verify(onboardingRepository).findByIdForUpdate(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationRepository).saveAll(anyList());
+    }
+
+    @Test
     @DisplayName("맞는 채널이 없으면 저장할 것도 없어 빈 결과를 반환한다")
     void savesNothingWhenNothingMatches() {
       Channel unmatched = matchingChannel("미매칭 채널", List.of(Category.GAME),

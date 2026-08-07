@@ -77,6 +77,8 @@ public class RecommendationServiceImpl implements RecommendationService {
     Onboarding onboarding = findOwnedOnboarding(userId, onboardingId);
     List<RecommendationSnapshot> snapshots = calculate(onboarding);
 
+    onboardingRepository.findByIdForUpdate(onboardingId);
+
     channelRecommendationRepository.deleteByOnboardingId(onboardingId);
     try {
       channelRecommendationRepository.saveAll(IntStream.range(0, snapshots.size())
