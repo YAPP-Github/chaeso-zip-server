@@ -17,12 +17,16 @@ public record RateLimitProperties(
   public record RuleConfig(int limit, Duration window, @DefaultValue("true") boolean failOpen) {
   }
 
+  public RateLimitRule rule(RateLimitPolicy policy) {
+    return rule(policy.getKey());
+  }
+
   public RateLimitRule rule(String name) {
-    if (rules == null || !rules.containsKey(name)) {
+    RuleConfig config = rules == null ? null : rules.get(name);
+    if (config == null) {
       throw new IllegalStateException(
           "app.rate-limit.rules 에 정의되지 않은 규칙: " + name);
     }
-    RuleConfig config = rules.get(name);
     return new RateLimitRule(name, config.limit(), config.window(), config.failOpen());
   }
 }
