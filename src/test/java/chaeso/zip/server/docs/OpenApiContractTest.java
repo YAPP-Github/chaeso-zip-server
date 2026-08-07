@@ -68,7 +68,7 @@ class OpenApiContractTest {
     void pageableParametersAreExploded() throws Exception {
       JsonNode spec = loadOpenApiSpec();
 
-      forEachOperation(spec, (path, operationId, operation) -> {
+      forEachOperation(spec, (path, method, operationId, operation) -> {
         JsonNode parameters = operation.path("parameters");
         if (!parameters.isArray()) {
           return;
@@ -166,13 +166,15 @@ class OpenApiContractTest {
     @DisplayName("SecurityConfig 인증 대상 API는 bearerAuth와 공통 401 오류 schema를 노출한다")
     void bearerOperationsPublishCommonUnauthorizedResponse() throws Exception {
       JsonNode spec = loadOpenApiSpec();
-      String[] publicPaths = publicPaths();
+      String[] publicPaths = publicPaths("PUBLIC_PATHS");
+      String[] publicGetPaths = publicPaths("PUBLIC_GET_PATHS");
       AntPathMatcher pathMatcher = new AntPathMatcher();
       List<String> bearerOperations = new ArrayList<>();
 
-      forEachOperation(spec, (path, operationId, operation) -> {
-        boolean publicApi = List.of(publicPaths).stream()
-            .anyMatch(pattern -> pathMatcher.match(pattern, path));
+      forEachOperation(spec, (path, method, operationId, operation) -> {
+        // PUBLIC_GET_PATHS 는 GET 만 열려 있으므로 같은 경로의 다른 메서드는 인증 대상이다
+        boolean publicApi = matchesAny(pathMatcher, publicPaths, path)
+            || ("get".equals(method) && matchesAny(pathMatcher, publicGetPaths, path));
         if (publicApi) {
           return;
         }
@@ -211,6 +213,96 @@ class OpenApiContractTest {
             .as("%s 204 응답에는 content/schema가 없어야 합니다", operationId)
             .isTrue();
       });
+    }
+
+    @Test
+    @DisplayName("페이로드가 있는 성공 응답 래퍼는 data를 required로 노출한다")
+    void successWrappersRequireData() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+      JsonNode schemas = spec.path("components").path("schemas");
+      List<String> checked = new ArrayList<>();
+
+      schemas.properties().forEach(schema -> {
+        String name = schema.getKey();
+        // ApiResponse 는 제네릭이 지워진 오류 응답용, ApiResponseVoid 는 본문이 없는 성공 응답이다
+        if (!name.startsWith("ApiResponse") || name.equals("ApiResponse")
+            || name.equals("ApiResponseVoid")) {
+          return;
+        }
+        checked.add(name);
+        List<String> required = new ArrayList<>();
+        schema.getValue().path("required").forEach(field -> required.add(field.asText()));
+        assertThat(required)
+            .as("%s 는 2xx 전용 래퍼이므로 data가 required 여야 합니다", name)
+            .contains("data");
+      });
+
+      assertThat(checked)
+          .as("페이로드를 담는 성공 응답 래퍼가 하나 이상 있어야 합니다")
+          .isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("data가 없는 래퍼는 data를 required로 올리지 않는다")
+    void wrappersWithoutDataDoNotRequireIt() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+      JsonNode schemas = spec.path("components").path("schemas");
+
+      for (String name : List.of("ApiResponse", "ApiResponseVoid")) {
+        assertThat(requiredFields(schemas.path(name)))
+            .as("%s 는 data가 없는 응답에 쓰이므로 required 가 아니어야 합니다", name)
+            .doesNotContain("data");
+      }
+    }
+
+    @Test
+    @DisplayName("오류 응답 래퍼는 error를 required로 노출한다")
+    void errorWrapperRequiresError() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+      JsonNode schemas = spec.path("components").path("schemas");
+
+      assertThat(requiredFields(schemas.path("ApiResponse")))
+          .as("ApiResponse 는 오류 응답 전용이므로 error가 required 여야 합니다")
+          .contains("error");
+      assertThat(requiredFields(schemas.path("ApiResponseVoid")))
+          .as("ApiResponseVoid 는 성공 응답이므로 error가 required 가 아니어야 합니다")
+          .doesNotContain("error");
+    }
+
+    @Test
+    @DisplayName("성공 응답은 페이로드 래퍼를, 오류 응답은 공통 래퍼를 참조한다")
+    void wrapperSchemasSplitBySuccess() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+
+      // data/error 를 required 로 올릴 수 있는 근거가 이 갈림이다. 섞이면 둘 다 거짓이 된다
+      forEachResponse(spec, (operationId, responseCode, response) -> {
+        JsonNode ref =
+            response.path("content").path("application/json").path("schema").path("$ref");
+        if (ref.isMissingNode()) {
+          return;
+        }
+        String schema = ref.asText().substring(SCHEMA_REF_PREFIX.length());
+        if (!schema.startsWith(API_RESPONSE_REF.substring(SCHEMA_REF_PREFIX.length()))) {
+          return;
+        }
+        if (responseCode.startsWith("2")) {
+          assertThat(schema)
+              .as("%s %s 성공 응답이 제네릭 없는 ApiResponse를 참조하면 data required가 깨집니다",
+                  operationId, responseCode)
+              .isNotEqualTo("ApiResponse");
+        } else {
+          assertThat(schema)
+              .as("%s %s 오류 응답이 타입 래퍼를 참조하면 error required가 깨집니다",
+                  operationId, responseCode)
+              .isEqualTo("ApiResponse");
+        }
+      });
+    }
+
+    private List<String> requiredFields(JsonNode schema) {
+      List<String> required = new ArrayList<>();
+      schema.path("required").forEach(field -> required.add(field.asText()));
+      return required;
     }
   }
 
@@ -320,12 +412,16 @@ class OpenApiContractTest {
     return false;
   }
 
-  private String[] publicPaths() {
-    Object publicPaths = ReflectionTestUtils.getField(SecurityConfig.class, "PUBLIC_PATHS");
+  private String[] publicPaths(String fieldName) {
+    Object publicPaths = ReflectionTestUtils.getField(SecurityConfig.class, fieldName);
     assertThat(publicPaths)
-        .as("SecurityConfig.PUBLIC_PATHS를 확인할 수 있어야 합니다")
+        .as("SecurityConfig.%s를 확인할 수 있어야 합니다", fieldName)
         .isInstanceOf(String[].class);
     return (String[]) publicPaths;
+  }
+
+  private boolean matchesAny(AntPathMatcher pathMatcher, String[] patterns, String path) {
+    return List.of(patterns).stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
   }
 
   private JsonNode loadOpenApiSpec() throws Exception {
@@ -337,23 +433,25 @@ class OpenApiContractTest {
 
   private List<String> collectOperationIds(JsonNode spec) {
     List<String> operationIds = new ArrayList<>();
-    forEachOperation(spec, (path, operationId, operation) -> operationIds.add(operationId));
+    forEachOperation(spec,
+        (path, method, operationId, operation) -> operationIds.add(operationId));
     return operationIds;
   }
 
   private void forEachOperation(JsonNode spec, OperationConsumer consumer) {
     for (Map.Entry<String, JsonNode> path : spec.path("paths").properties()) {
-      for (JsonNode operation : path.getValue()) {
+      for (Map.Entry<String, JsonNode> method : path.getValue().properties()) {
+        JsonNode operation = method.getValue();
         String operationId = operation.path("operationId").asText();
         if (!operationId.isBlank()) {
-          consumer.accept(path.getKey(), operationId, operation);
+          consumer.accept(path.getKey(), method.getKey(), operationId, operation);
         }
       }
     }
   }
 
   private void forEachResponse(JsonNode spec, ResponseConsumer consumer) {
-    forEachOperation(spec, (path, operationId, operation) ->
+    forEachOperation(spec, (path, method, operationId, operation) ->
         operation.path("responses").properties().forEach(response ->
             consumer.accept(operationId, response.getKey(), response.getValue())));
   }
@@ -361,7 +459,7 @@ class OpenApiContractTest {
   @FunctionalInterface
   private interface OperationConsumer {
 
-    void accept(String path, String operationId, JsonNode operation);
+    void accept(String path, String method, String operationId, JsonNode operation);
   }
 
   @FunctionalInterface
