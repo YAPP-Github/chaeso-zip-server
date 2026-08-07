@@ -6,8 +6,11 @@ import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static chaeso.zip.server.support.ChannelCatalogFixture.withObjectives;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -26,10 +29,14 @@ import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
+import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
+import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -44,14 +51,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class RecommendationServiceImplTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final UUID USER_ID = UUID.randomUUID();
 
   private static final Category INDUSTRY = Category.MEDICAL_HEALTHCARE;
   private static final CampaignObjective OBJECTIVE = CampaignObjective.AWARENESS;
@@ -71,6 +81,8 @@ class RecommendationServiceImplTest {
   @Mock
   private ChannelPricingRepository channelPricingRepository;
   @Mock
+  private ChannelRecommendationRepository channelRecommendationRepository;
+  @Mock
   private DefaultCtrProvider defaultCtrProvider;
 
   @InjectMocks
@@ -78,6 +90,9 @@ class RecommendationServiceImplTest {
 
   @Captor
   private ArgumentCaptor<Collection<UUID>> productIdsCaptor;
+
+  @Captor
+  private ArgumentCaptor<List<ChannelRecommendation>> savedCaptor;
 
   @Nested
   @DisplayName("적합도 계산과 순서")
@@ -317,6 +332,192 @@ class RecommendationServiceImplTest {
         .hasMessageContaining(ONBOARDING_ID.toString());
 
     verifyNoInteractions(channelRepository, channelProductRepository, channelPricingRepository);
+  }
+
+  @Nested
+  @DisplayName("추천 결과 저장 (POST /recommendations)")
+  class Save {
+
+    @Test
+    @DisplayName("추천된 채널을 각각 한 행으로 저장하고 순위를 1부터 매긴다")
+    void savesOneRowPerChannelWithRank() {
+      Channel best = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      Channel second = matchingChannel("나매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+      givenCatalog(
+          entry(best, OBJECTIVE, PricingModel.CPM, "3000"),
+          entry(second, OBJECTIVE, PricingModel.CPM, "3000"));
+
+      SavedRecommendationResponse response = save(ownedOnboarding());
+
+      assertThat(response.onboardingId()).isEqualTo(ONBOARDING_ID);
+      assertThat(response.channelCount()).isEqualTo(2);
+
+      verify(channelRecommendationRepository).saveAll(savedCaptor.capture());
+      assertThat(savedCaptor.getValue())
+          .extracting(ChannelRecommendation::getChannelName, ChannelRecommendation::getRank)
+          .containsExactly(tuple("가매체", 1), tuple("나매체", 2));
+      assertThat(savedCaptor.getValue())
+          .allSatisfy(row -> {
+            assertThat(row.getUserId()).isEqualTo(USER_ID);
+            assertThat(row.getOnboardingId()).isEqualTo(ONBOARDING_ID);
+          });
+    }
+
+    @Test
+    @DisplayName("추천 시점의 계산 결과를 그대로 박제한다")
+    void storesCalculatedValuesAsSnapshot() {
+      Channel channel = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      givenCatalog(entry(channel, OBJECTIVE, PricingModel.CPM, "3000"));
+
+      RecommendationItemResponse calculated = save(ownedOnboarding()).items().getFirst();
+
+      verify(channelRecommendationRepository).saveAll(savedCaptor.capture());
+      ChannelRecommendation saved = savedCaptor.getValue().getFirst();
+
+      // 응답으로 나간 값과 저장된 값이 같아야 재계산 없이 그때 화면을 복원할 수 있다
+      assertThat(saved.getChannelId()).isEqualTo(calculated.channelId());
+      assertThat(saved.getChannelName()).isEqualTo(calculated.channelName());
+      assertThat(saved.getScore()).isEqualTo(calculated.matchRate());
+      assertThat(saved.getReason()).isEqualTo(calculated.recommendationReason());
+      assertThat(saved.getAudienceSummarySnap()).isEqualTo(calculated.primaryTarget());
+      assertThat(saved.getEstPricingModel()).isEqualTo(calculated.pricingModel());
+      assertThat(saved.getMinBudgetWonSnap()).isEqualTo(calculated.minBudgetWon());
+      assertThat(saved.getCpcWon()).isEqualByComparingTo(calculated.cpcWon());
+      assertThat(saved.getEstImpressionsMin()).isEqualTo(calculated.estImpressions().min());
+      assertThat(saved.getEstImpressionsMax()).isEqualTo(calculated.estImpressions().max());
+      assertThat(saved.getEstClicksMin()).isEqualTo(calculated.estClicks().min());
+      assertThat(saved.getEstClicksMax()).isEqualTo(calculated.estClicks().max());
+      assertThat(saved.isExecutable()).isEqualTo(calculated.isExecutable());
+      assertThat(saved.getShortfallWon()).isEqualTo(calculated.shortfallWon());
+
+      // 응답에는 없고 저장에만 있는 값
+      assertThat(saved.getEstUnitPrice()).isEqualByComparingTo("3000");
+      assertThat(saved.getReasonTags()).containsExactly("CATEGORY", "OBJECTIVE", "AGE_BAND");
+      assertThat(saved.getPricingModelsAll()).containsExactly("CPM");
+    }
+
+    @Test
+    @DisplayName("대표 단가가 없는 매체도 저장하고, 추정값 자리는 비워 둔다")
+    void savesQuoteRequiredChannelWithoutEstimates() {
+      Channel channel = matchingChannel("단가없는매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      ChannelProduct product =
+          withObjectives(product(UUID.randomUUID(), channel.getId()), OBJECTIVE);
+      given(channelRepository.findByActiveTrue()).willReturn(List.of(channel));
+      given(channelProductRepository.findByChannelIdIn(anyCollection()))
+          .willReturn(List.of(product));
+      given(channelPricingRepository.findByChannelProductIdIn(anyCollection()))
+          .willReturn(List.of());
+      given(defaultCtrProvider.averageCtrPercent()).willReturn(AVERAGE_CTR);
+
+      save(ownedOnboarding());
+
+      verify(channelRecommendationRepository).saveAll(savedCaptor.capture());
+      ChannelRecommendation saved = savedCaptor.getValue().getFirst();
+
+      assertThat(saved.getEstPricingModel()).isNull();
+      assertThat(saved.getEstUnitPrice()).isNull();
+      assertThat(saved.getEstImpressionsMin()).isNull();
+      assertThat(saved.getEstClicksMax()).isNull();
+      assertThat(saved.getMinBudgetWonSnap()).isNull();
+      assertThat(saved.isExecutable()).isFalse();
+      assertThat(saved.getPricingModelsAll()).isEmpty();
+      // 근거는 단가와 무관하게 매칭 축으로 만들어지므로 남는다
+      assertThat(saved.getReason()).isNotBlank();
+      assertThat(saved.getReasonTags()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 온보딩으로 다시 저장하면 이전 추천을 지우고 다시 넣는다")
+    void overwritesPreviousRecommendation() {
+      Channel channel = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      givenCatalog(entry(channel, OBJECTIVE, PricingModel.CPM, "3000"));
+
+      save(ownedOnboarding());
+
+      InOrder inOrder = inOrder(channelRecommendationRepository);
+      inOrder.verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationRepository).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("맞는 채널이 없으면 저장할 것도 없어 빈 결과를 반환한다")
+    void savesNothingWhenNothingMatches() {
+      Channel unmatched = matchingChannel("미매칭 채널", List.of(Category.GAME),
+          List.of(OTHER_AGE_BAND));
+      given(channelRepository.findByActiveTrue()).willReturn(List.of(unmatched));
+      given(channelProductRepository.findByChannelIdIn(anyCollection())).willReturn(List.of());
+
+      SavedRecommendationResponse response = save(ownedOnboarding());
+
+      assertThat(response.channelCount()).isZero();
+      assertThat(response.items()).isEmpty();
+      // 덮어쓰기는 그대로 수행한다. 이번 추천이 비었다면 이전 저장분도 남아 있으면 안 된다
+      verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      verify(channelRecommendationRepository).saveAll(List.of());
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 제출한 온보딩은 없는 것과 같은 404 로 숨기고 저장하지 않는다")
+    void rejectsOtherUsersOnboarding() {
+      Onboarding othersOnboarding = onboarding(UUID.randomUUID());
+
+      assertThatThrownBy(() -> save(othersOnboarding))
+          .isInstanceOf(OnboardingBusinessException.class)
+          .hasMessageContaining(ONBOARDING_ID.toString());
+
+      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+    }
+
+    @Test
+    @DisplayName("비로그인으로 제출해 주인이 없는 온보딩도 저장할 수 없다")
+    void rejectsAnonymousOnboarding() {
+      Onboarding anonymous = onboarding(null);
+
+      assertThatThrownBy(() -> save(anonymous))
+          .isInstanceOf(OnboardingBusinessException.class);
+
+      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 온보딩은 404 로 거부한다")
+    void rejectsUnknownOnboarding() {
+      given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.empty());
+
+      assertThatThrownBy(() -> recommendationService.save(USER_ID, ONBOARDING_ID))
+          .isInstanceOf(OnboardingBusinessException.class);
+
+      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+    }
+
+    @Test
+    @DisplayName("같은 온보딩으로 저장이 동시에 겹치면 유니크 제약 위반을 409 로 바꿔 준다")
+    void translatesConcurrentSaveToConflict() {
+      Channel channel = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      givenCatalog(entry(channel, OBJECTIVE, PricingModel.CPM, "3000"));
+      given(channelRecommendationRepository.saveAll(anyList()))
+          .willThrow(new DataIntegrityViolationException("duplicate key"));
+
+      assertThatThrownBy(() -> save(ownedOnboarding()))
+          .isInstanceOf(OnboardingBusinessException.class)
+          .extracting(e -> ((OnboardingBusinessException) e).getErrorCode())
+          .isEqualTo(OnboardingErrorCode.CONCURRENT_SUBMISSION);
+    }
+
+    private SavedRecommendationResponse save(Onboarding onboarding) {
+      given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.of(onboarding));
+      return recommendationService.save(USER_ID, ONBOARDING_ID);
+    }
+
+    /** 저장하는 사용자가 직접 제출한 온보딩. */
+    private Onboarding ownedOnboarding() {
+      return onboarding(USER_ID);
+    }
+
+    private Onboarding onboarding(UUID userId) {
+      return OnboardingFixture.onboarding(userId, INDUSTRY, OBJECTIVE, List.of(TARGET_AGE_BAND),
+          1_000_000L, BUDGET_MAX, CampaignPeriod.M1);
+    }
   }
 
   private List<RecommendationItemResponse> recommend(Onboarding onboarding) {
