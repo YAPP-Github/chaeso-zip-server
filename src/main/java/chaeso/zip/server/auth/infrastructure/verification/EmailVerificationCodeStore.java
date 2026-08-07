@@ -1,7 +1,9 @@
 package chaeso.zip.server.auth.infrastructure.verification;
 
+import chaeso.zip.server.common.ratelimit.RateLimitResult;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -20,6 +22,13 @@ public class EmailVerificationCodeStore {
   private static final String VERIFIED_PREFIX = "email-verify-ok:";
   private static final String ATTEMPTS_PREFIX = "email-verify-att:";
   private static final String COOLDOWN_PREFIX = "email-verify-cd:";
+  private static final RedisScript<Long> ACQUIRE_SEND_SLOT_SCRIPT = new DefaultRedisScript<>(
+      "local acquired = redis.call('SET', KEYS[1], '1', 'NX', 'PX', ARGV[1]) "
+          + "if acquired then return 0 end "
+          + "local ttl = redis.call('PTTL', KEYS[1]) "
+          + "if ttl > 0 then return ttl end "
+          + "return tonumber(ARGV[1])",
+      Long.class);
   private static final RedisScript<Long> VERIFY_SCRIPT = new DefaultRedisScript<>(
       "local current = redis.call('GET', KEYS[1]) "
           + "if current == false then return 0 end "
@@ -80,10 +89,18 @@ public class EmailVerificationCodeStore {
     redis.delete(VERIFIED_PREFIX + email);
   }
 
-  /** per-email 발송 쿨다운 슬롯을 선점한다. 이미 쿨다운 중이면 false. */
-  public boolean tryAcquireSendSlot(String email) {
-    Boolean acquired = redis.opsForValue().setIfAbsent(COOLDOWN_PREFIX + email, "1", sendCooldown);
-    return Boolean.TRUE.equals(acquired);
+  /** 이메일별 발송 쿨다운 슬롯을 선점한다. 이미 쿨다운 중이면 남은 시간을 반환한다. */
+  public RateLimitResult tryAcquireSendSlot(String email) {
+    long retryAfterMillis = Objects.requireNonNullElse(
+        redis.execute(
+            ACQUIRE_SEND_SLOT_SCRIPT,
+            List.of(COOLDOWN_PREFIX + email),
+            String.valueOf(sendCooldown.toMillis())),
+        sendCooldown.toMillis());
+    if (retryAfterMillis == 0L) {
+      return RateLimitResult.allow();
+    }
+    return RateLimitResult.deny(Duration.ofMillis(retryAfterMillis));
   }
 
   /** 메일 발송 실패 시 쿨다운 슬롯을 되돌려 즉시 재요청을 허용한다. */

@@ -23,8 +23,14 @@ import chaeso.zip.server.auth.infrastructure.mail.VerificationMailSender;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenInfo;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleIdTokenVerifier;
 import chaeso.zip.server.auth.infrastructure.oauth.GoogleSignupStore;
-import chaeso.zip.server.auth.infrastructure.ratelimit.LoginMethodLookupLimiter;
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationCodeStore;
+import chaeso.zip.server.common.exception.RetryAfterBusinessException;
+import chaeso.zip.server.common.ratelimit.RateLimitExceededException;
+import chaeso.zip.server.common.ratelimit.RateLimitProperties;
+import chaeso.zip.server.common.ratelimit.RateLimitPolicy;
+import chaeso.zip.server.common.ratelimit.RateLimitResult;
+import chaeso.zip.server.common.ratelimit.RateLimitRule;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.user.application.ConsentProperties;
 import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
@@ -64,7 +70,8 @@ public class AuthServiceImpl implements AuthService {
   private final RefreshTokenStore refreshTokenStore;
   private final GoogleIdTokenVerifier googleIdTokenVerifier;
   private final GoogleSignupStore googleSignupStore;
-  private final LoginMethodLookupLimiter loginMethodLookupLimiter;
+  private final RateLimiter rateLimiter;
+  private final RateLimitProperties rateLimitProperties;
 
   private final SecureRandom secureRandom = new SecureRandom();
 
@@ -89,8 +96,10 @@ public class AuthServiceImpl implements AuthService {
       }
     }
 
-    if (!verificationCodeStore.tryAcquireSendSlot(normalized)) {
-      throw new AuthBusinessException(AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN);
+    RateLimitResult sendSlot = verificationCodeStore.tryAcquireSendSlot(normalized);
+    if (!sendSlot.allowed()) {
+      throw new RetryAfterBusinessException(
+          AuthErrorCode.VERIFICATION_CODE_SEND_COOLDOWN, sendSlot.retryAfter());
     }
     String code = generateCode();
     verificationCodeStore.saveCode(normalized, code);
@@ -136,6 +145,12 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public TokenResponse login(LoginCommand command) {
     String email = normalizeEmail(command.email());
+    RateLimitRule loginEmailRule = rateLimitProperties.rule(RateLimitPolicy.AUTH_LOGIN_EMAIL);
+    String loginEmailLimitKey = loginEmailRule.name() + ":" + email;
+    RateLimitResult result = rateLimiter.check(loginEmailLimitKey, loginEmailRule);
+    if (result != null && !result.allowed()) {
+      throw new RateLimitExceededException(result.retryAfter());
+    }
     User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
     AuthIdentity identity = user == null ? null
         : authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
@@ -146,20 +161,19 @@ public class AuthServiceImpl implements AuthService {
     boolean passwordMatches =
         passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
     if (!hasHash || !passwordMatches) {
+      recordFailedLoginAttempt(loginEmailLimitKey, loginEmailRule);
       if (user != null && !hasHash && hasGoogleIdentity(user)) {
         throw new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
       }
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
+    rateLimiter.reset(loginEmailLimitKey, loginEmailRule);
     return openSession(user, AuthProvider.LOCAL);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public LoginMethodsResponse findLoginMethods(String email, String clientIp) {
-    if (!loginMethodLookupLimiter.tryAcquire(clientIp)) {
-      throw new AuthBusinessException(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
-    }
+  public LoginMethodsResponse findLoginMethods(String email) {
     return userRepository.findByEmailAndDeletedAtIsNull(normalizeEmail(email))
         .map(user -> authIdentityRepository.findAllByUserId(user.getId()).stream()
             .map(AuthIdentity::getProvider)
@@ -313,6 +327,13 @@ public class AuthServiceImpl implements AuthService {
         jwtTokenProvider.createRefreshToken(userId, familyId, jti),
         jwtProperties.accessTtl().toSeconds(),
         refreshTtl.toSeconds());
+  }
+
+  private void recordFailedLoginAttempt(String key, RateLimitRule rule) {
+    RateLimitResult result = rateLimiter.tryConsume(key, rule);
+    if (result != null && !result.allowed()) {
+      throw new RateLimitExceededException(result.retryAfter());
+    }
   }
 
   /**
