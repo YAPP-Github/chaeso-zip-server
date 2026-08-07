@@ -102,11 +102,41 @@ app:
     verified-ttl: ${EMAIL_VERIFICATION_VERIFIED_TTL:PT30M}
     max-verify-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
     send-cooldown: ${EMAIL_VERIFICATION_SEND_COOLDOWN:PT1M}
-  login-method-lookup:
-    max-attempts: ${LOGIN_METHOD_LOOKUP_MAX_ATTEMPTS:30}
-    window: ${LOGIN_METHOD_LOOKUP_WINDOW:PT1M}
   rate-limit:
     fail-closed-retry-after: ${RATE_LIMIT_FAIL_CLOSED_RETRY_AFTER:PT5S}
+    rules:
+      login-method-lookup:
+        limit: ${LOGIN_METHOD_LOOKUP_MAX_ATTEMPTS:30}
+        window: ${LOGIN_METHOD_LOOKUP_WINDOW:PT1M}
+        fail-open: true
+      auth-login:
+        limit: ${AUTH_LOGIN_MAX_ATTEMPTS:10}
+        window: ${AUTH_LOGIN_WINDOW:PT1M}
+        fail-open: false
+      auth-login-email:
+        limit: ${AUTH_LOGIN_EMAIL_MAX_ATTEMPTS:5}
+        window: ${AUTH_LOGIN_EMAIL_WINDOW:PT5M}
+        fail-open: false
+      auth-signup:
+        limit: ${AUTH_SIGNUP_MAX_ATTEMPTS:10}
+        window: ${AUTH_SIGNUP_WINDOW:PT1M}
+        fail-open: true
+      auth-email-code:
+        limit: ${AUTH_EMAIL_CODE_MAX_ATTEMPTS:10}
+        window: ${AUTH_EMAIL_CODE_WINDOW:PT1M}
+        fail-open: false
+      auth-google:
+        limit: ${AUTH_GOOGLE_MAX_ATTEMPTS:20}
+        window: ${AUTH_GOOGLE_WINDOW:PT1M}
+        fail-open: true
+      onboarding-submit:
+        limit: ${ONBOARDING_SUBMIT_MAX_ATTEMPTS:10}
+        window: ${ONBOARDING_SUBMIT_WINDOW:PT1M}
+        fail-open: true
+      onboarding-presign:
+        limit: ${ONBOARDING_PRESIGN_MAX_ATTEMPTS:60}
+        window: ${ONBOARDING_PRESIGN_WINDOW:PT1M}
+        fail-open: true
   onboarding:
     s3:
       bucket: ${AD_HISTORY_BUCKET}

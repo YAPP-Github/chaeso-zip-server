@@ -56,11 +56,41 @@ app:
     verified-ttl: PT30M
     max-verify-attempts: 5
     send-cooldown: PT1M
-  login-method-lookup:
-    max-attempts: 30
-    window: PT1M
   rate-limit:
     fail-closed-retry-after: PT5S
+    rules:
+      login-method-lookup:
+        limit: 30
+        window: PT1M
+        fail-open: true
+      auth-login:
+        limit: 10
+        window: PT1M
+        fail-open: false
+      auth-login-email:
+        limit: 5
+        window: PT5M
+        fail-open: false
+      auth-signup:
+        limit: 10
+        window: PT1M
+        fail-open: true
+      auth-email-code:
+        limit: 10
+        window: PT1M
+        fail-open: false
+      auth-google:
+        limit: 20
+        window: PT1M
+        fail-open: true
+      onboarding-submit:
+        limit: 10
+        window: PT1M
+        fail-open: true
+      onboarding-presign:
+        limit: 60
+        window: PT1M
+        fail-open: true
   onboarding:
     s3:
       bucket: test-onboarding-bucket
