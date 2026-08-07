@@ -31,11 +31,8 @@ public interface AuthService {
   /** 이메일/비밀번호로 로컬 로그인하고 액세스/리프레시 토큰을 발급한다. 실패 시 예외. */
   TokenResponse login(LoginCommand command);
 
-  /**
-   * 이메일로 그 계정의 로그인 수단을 조회한다. 미가입이거나 탈퇴한 계정이면 빈 목록,
-   * {@code clientIp} 단위 조회 한도를 넘으면 예외.
-   */
-  LoginMethodsResponse findLoginMethods(String email, String clientIp);
+  /** 이메일로 그 계정의 로그인 수단을 조회한다. 미가입이거나 탈퇴한 계정이면 빈 목록. */
+  LoginMethodsResponse findLoginMethods(String email);
 
   /**
    * Refresh Token 을 회전시켜 새 토큰 쌍을 발급한다. familyId 는 유지하고 jti 만 교체한다.
