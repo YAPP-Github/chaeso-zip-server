@@ -1,8 +1,10 @@
 package chaeso.zip.server.channel.presentation.dto;
 
+import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.common.exception.BusinessException;
 import chaeso.zip.server.common.exception.CommonErrorCode;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -11,6 +13,9 @@ import org.springframework.data.domain.Sort;
 public record ChannelSearchRequest(
     @Schema(description = "채널명 검색어", example = "11번가")
     String name,
+
+    @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE")
+    List<Category> primaryCategory,
 
     @Schema(description = "페이지 번호(0-base)", example = "0")
     Integer page,

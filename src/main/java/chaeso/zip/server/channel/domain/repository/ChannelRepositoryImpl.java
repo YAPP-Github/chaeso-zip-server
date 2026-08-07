@@ -2,6 +2,7 @@ package chaeso.zip.server.channel.domain.repository;
 
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.entity.QChannel;
+import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.common.exception.BusinessException;
 import chaeso.zip.server.common.exception.CommonErrorCode;
 import com.querydsl.core.types.Order;
@@ -28,14 +29,16 @@ public class ChannelRepositoryImpl implements ChannelRepositoryCustom {
   private final JPAQueryFactory queryFactory;
 
   @Override
-  public Page<Channel> searchActiveChannels(String name, Pageable pageable) {
+  public Page<Channel> searchActiveChannels(String name, List<Category> primaryCategories,
+      Pageable pageable) {
     QChannel channel = QChannel.channel;
     BooleanExpression activeOnly = channel.active.isTrue();
     BooleanExpression nameMatch = nameContainsIgnoreCase(channel, name);
+    BooleanExpression categoryMatch = primaryCategoryIn(channel, primaryCategories);
 
     JPAQuery<Channel> contentQuery = queryFactory
         .selectFrom(channel)
-        .where(activeOnly, nameMatch)
+        .where(activeOnly, nameMatch, categoryMatch)
         .orderBy(toOrderSpecifiers(pageable.getSort()));
     if (pageable.isPaged()) {   // unpaged 는 offset/limit 없이 전체를 조회한다
       contentQuery.offset(pageable.getOffset()).limit(pageable.getPageSize());
@@ -45,13 +48,19 @@ public class ChannelRepositoryImpl implements ChannelRepositoryCustom {
     JPAQuery<Long> countQuery = queryFactory
         .select(channel.count())
         .from(channel)
-        .where(activeOnly, nameMatch);
+        .where(activeOnly, nameMatch, categoryMatch);
 
     return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
   }
 
   private BooleanExpression nameContainsIgnoreCase(QChannel channel, String name) {
     return StringUtils.hasText(name) ? channel.name.containsIgnoreCase(name.trim()) : null;
+  }
+
+  private BooleanExpression primaryCategoryIn(QChannel channel, List<Category> primaryCategories) {
+    return primaryCategories == null || primaryCategories.isEmpty()
+        ? null
+        : channel.primaryCategory.in(primaryCategories);
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})
