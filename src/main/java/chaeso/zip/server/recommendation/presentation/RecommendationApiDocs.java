@@ -36,7 +36,8 @@ public interface RecommendationApiDocs {
             "minBudgetWon": 3000,
             "estImpressions": { "min": 2833333, "max": 3833333 },
             "estClicks": { "min": 70833, "max": 95833 },
-            "isExecutable": true
+            "isExecutable": true,
+            "shortfallWon": null
           },
           {
             "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
@@ -74,7 +75,8 @@ public interface RecommendationApiDocs {
               "minBudgetWon": 3000,
               "estImpressions": { "min": 2833333, "max": 3833333 },
               "estClicks": { "min": 70833, "max": 95833 },
-              "isExecutable": true
+              "isExecutable": true,
+              "shortfallWon": null
             }
           ]
         }

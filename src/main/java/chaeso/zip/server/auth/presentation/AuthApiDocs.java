@@ -306,7 +306,12 @@ public interface AuthApiDocs {
           "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
           "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
           "accessTokenExpiresIn": 1800,
-          "refreshTokenExpiresIn": 1209600
+          "refreshTokenExpiresIn": 1209600,
+          "linkRequired": null,
+          "email": null,
+          "signupRequired": null,
+          "signupToken": null,
+          "prefill": null
         }
       }
       """;
@@ -316,8 +321,15 @@ public interface AuthApiDocs {
         "success": true,
         "data": {
           "status": "LINK_REQUIRED",
+          "accessToken": null,
+          "refreshToken": null,
+          "accessTokenExpiresIn": null,
+          "refreshTokenExpiresIn": null,
           "linkRequired": true,
-          "email": "user@chaeso.zip"
+          "email": "user@chaeso.zip",
+          "signupRequired": null,
+          "signupToken": null,
+          "prefill": null
         }
       }
       """;
@@ -327,6 +339,12 @@ public interface AuthApiDocs {
         "success": true,
         "data": {
           "status": "SIGNUP_REQUIRED",
+          "accessToken": null,
+          "refreshToken": null,
+          "accessTokenExpiresIn": null,
+          "refreshTokenExpiresIn": null,
+          "linkRequired": null,
+          "email": null,
           "signupRequired": true,
           "signupToken": "0pxJ3n1Q...",
           "prefill": {

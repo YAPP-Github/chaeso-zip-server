@@ -29,6 +29,7 @@ public interface SimulationApiDocs {
       {
         "success": true,
         "data": {
+          "simulationId": null,
           "totalBudgetWon": 3000000,
           "period": "M1",
           "totalEstImpressions": 1150000,
@@ -46,14 +47,21 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
+              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             },
             {
               "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
               "channelName": "당근마켓 광고",
+              "channelProductId": null,
               "allocatedBudgetWon": 1000000,
               "allocationPct": 33.3,
+              "estImpressions": null,
+              "estClicks": null,
+              "cpcWon": null,
+              "cpmWon": null,
               "isExecutable": false,
+              "shortfallWon": null,
               "basisNote": "견적 문의 필요 (등록된 단가 정보 없음) / 매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
@@ -83,6 +91,7 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
+              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]

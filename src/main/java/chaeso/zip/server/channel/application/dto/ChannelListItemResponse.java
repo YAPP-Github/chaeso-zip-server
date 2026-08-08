@@ -13,9 +13,9 @@ public record ChannelListItemResponse(
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String name,
     @Schema(description = "로고 이미지 URL",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String logoUrl,
-    @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String description,
     @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE",
         requiredMode = Schema.RequiredMode.REQUIRED)

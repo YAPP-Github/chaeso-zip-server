@@ -243,30 +243,46 @@ class OpenApiContractTest {
     }
 
     @Test
-    @DisplayName("data가 없는 래퍼는 data를 required로 올리지 않는다")
-    void wrappersWithoutDataDoNotRequireIt() throws Exception {
+    @DisplayName("래퍼의 data/error/code 는 모두 required 로 노출한다")
+    void wrapperSlotsAreAlwaysRequired() throws Exception {
       JsonNode spec = loadOpenApiSpec();
       JsonNode schemas = spec.path("components").path("schemas");
 
-      for (String name : List.of("ApiResponse", "ApiResponseVoid")) {
+      for (String name : List.of("ApiResponse", "ApiResponseVoid", "ApiResponseSampleResponse")) {
         assertThat(requiredFields(schemas.path(name)))
-            .as("%s 는 data가 없는 응답에 쓰이므로 required 가 아니어야 합니다", name)
-            .doesNotContain("data");
+            .as("%s 의 세 칸은 null 로라도 항상 실리므로 required 여야 합니다", name)
+            .contains("data", "error", "code");
       }
     }
 
     @Test
-    @DisplayName("오류 응답 래퍼는 error를 required로 노출한다")
-    void errorWrapperRequiresError() throws Exception {
+    @DisplayName("래퍼에서 값이 보장되는 칸만 non-null 이고 나머지는 nullable 이다")
+    void onlyGuaranteedWrapperSlotIsNonNull() throws Exception {
       JsonNode spec = loadOpenApiSpec();
       JsonNode schemas = spec.path("components").path("schemas");
 
-      assertThat(requiredFields(schemas.path("ApiResponse")))
-          .as("ApiResponse 는 오류 응답 전용이므로 error가 required 여야 합니다")
-          .contains("error");
-      assertThat(requiredFields(schemas.path("ApiResponseVoid")))
-          .as("ApiResponseVoid 는 성공 응답이므로 error가 required 가 아니어야 합니다")
-          .doesNotContain("error");
+      assertNonNullProperty(schemas.path("ApiResponseSampleResponse"), "data");
+      assertNullableProperty(schemas.path("ApiResponseSampleResponse"), "error");
+      assertNonNullProperty(schemas.path("ApiResponse"), "error");
+      assertNullableProperty(schemas.path("ApiResponse"), "data");
+
+      assertNullableProperty(schemas.path("ApiResponseVoid"), "data");
+      assertNullableProperty(schemas.path("ApiResponseVoid"), "error");
+
+      assertNullableProperty(schemas.path("ApiResponseSampleResponse"), "code");
+      assertNullableProperty(schemas.path("ApiResponse"), "code");
+    }
+
+    private void assertNullableProperty(JsonNode schema, String propertyName) {
+      assertThat(schema.path("properties").path(propertyName).path("nullable").asBoolean())
+          .as("%s 는 그 래퍼에서 값이 보장되지 않으므로 nullable 이어야 합니다", propertyName)
+          .isTrue();
+    }
+
+    private void assertNonNullProperty(JsonNode schema, String propertyName) {
+      assertThat(schema.path("properties").path(propertyName).path("nullable").asBoolean())
+          .as("%s 는 그 래퍼에서 값이 보장되므로 nullable 이 아니어야 합니다", propertyName)
+          .isFalse();
     }
 
     @Test
@@ -299,11 +315,6 @@ class OpenApiContractTest {
       });
     }
 
-    private List<String> requiredFields(JsonNode schema) {
-      List<String> required = new ArrayList<>();
-      schema.path("required").forEach(field -> required.add(field.asText()));
-      return required;
-    }
   }
 
   @Nested
@@ -311,24 +322,46 @@ class OpenApiContractTest {
   class DtoSchemaContracts {
 
     @Test
-    @DisplayName("실제 null이 가능한 채널 필드는 nullable로 노출한다")
-    void nullableChannelResponseFieldsArePublished() throws Exception {
+    @DisplayName("값이 없을 수 있는 응답 필드는 nullable 로 노출한다")
+    void optionalResponseFieldsArePublishedAsNullable() throws Exception {
       JsonNode spec = loadOpenApiSpec();
 
       assertNullableProperties(spec, "PricingResponse",
           "value", "valueMax", "unitPeriod", "unitDays", "segment", "validPeriod");
       assertNullableProperties(spec, "AudienceMetricResponse",
           "valueNumeric", "valueText", "unit", "period");
+      assertNullableProperties(spec, "ApiResponse", "data", "code");
     }
 
     @Test
-    @DisplayName("공유 컴포넌트 스키마는 nullable을 노출하지 않는다")
-    void componentSchemasAreNeverNullable() throws Exception {
+    @DisplayName("nullable 인 필드도 키는 항상 실리므로 required 에 남는다")
+    void nullablePropertiesStayRequired() throws Exception {
       JsonNode spec = loadOpenApiSpec();
 
-      spec.path("components").path("schemas").properties().forEach(entry ->
+      JsonNode schema = spec.path("components").path("schemas").path("PricingResponse");
+      assertThat(requiredFields(schema))
+          .as("nullable 필드는 값이 null 이어도 키가 실리므로 required 여야 합니다")
+          .contains("value", "valueMax", "unitPeriod", "unitDays", "segment", "validPeriod");
+    }
+
+    @Test
+    @DisplayName("$ref 객체 필드의 nullable 은 공유 컴포넌트를 오염시키지 않는다")
+    void nullableRefPropertiesDoNotLeakIntoComponents() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+      JsonNode schemas = spec.path("components").path("schemas");
+
+      // $ref 옆에 nullable 을 둘 수 없는 3.0 제약 때문에 allOf 로 감싸 노출한다
+      JsonNode prefill = schemas.path("GoogleAuthResponse").path("properties").path("prefill");
+      assertThat(prefill.path("nullable").asBoolean())
+          .as("GoogleAuthResponse.prefill 은 nullable 이어야 합니다")
+          .isTrue();
+      assertThat(prefill.path("allOf").path(0).path("$ref").asText())
+          .isEqualTo("#/components/schemas/Prefill");
+
+      schemas.properties().forEach(entry ->
           assertThat(entry.getValue().path("nullable").asBoolean())
-              .as("%s는 nullable일 수 없습니다. 필드에는 nullable 대신 requiredMode = NOT_REQUIRED를 사용하세요.", entry.getKey())
+              .as("%s 컴포넌트는 nullable 일 수 없습니다. 필드의 nullable 이 새어 들어갔는지 "
+                  + "NullableSchemaConfig 를 확인하세요.", entry.getKey())
               .isFalse());
     }
   }
@@ -397,6 +430,12 @@ class OpenApiContractTest {
           .as("%s.%s는 nullable이어야 합니다", schemaName, propertyName)
           .isTrue();
     }
+  }
+
+  private List<String> requiredFields(JsonNode schema) {
+    List<String> required = new ArrayList<>();
+    schema.path("required").forEach(field -> required.add(field.asText()));
+    return required;
   }
 
   private boolean requiresBearerAuth(JsonNode operation) {

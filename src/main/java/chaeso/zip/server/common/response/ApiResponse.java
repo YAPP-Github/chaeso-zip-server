@@ -1,7 +1,5 @@
 package chaeso.zip.server.common.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,20 +18,20 @@ import lombok.RequiredArgsConstructor;
  * @param <T> 응답 본문 타입
  */
 @Getter
-@JsonInclude(Include.NON_NULL)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ApiResponse<T> {
 
   @Schema(description = "요청 성공 여부", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
   private final boolean success;
 
-  @Schema(description = "성공 시 응답 본문. 실패 시 생략")
+  @Schema(description = "성공 시 응답 본문. 실패 시 null")
   private final T data;
 
-  @Schema(description = "실패 시 에러 정보. 성공 시 생략")
+  @Schema(description = "실패 시 에러 정보. 성공 시 null")
   private final ErrorResponse error;
 
-  @Schema(description = "성공 안내 코드. 안내할 것이 없으면 응답에서 생략")
+  @Schema(description = "성공 안내 코드. 안내할 것이 없으면 null",
+      example = "GOOGLE_ACCOUNT_LINKED")
   private final String code;
 
   public static <T> ApiResponse<T> success(T data) {

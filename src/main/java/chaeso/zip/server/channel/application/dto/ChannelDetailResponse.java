@@ -16,38 +16,38 @@ public record ChannelDetailResponse(
     UUID id,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String name,
-    @Schema(description = "로고 이미지 URL", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "로고 이미지 URL", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String logoUrl,
-    @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String description,
     @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE",
         requiredMode = Schema.RequiredMode.REQUIRED)
     Category primaryCategory,
-    @Schema(description = "매체 유형", example = "DISPLAY", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "매체 유형", example = "DISPLAY", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String mediaType,
-    @Schema(description = "적합 업종 코드값 목록", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "적합 업종 코드값 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     List<Category> suitableCategories,
-    @Schema(description = "연령대 코드값 목록", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "연령대 코드값 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     List<AgeBand> ageBandCodes,
-    @Schema(description = "대표 연령대", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "대표 연령대", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String primaryAgeBand,
-    @Schema(description = "대표 성별 코드값", example = "FEMALE", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "대표 성별 코드값", example = "FEMALE", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Gender primaryGender,
-    @Schema(description = "오디언스 요약", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "오디언스 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceSummary,
-    @Schema(description = "오디언스 특성", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "오디언스 특성", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceTraits,
-    @Schema(description = "채널 강점 목록", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "채널 강점 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     List<String> advantages,
-    @Schema(description = "최소 예산(원)", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "최소 예산(원)", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer minBudgetWon,
-    @Schema(description = "최대 예산(원)", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "최대 예산(원)", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer maxBudgetWon,
-    @Schema(description = "집행 방식 코드값", example = "SELF", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "집행 방식 코드값", example = "SELF", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     ExecutionType executionType,
-    @Schema(description = "지원 광고 형식 목록", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "지원 광고 형식 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     List<String> adFormats,
-    @Schema(description = "지원 타게팅 방식 목록", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "지원 타게팅 방식 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     List<String> targetingMethods,
     @Schema(description = "채널 광고 상품 목록(상품 없는 채널은 빈 배열)",
         requiredMode = Schema.RequiredMode.REQUIRED)
