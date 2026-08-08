@@ -1,5 +1,6 @@
 package chaeso.zip.server.channel.presentation;
 
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
 import chaeso.zip.server.channel.presentation.dto.ChannelSearchRequest;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
@@ -138,6 +140,7 @@ public interface ChannelApiDocs {
       @ParameterObject ChannelSearchRequest request,
       @ParameterObject Sort sort);
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getChannel", summary = "채널 상세 조회",
       description = """
           채널 단건을 상세 조회한다. \
@@ -159,5 +162,6 @@ public interface ChannelApiDocs {
       UUID id,
       @Parameter(description = "추천 목록에서 진입한 경우 그 추천의 온보딩 식별자. 생략하면 추천 근거 없이 상세만 반환한다",
           example = "8f14e45f-ceea-467a-9575-6f1a1f9b0d21")
-      UUID onboardingId);
+      UUID onboardingId,
+      @Parameter(hidden = true) UserPrincipal principal);
 }

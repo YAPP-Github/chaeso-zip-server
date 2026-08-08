@@ -39,6 +39,7 @@ class ChannelServiceImplTest {
 
   private static final UUID CHANNEL_ID = UUID.randomUUID();
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final UUID OWNER_ID = UUID.randomUUID();
 
   @Mock
   private ChannelRepository channelRepository;
@@ -72,14 +73,11 @@ class ChannelServiceImplTest {
     @Test
     @DisplayName("추천에 포함된 채널이면 온보딩의 목표/업종/예산을 근거로 채운다")
     void fillsBasisForRecommendedChannel() {
-      Onboarding onboarding = OnboardingFixture.onboarding(Category.MEDICAL_HEALTHCARE,
-          CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S), 1_000_000L, 3_000_000L,
-          CampaignPeriod.M1);
-      given(channelRecommendationRepository
-          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
-      given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.of(onboarding));
+      givenRecommended();
+      given(onboardingRepository.findById(ONBOARDING_ID))
+          .willReturn(Optional.of(onboarding(OWNER_ID)));
 
-      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID);
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID);
 
       assertThat(detail.recommendationBasis()).isEqualTo(new RecommendationBasisResponse(
           CampaignObjective.TRAFFIC, Category.MEDICAL_HEALTHCARE, 1_000_000L, 3_000_000L));
@@ -88,10 +86,43 @@ class ChannelServiceImplTest {
     @Test
     @DisplayName("전체 채널 비교로 열면 온보딩을 보지 않고 근거를 비운다")
     void skipsBasisWithoutOnboardingId() {
-      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, null);
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, null, OWNER_ID);
 
       assertThat(detail.recommendationBasis()).isNull();
       verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("비로그인 요청은 온보딩을 볼 자격이 없어 근거를 비운다")
+    void skipsBasisForAnonymousRequest() {
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, null);
+
+      assertThat(detail.recommendationBasis()).isNull();
+      verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("남이 제출한 온보딩이면 추천에 포함된 채널이어도 근거를 비운다")
+    void skipsBasisForOnboardingOfAnotherUser() {
+      givenRecommended();
+      given(onboardingRepository.findById(ONBOARDING_ID))
+          .willReturn(Optional.of(onboarding(OWNER_ID)));
+
+      ChannelDetailResponse detail =
+          channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, UUID.randomUUID());
+
+      assertThat(detail.recommendationBasis()).isNull();
+    }
+
+    @Test
+    @DisplayName("주인이 없는 온보딩(비로그인 제출)은 누구에게도 근거를 주지 않는다")
+    void skipsBasisForOwnerlessOnboarding() {
+      givenRecommended();
+      given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.of(onboarding(null)));
+
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID);
+
+      assertThat(detail.recommendationBasis()).isNull();
     }
 
     @Test
@@ -100,7 +131,7 @@ class ChannelServiceImplTest {
       given(channelRecommendationRepository
           .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(false);
 
-      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID);
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID);
 
       assertThat(detail.recommendationBasis()).isNull();
       verifyNoInteractions(onboardingRepository);
@@ -109,14 +140,24 @@ class ChannelServiceImplTest {
     @Test
     @DisplayName("온보딩이 사라졌으면 상세는 그대로 주고 근거만 비운다")
     void skipsBasisWhenOnboardingMissing() {
-      given(channelRecommendationRepository
-          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
+      givenRecommended();
       given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.empty());
 
-      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID);
+      ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID);
 
       assertThat(detail.id()).isEqualTo(CHANNEL_ID);
       assertThat(detail.recommendationBasis()).isNull();
+    }
+
+    private void givenRecommended() {
+      given(channelRecommendationRepository
+          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
+    }
+
+    private Onboarding onboarding(UUID userId) {
+      return OnboardingFixture.onboarding(userId, Category.MEDICAL_HEALTHCARE,
+          CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S), 1_000_000L, 3_000_000L,
+          CampaignPeriod.M1);
     }
   }
 
@@ -125,7 +166,7 @@ class ChannelServiceImplTest {
   void rejectsUnknownChannel() {
     given(channelRepository.findByIdAndActiveTrue(CHANNEL_ID)).willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> channelService.getChannel(CHANNEL_ID, ONBOARDING_ID))
+    assertThatThrownBy(() -> channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID))
         .isInstanceOf(ChannelNotFoundException.class);
 
     verifyNoInteractions(channelRecommendationRepository, onboardingRepository);

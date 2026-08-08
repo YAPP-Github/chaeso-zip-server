@@ -54,7 +54,7 @@ public class ChannelServiceImpl implements ChannelService {
 
   @Override
   @Transactional(readOnly = true)
-  public ChannelDetailResponse getChannel(UUID id, UUID onboardingId) {
+  public ChannelDetailResponse getChannel(UUID id, UUID onboardingId, UUID requesterId) {
     Channel channel = channelRepository.findByIdAndActiveTrue(id)
         .orElseThrow(() -> new ChannelNotFoundException(id));
 
@@ -77,14 +77,15 @@ public class ChannelServiceImpl implements ChannelService {
         .toList();
 
     return ChannelDetailResponse.from(channel, products, audienceMetrics, references,
-        recommendationBasis(id, onboardingId));
+        recommendationBasis(id, onboardingId, requesterId));
   }
 
   /**
    * 추천 근거가 된 온보딩 선택지
    */
-  private RecommendationBasisResponse recommendationBasis(UUID channelId, UUID onboardingId) {
-    if (onboardingId == null) {
+  private RecommendationBasisResponse recommendationBasis(UUID channelId, UUID onboardingId,
+      UUID requesterId) {
+    if (onboardingId == null || requesterId == null) {
       return null;
     }
     boolean recommended = channelRecommendationRepository
@@ -93,6 +94,7 @@ public class ChannelServiceImpl implements ChannelService {
       return null;
     }
     return onboardingRepository.findById(onboardingId)
+        .filter(onboarding -> requesterId.equals(onboarding.getUserId()))
         .map(RecommendationBasisResponse::from)
         .orElse(null);
   }

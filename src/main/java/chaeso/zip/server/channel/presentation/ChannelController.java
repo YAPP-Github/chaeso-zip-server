@@ -1,5 +1,6 @@
 package chaeso.zip.server.channel.presentation;
 
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.application.ChannelService;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,7 +38,9 @@ public class ChannelController implements ChannelApiDocs {
   @Override
   @GetMapping("/{id}")
   public ApiResponse<ChannelDetailResponse> getChannel(@PathVariable UUID id,
-      @RequestParam(required = false) UUID onboardingId) {
-    return ApiResponse.success(channelService.getChannel(id, onboardingId));
+      @RequestParam(required = false) UUID onboardingId,
+      @AuthenticationPrincipal UserPrincipal principal) {
+    UUID requesterId = principal == null ? null : principal.userId();
+    return ApiResponse.success(channelService.getChannel(id, onboardingId, requesterId));
   }
 }

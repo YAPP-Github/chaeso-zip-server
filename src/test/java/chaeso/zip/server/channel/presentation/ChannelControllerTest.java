@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.application.ChannelService;
 import chaeso.zip.server.channel.application.dto.AudienceMetricResponse;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
@@ -42,6 +43,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -212,7 +215,7 @@ class ChannelControllerTest {
         List.of(new AudienceMetricResponse("MAU", new BigDecimal("1000000"), null, "명", "월")),
         List.of("전환율 개선 사례"), null);
 
-    given(channelService.getChannel(channelId, null)).willReturn(detail);
+    given(channelService.getChannel(channelId, null, null)).willReturn(detail);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isOk())
@@ -237,13 +240,8 @@ class ChannelControllerTest {
     UUID onboardingId = UUID.randomUUID();
     RecommendationBasisResponse basis = new RecommendationBasisResponse(
         CampaignObjective.TRAFFIC, Category.SHOPPING_COMMERCE, 3_000_000L, 10_000_000L);
-    ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "11번가 광고", null, null, Category.SHOPPING_COMMERCE, null,
-        List.of(), List.of(), null, null, null, null, List.of(), null, null,
-        null, List.of(), List.of(),
-        List.of(), List.of(), List.of(), basis);
-
-    given(channelService.getChannel(channelId, onboardingId)).willReturn(detail);
+    given(channelService.getChannel(channelId, onboardingId, null))
+        .willReturn(channelDetail(channelId, basis));
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId)
             .param("onboardingId", onboardingId.toString()))
@@ -253,7 +251,29 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.recommendationBasis.budgetMin").value(3000000))
         .andExpect(jsonPath("$.data.recommendationBasis.budgetMax").value(10000000));
 
-    verify(channelService).getChannel(channelId, onboardingId);
+    verify(channelService).getChannel(channelId, onboardingId, null);
+  }
+
+  @Test
+  @DisplayName("로그인한 요청은 조회자를 함께 넘겨 추천 근거의 소유자를 가릴 수 있게 한다")
+  void getChannel_passesRequesterId() throws Exception {
+    UUID channelId = UUID.randomUUID();
+    UUID onboardingId = UUID.randomUUID();
+    UUID userId = UUID.randomUUID();
+    given(channelService.getChannel(channelId, onboardingId, userId))
+        .willReturn(channelDetail(channelId, null));
+
+    SecurityContextHolder.getContext().setAuthentication(
+        new UsernamePasswordAuthenticationToken(new UserPrincipal(userId), null, List.of()));
+    try {
+      mockMvc.perform(get("/api/v1/channels/{id}", channelId)
+              .param("onboardingId", onboardingId.toString()))
+          .andExpect(status().isOk());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+
+    verify(channelService).getChannel(channelId, onboardingId, userId);
   }
 
   @Test
@@ -266,7 +286,7 @@ class ChannelControllerTest {
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), null);
 
-    given(channelService.getChannel(channelId, null)).willReturn(detail);
+    given(channelService.getChannel(channelId, null, null)).willReturn(detail);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isOk())
@@ -279,12 +299,21 @@ class ChannelControllerTest {
   void getChannel_notFound() throws Exception {
     UUID channelId = UUID.randomUUID();
     BDDMockito.willThrow(new ChannelNotFoundException(channelId))
-        .given(channelService).getChannel(channelId, null);
+        .given(channelService).getChannel(channelId, null, null);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("CH-001"));
+  }
+
+  private static ChannelDetailResponse channelDetail(UUID channelId,
+      RecommendationBasisResponse basis) {
+    return new ChannelDetailResponse(
+        channelId, "11번가 광고", null, null, Category.SHOPPING_COMMERCE, null,
+        List.of(), List.of(), null, null, null, null, List.of(), null, null,
+        null, List.of(), List.of(),
+        List.of(), List.of(), List.of(), basis);
   }
 
   private ChannelListItemResponse channelListItem(String name) {
