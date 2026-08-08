@@ -30,6 +30,7 @@ import chaeso.zip.server.estimation.application.DefaultCtrProvider;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
+import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
@@ -328,7 +329,7 @@ class RecommendationServiceImplTest {
     given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> recommendationService.recommend(ONBOARDING_ID))
-        .isInstanceOf(OnboardingBusinessException.class)
+        .isInstanceOf(OnboardingNotFoundException.class)
         .hasMessageContaining(ONBOARDING_ID.toString());
 
     verifyNoInteractions(channelRepository, channelProductRepository, channelPricingRepository);
@@ -478,7 +479,7 @@ class RecommendationServiceImplTest {
       Onboarding othersOnboarding = onboarding(UUID.randomUUID());
 
       assertThatThrownBy(() -> save(othersOnboarding))
-          .isInstanceOf(OnboardingBusinessException.class)
+          .isInstanceOf(OnboardingNotFoundException.class)
           .hasMessageContaining(ONBOARDING_ID.toString());
 
       verifyNoInteractions(channelRecommendationRepository, channelRepository);
@@ -490,7 +491,7 @@ class RecommendationServiceImplTest {
       Onboarding anonymous = onboarding(null);
 
       assertThatThrownBy(() -> save(anonymous))
-          .isInstanceOf(OnboardingBusinessException.class);
+          .isInstanceOf(OnboardingNotFoundException.class);
 
       verifyNoInteractions(channelRecommendationRepository, channelRepository);
     }
@@ -501,7 +502,7 @@ class RecommendationServiceImplTest {
       given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.empty());
 
       assertThatThrownBy(() -> recommendationService.save(USER_ID, ONBOARDING_ID))
-          .isInstanceOf(OnboardingBusinessException.class);
+          .isInstanceOf(OnboardingNotFoundException.class);
 
       verifyNoInteractions(channelRecommendationRepository, channelRepository);
     }

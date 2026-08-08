@@ -63,9 +63,18 @@ public final class OnboardingFixture {
   public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
       CampaignObjective campaignObjective, Long budgetMin, Long budgetMax,
       AdExperience adExperience, List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
-    return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType,
-        List.of(AgeBand.AGE_20S), campaignObjective, budgetMin, budgetMax,
-        CampaignPeriod.M1, adExperience, adHistory, rawFileKeys);
+    return submitCommand(serviceType, List.of(AgeBand.AGE_20S), campaignObjective, budgetMin,
+        budgetMax, adExperience, adHistory, rawFileKeys);
+  }
+
+  /** 연령대를 직접 지정하는 온보딩 제출 커맨드. */
+  public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
+      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective, Long budgetMin,
+      Long budgetMax, AdExperience adExperience, List<AdHistoryCommand> adHistory,
+      List<String> rawFileKeys) {
+    return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType, targetAgeBands,
+        campaignObjective, budgetMin, budgetMax, CampaignPeriod.M1, adExperience, adHistory,
+        rawFileKeys);
   }
 
   /** WEB/TRAFFIC/300만~1000만원/NONE, 20·30대 대상, 집행 내역 없음.*/

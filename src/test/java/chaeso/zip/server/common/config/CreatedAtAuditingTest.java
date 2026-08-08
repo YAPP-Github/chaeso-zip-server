@@ -9,15 +9,16 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapsho
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
-import chaeso.zip.server.performance.domain.vo.PerfSource;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
+import chaeso.zip.server.support.AdPerformanceFixture;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -57,10 +58,7 @@ class CreatedAtAuditingTest {
   @Test
   @DisplayName("광고 집행 실적 저장 시 생성 시각이 채워진다")
   void fillsAdPerformanceCreatedAt() {
-    AdPerformance saved = adPerformanceRepository.save(AdPerformance.fromOnboarding(
-        UUID.randomUUID(), PerfSource.MANUAL, UUID.randomUUID(), "11번가 광고",
-        1_000_000L, 100_000L, 2_000L, 10L, LocalDate.of(2026, 7, 1),
-        LocalDate.of(2026, 7, 31), null));
+    AdPerformance saved = adPerformanceRepository.save(AdPerformanceFixture.adPerformance());
 
     assertUtcNow(saved.getCreatedAt());
   }
@@ -71,7 +69,7 @@ class CreatedAtAuditingTest {
     OnboardingAdHistorySnapshot saved =
         onboardingAdHistorySnapshotRepository.save(OnboardingAdHistorySnapshot.snapshot(
             UUID.randomUUID(), UUID.randomUUID(), "11번가 광고", 1_000_000L, 100_000L,
-            2_000L, 10L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
+            2_000L, 10L, LocalDate.of(2026, Month.JULY, 1), LocalDate.of(2026, Month.JULY, 31)));
 
     assertUtcNow(saved.getCreatedAt());
   }
@@ -109,7 +107,8 @@ class CreatedAtAuditingTest {
    */
   private static void assertUtcNow(LocalDateTime createdAt) {
     assertThat(createdAt).isNotNull();
-    LocalDateTime utcNow = LocalDateTime.ofInstant(Instant.now(), ZoneOffset.UTC);
-    assertThat(Duration.between(utcNow, createdAt).abs()).isLessThan(Duration.ofSeconds(30));
+    Instant createdAtInstant = createdAt.toInstant(ZoneOffset.UTC);
+    assertThat(Duration.between(Instant.now(), createdAtInstant).abs())
+        .isLessThan(Duration.ofSeconds(30));
   }
 }
