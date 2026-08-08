@@ -3,6 +3,7 @@ package chaeso.zip.server.onboarding.application;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
+import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
 import chaeso.zip.server.onboarding.application.dto.PresignPerformanceFileCommand;
@@ -53,7 +54,8 @@ public class OnboardingServiceImpl implements OnboardingService {
   @Override
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public OnboardingSubmitResponse submit(UUID userId, SubmitOnboardingCommand command) {
-    validateSubmission(command.adExperience(), command.adHistory(), command.rawFileKeys());
+    validateSubmission(command.targetAgeBands(), command.adExperience(), command.adHistory(),
+        command.rawFileKeys());
 
     List<String> fileUrls = verifyPerformanceFiles(command.rawFileKeys());
 
@@ -89,9 +91,18 @@ public class OnboardingServiceImpl implements OnboardingService {
     Onboarding saved = saveResponse(response);
 
     adPerformanceRepository.saveAll(command.adHistory().stream()
-        .map(row -> AdPerformance.fromOnboarding(userId, PerfSource.MANUAL, row.channelId(),
-            row.channelNameRaw(), row.budgetWon(), row.impressions(), row.clicks(),
-            row.conversions(), row.startedAt(), row.endedAt(), null))
+        .map(row -> AdPerformance.builder()
+            .userId(userId)
+            .sourceType(PerfSource.MANUAL)
+            .channelId(row.channelId())
+            .externalChannelName(row.channelNameRaw())
+            .budgetWon(row.budgetWon())
+            .impressions(row.impressions())
+            .clicks(row.clicks())
+            .conversions(row.conversions())
+            .startedAt(row.startedAt())
+            .endedAt(row.endedAt())
+            .build())
         .toList());
 
     onboardingAdHistorySnapshotRepository.saveAll(command.adHistory().stream()
@@ -118,10 +129,13 @@ public class OnboardingServiceImpl implements OnboardingService {
   }
 
   /**
-   * adHistory/rawFileKeys의 관계 규칙을 검증한다.
+   * targetAgeBands/adHistory/rawFileKeys의 관계 규칙을 검증한다.
    */
-  private void validateSubmission(AdExperience adExperience, List<AdHistoryCommand> adHistory,
-      List<String> rawFileKeys) {
+  private void validateSubmission(List<AgeBand> targetAgeBands, AdExperience adExperience,
+      List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
+    if (targetAgeBands.contains(AgeBand.UNDECIDED) && targetAgeBands.size() > 1) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
+    }
     boolean experienced = adExperience == AdExperience.EXPERIENCED;
     boolean hasAnyHistory = !adHistory.isEmpty() || !rawFileKeys.isEmpty();
     if (experienced != hasAnyHistory) {

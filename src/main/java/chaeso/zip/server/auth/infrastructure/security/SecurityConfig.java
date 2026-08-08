@@ -11,6 +11,7 @@ import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointR
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -48,8 +49,11 @@ public class SecurityConfig {
       "/api/v1/channels/*",
       "/api/v1/onboarding",
       "/api/v1/onboarding/ad-history/presigned-urls",
-      "/api/v1/recommendations",
       "/api/v1/simulations/estimate"
+  };
+
+  private static final String[] PUBLIC_GET_PATHS = {
+      "/api/v1/recommendations"
   };
 
   private final JwtTokenProvider jwtTokenProvider;
@@ -80,6 +84,7 @@ public class SecurityConfig {
             session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers(PUBLIC_PATHS).permitAll()
+            .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
             .anyRequest().authenticated())
         .exceptionHandling(exception ->
             exception.authenticationEntryPoint(authenticationEntryPoint()))

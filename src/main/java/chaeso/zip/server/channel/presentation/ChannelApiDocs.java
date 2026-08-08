@@ -123,6 +123,8 @@ public interface ChannelApiDocs {
           page/size 를 모두 생략하면 페이지네이션 없이 전체 채널을 반환한다. \
           page 또는 size 중 하나라도 지정하면 페이지 조회로 동작한다(생략된 값은 page=0, size=12). size 는 최대 100. \
           name 지정 시 채널명으로 필터링. \
+          primaryCategory 지정 시 그 대표 업종의 채널만 반환한다. 여러 번 넘기거나(primaryCategory=A&primaryCategory=B) \
+          쉼표로 이어(primaryCategory=A,B) 여러 업종을 고를 수 있고, 그중 하나에 해당하면 남는다. \
           정렬은 name, createdAt 만 지원한다(형식: sort=name,desc / 기본값 name,asc)""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,

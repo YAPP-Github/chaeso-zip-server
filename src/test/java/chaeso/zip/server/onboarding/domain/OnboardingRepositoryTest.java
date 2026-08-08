@@ -8,7 +8,7 @@ import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
-import chaeso.zip.server.performance.domain.vo.PerfSource;
+import chaeso.zip.server.support.AdPerformanceFixture;
 import chaeso.zip.server.support.OnboardingFixture;
 import chaeso.zip.server.support.PostgresDataJpaTest;
 import chaeso.zip.server.support.UserFixture;
@@ -58,9 +58,17 @@ class OnboardingRepositoryTest {
   void savesAdPerformances() {
     UUID userId = persistUser();
 
-    adPerformanceRepository.saveAndFlush(AdPerformance.fromOnboarding(
-        userId, PerfSource.MANUAL, null, "인스타그램", 3_000_000L, 250_000L, 3_000L, 120L,
-        LocalDate.of(2025, Month.MARCH, 1), LocalDate.of(2025, Month.MAY, 31), null));
+    adPerformanceRepository.saveAndFlush(AdPerformanceFixture.builder()
+        .userId(userId)
+        .channelId(null)
+        .externalChannelName("인스타그램")
+        .budgetWon(3_000_000L)
+        .impressions(250_000L)
+        .clicks(3_000L)
+        .conversions(120L)
+        .startedAt(LocalDate.of(2025, Month.MARCH, 1))
+        .endedAt(LocalDate.of(2025, Month.MAY, 31))
+        .build());
 
     List<AdPerformance> found = adPerformanceRepository.findByUserId(userId);
     assertThat(found).hasSize(1);

@@ -13,6 +13,7 @@ import chaeso.zip.server.channel.domain.ChannelErrorCode;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
+import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
@@ -144,6 +145,40 @@ class OnboardingServiceSubmitTest {
           .isInstanceOf(OnboardingBusinessException.class)
           .extracting("errorCode")
           .isEqualTo(OnboardingErrorCode.CONCURRENT_SUBMISSION);
+    }
+  }
+
+  @Nested
+  @DisplayName("연령대 선택을 검증한다")
+  class TargetAgeBands {
+
+    @Test
+    @DisplayName("잘 모르겠어요를 다른 연령대와 함께 선택하면 ONB-011")
+    void rejectsUndecidedWithOtherAgeBands() {
+      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+          List.of(AgeBand.UNDECIDED, AgeBand.AGE_20S), CampaignObjective.TRAFFIC, 1L, 2L,
+          AdExperience.NONE, List.of(), List.of());
+
+      assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+          .isInstanceOf(OnboardingBusinessException.class)
+          .extracting("errorCode")
+          .isEqualTo(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
+      then(onboardingRepository).should(never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("잘 모르겠어요만 단독으로 선택하면 통과한다")
+    void allowsUndecidedAlone() {
+      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+          List.of(AgeBand.UNDECIDED), CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.NONE,
+          List.of(), List.of());
+      given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+      given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+          .willAnswer(invocation -> invocation.getArgument(0));
+
+      onboardingService.submit(USER_ID, command);
+
+      then(onboardingRepository).should().saveAndFlush(any(Onboarding.class));
     }
   }
 

@@ -35,7 +35,15 @@ public final class OnboardingFixture {
    */
   public static Onboarding onboarding(Category industry, CampaignObjective campaignObjective,
       List<AgeBand> targetAgeBands, Long budgetMin, Long budgetMax, CampaignPeriod period) {
-    return Onboarding.create(null, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
+    return onboarding(null, industry, campaignObjective, targetAgeBands, budgetMin, budgetMax,
+        period);
+  }
+
+  /** 매칭 축·예산·기간에 제출자까지 지정하는 온보딩. 소유권을 따지는 테스트에 쓴다. */
+  public static Onboarding onboarding(UUID userId, Category industry,
+      CampaignObjective campaignObjective, List<AgeBand> targetAgeBands, Long budgetMin,
+      Long budgetMax, CampaignPeriod period) {
+    return Onboarding.create(userId, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
         campaignObjective, budgetMin, budgetMax, period, AdExperience.NONE, List.of());
   }
 
@@ -55,9 +63,18 @@ public final class OnboardingFixture {
   public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
       CampaignObjective campaignObjective, Long budgetMin, Long budgetMax,
       AdExperience adExperience, List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
-    return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType,
-        List.of(AgeBand.AGE_20S), campaignObjective, budgetMin, budgetMax,
-        CampaignPeriod.M1, adExperience, adHistory, rawFileKeys);
+    return submitCommand(serviceType, List.of(AgeBand.AGE_20S), campaignObjective, budgetMin,
+        budgetMax, adExperience, adHistory, rawFileKeys);
+  }
+
+  /** 연령대를 직접 지정하는 온보딩 제출 커맨드. */
+  public static SubmitOnboardingCommand submitCommand(ServiceType serviceType,
+      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective, Long budgetMin,
+      Long budgetMax, AdExperience adExperience, List<AdHistoryCommand> adHistory,
+      List<String> rawFileKeys) {
+    return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType, targetAgeBands,
+        campaignObjective, budgetMin, budgetMax, CampaignPeriod.M1, adExperience, adHistory,
+        rawFileKeys);
   }
 
   /** WEB/TRAFFIC/300만~1000만원/NONE, 20·30대 대상, 집행 내역 없음.*/

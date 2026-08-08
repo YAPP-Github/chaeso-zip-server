@@ -106,6 +106,16 @@ class SecurityConfigIntegrationTest {
     String signupGoogleProbe() {
       return "ok";
     }
+
+    @GetMapping("/api/v1/recommendations")
+    String recommendationsProbe() {
+      return "ok";
+    }
+
+    @PostMapping("/api/v1/recommendations")
+    String saveRecommendationProbe() {
+      return "ok";
+    }
   }
 
   @Nested
@@ -131,6 +141,26 @@ class SecurityConfigIntegrationTest {
       mockMvc.perform(get("/api/v1/security/protected")
               .header("Authorization", "Bearer valid-access-token"))
           .andExpect(status().isOk());
+    }
+  }
+
+  @Nested
+  @DisplayName("메서드별로 갈리는 공개 경로")
+  class MethodScopedPublicPaths {
+
+    @Test
+    @DisplayName("추천 조회는 토큰 없이 접근할 수 있다")
+    void getRecommendations_isPublic() throws Exception {
+      mockMvc.perform(get("/api/v1/recommendations"))
+          .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("같은 경로라도 추천 저장은 토큰 없이 접근하면 401을 반환한다")
+    void saveRecommendation_requiresAuthentication() throws Exception {
+      mockMvc.perform(post("/api/v1/recommendations"))
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.error.code").value("C-004"));
     }
   }
 

@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -27,14 +28,18 @@ import chaeso.zip.server.simulation.application.dto.AllocationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationCommand;
 import chaeso.zip.server.simulation.application.dto.SimulationItemResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
+import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
+import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,6 +50,9 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +65,8 @@ class SimulationServiceImplTest {
 
   /** 카탈로그 평균 CTR. 상품에 CTR 이 없을 때 이 값이 쓰이는지로 주입을 확인한다. */
   private static final BigDecimal AVERAGE_CTR = new BigDecimal("2.5");
+
+  private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 3, 14, 10, 22, 31);
 
   @Mock
   private ChannelRepository channelRepository;
@@ -589,6 +599,162 @@ class SimulationServiceImplTest {
     }
   }
 
+  @Nested
+  @DisplayName("내 목록 (GET /simulations)")
+  class FindMySimulations {
+
+    private final Pageable pageable = PageRequest.of(0, 10);
+
+    @Test
+    @DisplayName("저장된 요약을 반환하고 집행 가능 매체 수는 항목에서 센다")
+    void summarizesSavedSnapshots() {
+      UUID simulationId = UUID.randomUUID();
+      UUID otherChannelId = UUID.randomUUID();
+      givenMyPage(savedSimulation(simulationId, USER_ID));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdInOrderBySortOrderAsc(List.of(simulationId)))
+          .willReturn(List.of(
+              savedItem(simulationId, CHANNEL_ID, 0, true),
+              savedItem(simulationId, otherChannelId, 1, false)));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(
+          channel(CHANNEL_ID, CHANNEL_NAME), channel(otherChannelId, "당근마켓 광고")));
+
+      SimulationSummaryResponse summary =
+          simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
+
+      assertThat(summary.simulationId()).isEqualTo(simulationId);
+      assertThat(summary.createdAt()).isEqualTo(CREATED_AT);
+      assertThat(summary.totalBudgetWon()).isEqualTo(3_000_000);
+      assertThat(summary.period()).isEqualTo(CampaignPeriod.M1);
+      assertThat(summary.totalEstImpressions()).isEqualTo(1_000_000);
+      assertThat(summary.totalEstClicks()).isEqualTo(25_000);
+      assertThat(summary.channelCount()).isEqualTo(2);
+      assertThat(summary.executableChannelCount()).isEqualTo(1);   // 2개 중 1개만
+      assertThat(summary.channelNames()).containsExactly(CHANNEL_NAME, "당근마켓 광고");
+
+      // 재계산하지 않았음: 상품·단가 조회도, CTR 집계도 하지 않는다
+      verifyNoInteractions(channelProductRepository, channelPricingRepository, defaultCtrProvider);
+    }
+
+    @Test
+    @DisplayName("대표 매체명은 저장 순서대로 최대 3개만 담는다")
+    void previewsFirstThreeChannelNames() {
+      UUID simulationId = UUID.randomUUID();
+      List<UUID> channelIds = List.of(CHANNEL_ID, UUID.randomUUID(), UUID.randomUUID(),
+          UUID.randomUUID());
+      givenMyPage(savedSimulation(simulationId, USER_ID));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdInOrderBySortOrderAsc(List.of(simulationId)))
+          .willReturn(IntStream.range(0, channelIds.size())
+              .mapToObj(order -> savedItem(simulationId, channelIds.get(order), order, true))
+              .toList());
+      given(channelRepository.findAllById(anyList())).willReturn(
+          IntStream.range(0, channelIds.size())
+              .mapToObj(order -> channel(channelIds.get(order), "매체" + order))
+              .toList());
+
+      SimulationSummaryResponse summary =
+          simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
+
+      assertThat(summary.channelCount()).isEqualTo(4);          // 자르는 건 대표 매체명뿐이다
+      assertThat(summary.channelNames()).containsExactly("매체0", "매체1", "매체2");
+    }
+
+    @Test
+    @DisplayName("예산을 배분하지 않은 매체는 매체 수와 대표 매체명에서 뺀다")
+    void excludesUnallocatedChannels() {
+      // 담아만 두고 0원을 준 매체는 상세 재현을 위해 저장되지만, 목록에서는 배분한 매체가 아니다
+      UUID simulationId = UUID.randomUUID();
+      UUID unallocatedChannelId = UUID.randomUUID();
+      givenMyPage(savedSimulation(simulationId, USER_ID));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdInOrderBySortOrderAsc(List.of(simulationId)))
+          .willReturn(List.of(
+              savedItem(simulationId, unallocatedChannelId, 0, false, 0L),
+              savedItem(simulationId, CHANNEL_ID, 1, true)));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(
+          channel(unallocatedChannelId, "당근마켓 광고"), channel(CHANNEL_ID, CHANNEL_NAME)));
+
+      SimulationSummaryResponse summary =
+          simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
+
+      assertThat(summary.channelCount()).isEqualTo(1);
+      assertThat(summary.executableChannelCount()).isEqualTo(1);
+      assertThat(summary.channelNames()).containsExactly(CHANNEL_NAME);
+    }
+
+    @Test
+    @DisplayName("저장된 결과가 없으면 빈 페이지를 반환하고 항목·채널은 조회하지 않는다")
+    void returnsEmptyPageWithoutLoadingItems() {
+      givenMyPage();
+
+      assertThat(simulationService.findMySimulations(USER_ID, pageable)).isEmpty();
+
+      verifyNoInteractions(channelRepository);
+      verify(budgetSimulationItemRepository, never())
+          .findByBudgetSimulationIdInOrderBySortOrderAsc(anyList());
+    }
+
+    private void givenMyPage(BudgetSimulation... simulations) {
+      given(budgetSimulationRepository.findByUserIdOrderByCreatedAtDescIdDesc(USER_ID, pageable))
+          .willReturn(new PageImpl<>(List.of(simulations), pageable, simulations.length));
+    }
+  }
+
+  @Nested
+  @DisplayName("상세 (GET /simulations/{simulationId})")
+  class FindSimulation {
+
+    @Test
+    @DisplayName("본인이 저장한 시뮬레이션은 매체별 항목까지 재계산 없이 그대로 반환한다")
+    void restoresOwnSnapshot() {
+      UUID simulationId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId))
+          .willReturn(Optional.of(savedSimulation(simulationId, USER_ID)));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdOrderBySortOrderAsc(simulationId))
+          .willReturn(List.of(savedItem(simulationId, CHANNEL_ID, 0, true)));
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(channel(CHANNEL_ID, CHANNEL_NAME)));
+
+      SimulationResponse response = simulationService.findSimulation(USER_ID, simulationId);
+
+      assertThat(response.simulationId()).isEqualTo(simulationId);
+      assertThat(response.totalBudgetWon()).isEqualTo(3_000_000);
+      assertThat(response.executableChannelCount()).isEqualTo(1);
+      SimulationItemResponse item = response.items().getFirst();
+      assertThat(item.channelName()).isEqualTo(CHANNEL_NAME);
+      assertThat(item.allocatedBudgetWon()).isEqualTo(1_000_000);
+      assertThat(item.basisNote()).isEqualTo("저장 당시 고지");
+
+      verifyNoInteractions(channelProductRepository, channelPricingRepository, defaultCtrProvider);
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 저장한 시뮬레이션은 없는 것과 같은 404 로 숨기고 항목도 읽지 않는다")
+    void hidesOtherUsersSnapshot() {
+      UUID simulationId = UUID.randomUUID();
+      UUID otherUserId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId))
+          .willReturn(Optional.of(savedSimulation(simulationId, otherUserId)));
+
+      assertThatThrownBy(() -> simulationService.findSimulation(USER_ID, simulationId))
+          .isInstanceOf(SimulationNotFoundException.class);
+
+      verifyNoInteractions(budgetSimulationItemRepository, channelRepository);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 id 는 404 로 거부한다")
+    void rejectsUnknownId() {
+      UUID simulationId = UUID.randomUUID();
+      given(budgetSimulationRepository.findById(simulationId)).willReturn(Optional.empty());
+
+      assertThatThrownBy(() -> simulationService.findSimulation(USER_ID, simulationId))
+          .isInstanceOf(SimulationNotFoundException.class);
+    }
+  }
+
   @Captor
   private ArgumentCaptor<List<BudgetSimulationItem>> itemsCaptor;
 
@@ -618,5 +784,36 @@ class SimulationServiceImplTest {
   private static <T> T withId(T entity, UUID id) {
     ReflectionTestUtils.setField(entity, "id", id);
     return entity;
+  }
+
+  /** 이미 저장된 헤더. id 와 저장 시각은 JPA 가 채우는 값이라 목에서 직접 심는다. */
+  private static BudgetSimulation savedSimulation(UUID simulationId, UUID userId) {
+    BudgetSimulation simulation = withId(BudgetSimulation.builder()
+        .userId(userId)
+        .totalBudgetWon(3_000_000L)
+        .period(CampaignPeriod.M1)
+        .totalEstImpressions(1_000_000L)
+        .totalEstClicks(25_000L)
+        .build(), simulationId);
+    ReflectionTestUtils.setField(simulation, "createdAt", CREATED_AT);
+    return simulation;
+  }
+
+  private static BudgetSimulationItem savedItem(UUID simulationId, UUID channelId, int sortOrder,
+      boolean executable) {
+    return savedItem(simulationId, channelId, sortOrder, executable, 1_000_000L);
+  }
+
+  private static BudgetSimulationItem savedItem(UUID simulationId, UUID channelId, int sortOrder,
+      boolean executable, long allocatedBudgetWon) {
+    return BudgetSimulationItem.builder()
+        .budgetSimulationId(simulationId)
+        .channelId(channelId)
+        .sortOrder(sortOrder)
+        .allocatedBudgetWon(allocatedBudgetWon)
+        .allocationPct(new BigDecimal("50"))
+        .executable(executable)
+        .basisNote("저장 당시 고지")
+        .build();
   }
 }

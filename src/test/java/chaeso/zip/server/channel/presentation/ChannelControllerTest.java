@@ -2,6 +2,7 @@ package chaeso.zip.server.channel.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
@@ -65,7 +66,7 @@ class ChannelControllerTest {
     ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
     List<ChannelListItemResponse> channels = List.of(
         channelListItem("11번가 광고"), channelListItem("네이버 GFA"), channelListItem("카카오모먼트"));
-    given(channelService.getChannels(isNull(), any(Pageable.class)))
+    given(channelService.getChannels(isNull(), isNull(), any(Pageable.class)))
         .willReturn(new PageImpl<>(channels, Pageable.unpaged(), channels.size()));
 
     mockMvc.perform(get("/api/v1/channels"))
@@ -78,17 +79,82 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.first").value(true))
         .andExpect(jsonPath("$.data.last").value(true));
 
-    verify(channelService).getChannels(isNull(), pageableCaptor.capture());
+    verify(channelService).getChannels(isNull(), isNull(), pageableCaptor.capture());
     Pageable pageable = pageableCaptor.getValue();
     assertThat(pageable.isUnpaged()).isTrue();
     assertThat(pageable.getSort()).isEqualTo(Sort.by("name"));
   }
 
   @Test
+  @DisplayName("primaryCategory 를 지정하면 업종을 그대로 조회에 넘긴다")
+  void getChannels_withPrimaryCategory() throws Exception {
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), Pageable.unpaged(), 0));
+
+    mockMvc.perform(get("/api/v1/channels").param("primaryCategory", "SHOPPING_COMMERCE"))
+        .andExpect(status().isOk());
+
+    verify(channelService)
+        .getChannels(isNull(), eq(List.of(Category.SHOPPING_COMMERCE)), any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("primaryCategory 를 여러 번 넘기면 고른 업종을 순서대로 모두 넘긴다")
+  void getChannels_withRepeatedPrimaryCategory() throws Exception {
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), Pageable.unpaged(), 0));
+
+    mockMvc.perform(get("/api/v1/channels")
+            .param("primaryCategory", "SHOPPING_COMMERCE")
+            .param("primaryCategory", "GAME"))
+        .andExpect(status().isOk());
+
+    verify(channelService).getChannels(isNull(),
+        eq(List.of(Category.SHOPPING_COMMERCE, Category.GAME)), any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("primaryCategory 를 쉼표로 이어 넘겨도 여러 업종으로 인식한다")
+  void getChannels_withCommaSeparatedPrimaryCategory() throws Exception {
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), Pageable.unpaged(), 0));
+
+    mockMvc.perform(get("/api/v1/channels").param("primaryCategory", "SHOPPING_COMMERCE,GAME"))
+        .andExpect(status().isOk());
+
+    verify(channelService).getChannels(isNull(),
+        eq(List.of(Category.SHOPPING_COMMERCE, Category.GAME)), any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("채널명과 업종을 함께 주면 둘 다 조회에 넘긴다")
+  void getChannels_withNameAndPrimaryCategory() throws Exception {
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), Pageable.unpaged(), 0));
+
+    mockMvc.perform(get("/api/v1/channels")
+            .param("name", "11번가")
+            .param("primaryCategory", "SHOPPING_COMMERCE"))
+        .andExpect(status().isOk());
+
+    verify(channelService).getChannels(
+        eq("11번가"), eq(List.of(Category.SHOPPING_COMMERCE)), any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("없는 업종 코드값을 주면 400 C-001 을 반환한다")
+  void getChannels_invalidPrimaryCategory() throws Exception {
+    mockMvc.perform(get("/api/v1/channels").param("primaryCategory", "NOT_A_CATEGORY"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value(CommonErrorCode.INVALID_INPUT_VALUE.getCode()));
+  }
+
+  @Test
   @DisplayName("page 또는 size 를 지정하면 해당 값으로 페이지 조회한다 (생략된 값은 page=0, size=12)")
   void getChannels_withPagingParams() throws Exception {
     ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-    given(channelService.getChannels(any(), any(Pageable.class)))
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
         .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 12, Sort.by("name")), 0));
 
     mockMvc.perform(get("/api/v1/channels").param("size", "5"))
@@ -96,7 +162,7 @@ class ChannelControllerTest {
     mockMvc.perform(get("/api/v1/channels").param("page", "2"))
         .andExpect(status().isOk());
 
-    verify(channelService, times(2)).getChannels(isNull(), pageableCaptor.capture());
+    verify(channelService, times(2)).getChannels(isNull(), isNull(), pageableCaptor.capture());
     assertThat(pageableCaptor.getAllValues())
         .containsExactly(
             PageRequest.of(0, 5, Sort.by("name")),
@@ -117,7 +183,7 @@ class ChannelControllerTest {
   @Test
   @DisplayName("size 가 상한과 같으면 통과한다")
   void getChannels_maxSize() throws Exception {
-    given(channelService.getChannels(any(), any(Pageable.class)))
+    given(channelService.getChannels(any(), any(), any(Pageable.class)))
         .willReturn(Page.empty());
 
     mockMvc.perform(get("/api/v1/channels").param("size", "100"))

@@ -13,9 +13,10 @@ ENV_DIR         := infra/environments/aws/prod
 CHECK_SCRIPT    := infra/check.sh
 MANAGEMENT_PORT := 8081
 INSTANCE_TAG    := chaeso-zip-vm
+ASSET_DOMAIN    := assets.chaeso-zip.com
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up down status redeploy health check ps logs ssh _profile
+.PHONY: help bootstrap up down status redeploy health check ps logs ssh upload-asset upload-assets _profile
 
 # 접속 헬퍼
 ssm_target = $$(aws ec2 describe-instances \
@@ -39,6 +40,9 @@ help:
 	@echo "  make check      컨테이너/DB/볼륨 종합 점검"
 	@echo "  make ps         컨테이너 상태"
 	@echo "  make logs       실시간 로그"
+	@echo "  make upload-asset FILE=./logo.png [KEY=channels/xxx-logo.png]           공개 자산 1개(로고, 프로필 등)"
+	@echo "  make upload-asset FILE=\"./a.png ./b.png ./c.png\" [PREFIX=channels/]  공개 자산 여러 개"
+	@echo "  make upload-assets DIR=./logos [PREFIX=channels/]                      공개 자산 폴더 전체 업로드"
 	@echo ""
 	@echo "운영 (Terraform):"
 	@echo "  make bootstrap  state 버킷 생성(최초 1회)"
@@ -110,3 +114,22 @@ logs: _profile
 
 ssh: _profile
 	$(ssh_to)
+
+upload-asset: _profile
+	@test -n "$(FILE)" || { echo "사용법: make upload-asset FILE=\"./a.png ./b.png\" [PREFIX=channels/] [KEY=1개일 때만]"; exit 1; }
+	@if [ $(words $(FILE)) -gt 1 ] && [ -n "$(KEY)" ]; then \
+	  echo "파일이 여러 개면 KEY 대신 PREFIX를 쓰세요"; exit 1; \
+	fi
+	@bucket=$$(cd $(ENV_DIR) && terraform output -raw public_bucket_name) && \
+	for f in $(FILE); do \
+	  key=$${KEY:-$(PREFIX)$$(basename "$$f")}; \
+	  aws s3 cp "$$f" "s3://$$bucket/$$key" --cache-control "public, max-age=300, must-revalidate" && \
+	  echo "✅ 업로드 완료 → https://$(ASSET_DOMAIN)/$$key (raw: https://$$bucket.s3.$(REGION).amazonaws.com/$$key)"; \
+	done
+
+upload-assets: _profile
+	@test -n "$(DIR)" || { echo "사용법: make upload-assets DIR=./logos [PREFIX=channels/]"; exit 1; }
+	@bucket=$$(cd $(ENV_DIR) && terraform output -raw public_bucket_name) && \
+	prefix="$(PREFIX)" && \
+	aws s3 sync "$(DIR)" "s3://$$bucket/$$prefix" --cache-control "public, max-age=300, must-revalidate" && \
+	echo "✅ 전체 업로드 완료 → https://$(ASSET_DOMAIN)/$$prefix (raw: https://$$bucket.s3.$(REGION).amazonaws.com/$$prefix)"

@@ -28,8 +28,8 @@ public class ChannelController implements ChannelApiDocs {
   public ApiResponse<PageResponse<ChannelListItemResponse>> getChannels(
       @ParameterObject ChannelSearchRequest request,
       @SortDefault(sort = "name") @ParameterObject Sort sort) {
-    return ApiResponse.success(PageResponse.from(
-        channelService.getChannels(request.name(), request.toPageable(sort))));
+    return ApiResponse.success(PageResponse.from(channelService.getChannels(
+        request.name(), request.primaryCategory(), request.toPageable(sort))));
   }
 
   @Override
