@@ -55,13 +55,17 @@ public record ChannelDetailResponse(
     @Schema(description = "오디언스 규모 지표 목록", requiredMode = Schema.RequiredMode.REQUIRED)
     List<AudienceMetricResponse> audienceMetrics,
     @Schema(description = "집행 사례 목록", requiredMode = Schema.RequiredMode.REQUIRED)
-    List<String> references) {
+    List<String> references,
+    @Schema(description = "추천 근거",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    RecommendationBasisResponse recommendationBasis) {
 
   public static ChannelDetailResponse from(
       Channel channel,
       List<ProductResponse> products,
       List<AudienceMetricResponse> audienceMetrics,
-      List<String> references) {
+      List<String> references,
+      RecommendationBasisResponse recommendationBasis) {
     return new ChannelDetailResponse(
         channel.getId(),
         channel.getName(),
@@ -83,6 +87,7 @@ public record ChannelDetailResponse(
         channel.getTargetingMethods(),
         products,
         audienceMetrics,
-        references);
+        references,
+        recommendationBasis);
   }
 }

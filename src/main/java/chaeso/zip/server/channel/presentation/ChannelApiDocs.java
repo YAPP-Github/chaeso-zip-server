@@ -1,5 +1,6 @@
 package chaeso.zip.server.channel.presentation;
 
+import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
 import chaeso.zip.server.channel.presentation.dto.ChannelSearchRequest;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
@@ -99,7 +101,13 @@ public interface ChannelApiDocs {
               "period": "월"
             }
           ],
-          "references": ["A커머스 브랜드 신제품 런칭 캠페인", "B패션 시즌오프 프로모션"]
+          "references": ["A커머스 브랜드 신제품 런칭 캠페인", "B패션 시즌오프 프로모션"],
+          "recommendationBasis": {
+            "objective": "TRAFFIC",
+            "category": "SHOPPING_COMMERCE",
+            "budgetMin": 3000000,
+            "budgetMax": 10000000
+          }
         }
       }
       """;
@@ -132,11 +140,15 @@ public interface ChannelApiDocs {
       @ParameterObject ChannelSearchRequest request,
       @ParameterObject Sort sort);
 
+  @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getChannel", summary = "채널 상세 조회",
       description = """
           채널 단건을 상세 조회한다. \
           채널 정보와 함께 광고 상품 목록, 오디언스 규모 지표, 집행 사례를 반환한다. \
-          상품이 없는 채널은 products 를 빈 배열로 반환한다.""")
+          상품이 없는 채널은 products 를 빈 배열로 반환한다.
+
+          추천 목록에서 들어온 경우 그 추천의 onboardingId 를 함께 넘기면, 추천 근거가 된 \
+          온보딩 선택지(광고 목표·업종·예산)를 recommendationBasis 로 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,
       content = @Content(
@@ -147,5 +159,9 @@ public interface ChannelApiDocs {
           examples = @ExampleObject(name = "CHANNEL_NOT_FOUND", value = CHANNEL_NOT_FOUND_EXAMPLE)))
   ApiResponse<ChannelDetailResponse> getChannel(
       @Parameter(description = "채널 식별자", example = "550e8400-e29b-41d4-a716-446655440000")
-      UUID id);
+      UUID id,
+      @Parameter(description = "추천 목록에서 진입한 경우 그 추천의 온보딩 식별자. 생략하면 추천 근거 없이 상세만 반환한다",
+          example = "8f14e45f-ceea-467a-9575-6f1a1f9b0d21")
+      UUID onboardingId,
+      @Parameter(hidden = true) UserPrincipal principal);
 }

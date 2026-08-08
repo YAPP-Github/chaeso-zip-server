@@ -14,6 +14,11 @@ public interface ChannelRecommendationRepository
   List<ChannelRecommendation> findByOnboardingIdOrderByRankAsc(UUID onboardingId);
 
   /**
+   * 이 온보딩의 추천 결과에 포함된 채널인지 판정할 때 쓴다.
+   */
+  boolean existsByOnboardingIdAndChannelId(UUID onboardingId, UUID channelId);
+
+  /**
    * 같은 온보딩으로 다시 저장할 때 이전 추천을 덮어씌운다.
    */
   @Modifying(clearAutomatically = true, flushAutomatically = true)
