@@ -1,6 +1,6 @@
 package chaeso.zip.server.recommendation.domain;
 
-import java.util.Arrays;
+import java.util.Collection;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -22,5 +22,11 @@ public enum MatchAxis {
 
   private final int weight;
 
-  public static final int MAX_SCORE = Arrays.stream(values()).mapToInt(MatchAxis::getWeight).sum();
+  public static int totalWeight(Collection<MatchAxis> axes) {
+    int total = 0;
+    for (MatchAxis axis : axes) {
+      total += axis.weight;
+    }
+    return total;
+  }
 }
