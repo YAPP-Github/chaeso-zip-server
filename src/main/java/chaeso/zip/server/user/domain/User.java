@@ -92,4 +92,10 @@ public class User extends BaseEntity {
     this.lastLoginAt = LocalDateTime.now(ZoneOffset.UTC);
     this.lastLoginProvider = provider;
   }
+
+  /** 사용자의 직군/회사명을 수정한다 */
+  public void updateProfile(String companyName, Occupation occupation) {
+    this.companyName = companyName;
+    this.occupation = occupation;
+  }
 }
