@@ -5,6 +5,7 @@ import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
 import chaeso.zip.server.channel.application.dto.PricingResponse;
 import chaeso.zip.server.channel.application.dto.ProductResponse;
+import chaeso.zip.server.channel.application.dto.RecommendationBasisResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
@@ -18,6 +19,8 @@ import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
+import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
+import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +41,8 @@ public class ChannelServiceImpl implements ChannelService {
   private final ChannelPricingRepository channelPricingRepository;
   private final ChannelAudienceMetricRepository channelAudienceMetricRepository;
   private final ChannelReferenceRepository channelReferenceRepository;
+  private final ChannelRecommendationRepository channelRecommendationRepository;
+  private final OnboardingRepository onboardingRepository;
 
   @Override
   @Transactional(readOnly = true)
@@ -49,7 +54,7 @@ public class ChannelServiceImpl implements ChannelService {
 
   @Override
   @Transactional(readOnly = true)
-  public ChannelDetailResponse getChannel(UUID id) {
+  public ChannelDetailResponse getChannel(UUID id, UUID onboardingId) {
     Channel channel = channelRepository.findByIdAndActiveTrue(id)
         .orElseThrow(() -> new ChannelNotFoundException(id));
 
@@ -71,7 +76,25 @@ public class ChannelServiceImpl implements ChannelService {
         .filter(Objects::nonNull)
         .toList();
 
-    return ChannelDetailResponse.from(channel, products, audienceMetrics, references);
+    return ChannelDetailResponse.from(channel, products, audienceMetrics, references,
+        recommendationBasis(id, onboardingId));
+  }
+
+  /**
+   * 추천 근거가 된 온보딩 선택지
+   */
+  private RecommendationBasisResponse recommendationBasis(UUID channelId, UUID onboardingId) {
+    if (onboardingId == null) {
+      return null;
+    }
+    boolean recommended = channelRecommendationRepository
+        .existsByOnboardingIdAndChannelId(onboardingId, channelId);
+    if (!recommended) {
+      return null;
+    }
+    return onboardingRepository.findById(onboardingId)
+        .map(RecommendationBasisResponse::from)
+        .orElse(null);
   }
 
   /**

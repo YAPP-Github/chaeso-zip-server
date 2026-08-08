@@ -13,5 +13,5 @@ public interface ChannelService {
   Page<ChannelListItemResponse> getChannels(String name, List<Category> primaryCategories,
       Pageable pageable);
 
-  ChannelDetailResponse getChannel(UUID id);
+  ChannelDetailResponse getChannel(UUID id, UUID onboardingId);
 }

@@ -17,7 +17,9 @@ import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ChannelListItemResponse;
 import chaeso.zip.server.channel.application.dto.PricingResponse;
 import chaeso.zip.server.channel.application.dto.ProductResponse;
+import chaeso.zip.server.channel.application.dto.RecommendationBasisResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
+import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.channel.domain.vo.CurrencyType;
 import chaeso.zip.server.channel.domain.vo.ExecutionType;
@@ -208,9 +210,9 @@ class ChannelControllerTest {
         ExecutionType.SELF, List.of(), List.of(),
         List.of(product),
         List.of(new AudienceMetricResponse("MAU", new BigDecimal("1000000"), null, "명", "월")),
-        List.of("전환율 개선 사례"));
+        List.of("전환율 개선 사례"), null);
 
-    given(channelService.getChannel(channelId)).willReturn(detail);
+    given(channelService.getChannel(channelId, null)).willReturn(detail);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isOk())
@@ -224,7 +226,34 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.products[0].pricing[0].pricingModel").value("CPM"))
         .andExpect(jsonPath("$.data.products[0].pricing[0].vat").value("EXCLUDED"))
         .andExpect(jsonPath("$.data.audienceMetrics[0].metricName").value("MAU"))
-        .andExpect(jsonPath("$.data.references[0]").value("전환율 개선 사례"));
+        .andExpect(jsonPath("$.data.references[0]").value("전환율 개선 사례"))
+        .andExpect(jsonPath("$.data.recommendationBasis").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("onboardingId 를 넘기면 그대로 전달하고 추천 근거를 함께 반환한다")
+  void getChannel_withOnboardingId() throws Exception {
+    UUID channelId = UUID.randomUUID();
+    UUID onboardingId = UUID.randomUUID();
+    RecommendationBasisResponse basis = new RecommendationBasisResponse(
+        CampaignObjective.TRAFFIC, Category.SHOPPING_COMMERCE, 3_000_000L, 10_000_000L);
+    ChannelDetailResponse detail = new ChannelDetailResponse(
+        channelId, "11번가 광고", null, null, Category.SHOPPING_COMMERCE, null,
+        List.of(), List.of(), null, null, null, null, List.of(), null, null,
+        null, List.of(), List.of(),
+        List.of(), List.of(), List.of(), basis);
+
+    given(channelService.getChannel(channelId, onboardingId)).willReturn(detail);
+
+    mockMvc.perform(get("/api/v1/channels/{id}", channelId)
+            .param("onboardingId", onboardingId.toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.recommendationBasis.objective").value("TRAFFIC"))
+        .andExpect(jsonPath("$.data.recommendationBasis.category").value("SHOPPING_COMMERCE"))
+        .andExpect(jsonPath("$.data.recommendationBasis.budgetMin").value(3000000))
+        .andExpect(jsonPath("$.data.recommendationBasis.budgetMax").value(10000000));
+
+    verify(channelService).getChannel(channelId, onboardingId);
   }
 
   @Test
@@ -235,9 +264,9 @@ class ChannelControllerTest {
         channelId, "상품없는 채널", null, null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
-        List.of(), List.of(), List.of());
+        List.of(), List.of(), List.of(), null);
 
-    given(channelService.getChannel(channelId)).willReturn(detail);
+    given(channelService.getChannel(channelId, null)).willReturn(detail);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isOk())
@@ -250,7 +279,7 @@ class ChannelControllerTest {
   void getChannel_notFound() throws Exception {
     UUID channelId = UUID.randomUUID();
     BDDMockito.willThrow(new ChannelNotFoundException(channelId))
-        .given(channelService).getChannel(channelId);
+        .given(channelService).getChannel(channelId, null);
 
     mockMvc.perform(get("/api/v1/channels/{id}", channelId))
         .andExpect(status().isNotFound())
