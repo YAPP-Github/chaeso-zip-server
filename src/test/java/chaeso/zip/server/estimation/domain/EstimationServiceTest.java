@@ -300,6 +300,37 @@ class EstimationServiceTest {
   }
 
   @Nested
+  @DisplayName("노출 기준 클릭 계산")
+  class EstimateClicks {
+
+    @Test
+    @DisplayName("노출에 CTR 을 적용해 클릭 수를 낸다")
+    void multipliesImpressionsByCtr() {
+      assertThat(EstimationService.estimateClicks(1_500_000L, new BigDecimal("0.35")))
+          .isEqualTo(5_250L);
+    }
+
+    @Test
+    @DisplayName("CTR 을 모르면 기본 CTR 로 채우지 않고 클릭 수를 비운다")
+    void nullWithoutCtr() {
+      assertThat(EstimationService.estimateClicks(1_500_000L, null)).isNull();
+    }
+
+    @Test
+    @DisplayName("소수점 클릭은 반올림한다")
+    void roundsToWholeClicks() {
+      assertThat(EstimationService.estimateClicks(1_000L, new BigDecimal("0.25")))
+          .isEqualTo(3L);   // 2.5 → 3
+    }
+
+    @Test
+    @DisplayName("노출을 모르면 클릭도 낼 수 없다")
+    void nullWithoutImpressions() {
+      assertThat(EstimationService.estimateClicks(null, new BigDecimal("5"))).isNull();
+    }
+  }
+
+  @Nested
   @DisplayName("노출 추정 가능 여부")
   class EstimatesImpressions {
 

@@ -215,12 +215,26 @@ public final class EstimationService {
     return new ImpressionRange(toCount(bounds.lo()), toCount(bounds.hi()));
   }
 
-  /** CTR 이 없는 상품은 기획 기준인 기본 2% 를 적용한다. */
+  /**
+   * 노출 수에 CTR 을 적용한 예상 클릭 수
+   */
+  public static Long estimateClicks(Long impressions, BigDecimal ctrPercent) {
+    if (impressions == null || ctrPercent == null) {
+      return null;
+    }
+    return toCount(BigDecimal.valueOf(impressions).multiply(clickRate(ctrPercent)));
+  }
+
   private static ClickRange clickRange(Bounds bounds, BigDecimal ctrPercent) {
-    BigDecimal ctr = ctrPercent != null ? ctrPercent : DEFAULT_CTR_PERCENT;
-    BigDecimal rate = ctr.divide(HUNDRED, MC);
+    BigDecimal rate = clickRate(ctrPercent);
     return new ClickRange(toCount(bounds.lo().multiply(rate)),
         toCount(bounds.hi().multiply(rate)));
+  }
+
+  /** CTR 이 없는 상품은 기본 2% 를 적용한다. */
+  private static BigDecimal clickRate(BigDecimal ctrPercent) {
+    BigDecimal ctr = ctrPercent != null ? ctrPercent : DEFAULT_CTR_PERCENT;
+    return ctr.divide(HUNDRED, MC);
   }
 
   /** 노출·클릭은 개수이므로 정수로 반올림해 노출한다. */

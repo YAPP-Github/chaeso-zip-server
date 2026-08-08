@@ -3,7 +3,6 @@ package chaeso.zip.server.channel.application.dto;
 import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,20 +22,18 @@ public record ProductResponse(
     Integer minBudgetWon,
     @Schema(description = "최대 예산(원)", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     Integer maxBudgetWon,
-    @Schema(description = "대표 클릭률(CTR)", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    BigDecimal ctr,
-    @Schema(description = "클릭률 하한", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    BigDecimal ctrMin,
-    @Schema(description = "클릭률 상한", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    BigDecimal ctrMax,
     @Schema(description = "예상 노출수", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     Long expectedImpressions,
+    @Schema(description = "예상 클릭수(예상 노출수 × CTR)",
+        example = "5250", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    Long expectedClicks,
     @Schema(description = "예상 집행 기간", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     String expectedPeriod,
     @Schema(description = "상품 단가 목록", requiredMode = Schema.RequiredMode.REQUIRED)
     List<PricingResponse> pricing) {
 
-  public static ProductResponse from(ChannelProduct product, List<PricingResponse> pricing) {
+  public static ProductResponse from(ChannelProduct product, List<PricingResponse> pricing,
+      Long expectedClicks) {
     return new ProductResponse(
         product.getId(),
         product.getProductName(),
@@ -44,10 +41,8 @@ public record ProductResponse(
         product.getSupportedObjectives(),
         product.getMinBudgetWon(),
         product.getMaxBudgetWon(),
-        product.getCtr(),
-        product.getCtrMin(),
-        product.getCtrMax(),
         product.getExpectedImpressions(),
+        expectedClicks,
         product.getExpectedPeriod(),
         pricing);
   }

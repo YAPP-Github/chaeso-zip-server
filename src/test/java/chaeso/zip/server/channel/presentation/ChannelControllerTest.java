@@ -201,7 +201,7 @@ class ChannelControllerTest {
         PriceType.LIST, Vat.EXCLUDED, CurrencyType.KRW, null);
     ProductResponse product = new ProductResponse(
         productId, "메인 배너", "DISPLAY", List.of(), 1_000_000, 5_000_000,
-        null, null, null, null, null, List.of(pricing));
+        1_500_000L, 5_250L, null, List.of(pricing));
     ChannelDetailResponse detail = new ChannelDetailResponse(
         channelId, "11번가 광고", null, "요약", Category.SHOPPING_COMMERCE, "DISPLAY",
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
@@ -219,6 +219,8 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.primaryCategory").value("SHOPPING_COMMERCE"))
         .andExpect(jsonPath("$.data.executionType").value("SELF"))
         .andExpect(jsonPath("$.data.products[0].id").value(productId.toString()))
+        .andExpect(jsonPath("$.data.products[0].expectedClicks").value(5250))
+        .andExpect(jsonPath("$.data.products[0].ctr").doesNotExist())
         .andExpect(jsonPath("$.data.products[0].pricing[0].pricingModel").value("CPM"))
         .andExpect(jsonPath("$.data.products[0].pricing[0].vat").value("EXCLUDED"))
         .andExpect(jsonPath("$.data.audienceMetrics[0].metricName").value("MAU"))
