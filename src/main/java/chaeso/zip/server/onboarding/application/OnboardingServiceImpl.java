@@ -89,9 +89,18 @@ public class OnboardingServiceImpl implements OnboardingService {
     Onboarding saved = saveResponse(response);
 
     adPerformanceRepository.saveAll(command.adHistory().stream()
-        .map(row -> AdPerformance.fromOnboarding(userId, PerfSource.MANUAL, row.channelId(),
-            row.channelNameRaw(), row.budgetWon(), row.impressions(), row.clicks(),
-            row.conversions(), row.startedAt(), row.endedAt(), null))
+        .map(row -> AdPerformance.builder()
+            .userId(userId)
+            .sourceType(PerfSource.MANUAL)
+            .channelId(row.channelId())
+            .externalChannelName(row.channelNameRaw())
+            .budgetWon(row.budgetWon())
+            .impressions(row.impressions())
+            .clicks(row.clicks())
+            .conversions(row.conversions())
+            .startedAt(row.startedAt())
+            .endedAt(row.endedAt())
+            .build())
         .toList());
 
     onboardingAdHistorySnapshotRepository.saveAll(command.adHistory().stream()

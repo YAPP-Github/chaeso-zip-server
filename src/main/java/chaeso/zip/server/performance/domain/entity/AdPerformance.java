@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
@@ -78,6 +79,7 @@ public class AdPerformance {
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  @Builder
   private AdPerformance(UUID userId, PerfSource sourceType, UUID channelId,
       String externalChannelName, Long budgetWon, Long impressions, Long clicks, Long conversions,
       LocalDate startedAt, LocalDate endedAt, String rawFileUrl) {
@@ -99,16 +101,6 @@ public class AdPerformance {
     this.ctrActual = ratio(clicks, impressions);
     this.cpcActual = ratio(budgetWon, clicks);
     this.cpaActual = ratio(budgetWon, conversions);
-  }
-
-  /**
-   * 온보딩에서 입력한 과거 집행 실적.
-   */
-  public static AdPerformance fromOnboarding(UUID userId, PerfSource sourceType, UUID channelId,
-      String channelName, Long budgetWon, Long impressions, Long clicks, Long conversions,
-      LocalDate startedAt, LocalDate endedAt, String rawFileUrl) {
-    return new AdPerformance(userId, sourceType, channelId, channelName,
-        budgetWon, impressions, clicks, conversions, startedAt, endedAt, rawFileUrl);
   }
 
   private static BigDecimal ratio(Long numerator, Long denominator) {

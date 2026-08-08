@@ -58,9 +58,17 @@ class OnboardingRepositoryTest {
   void savesAdPerformances() {
     UUID userId = persistUser();
 
-    adPerformanceRepository.saveAndFlush(AdPerformance.fromOnboarding(
-        userId, PerfSource.MANUAL, null, "인스타그램", 3_000_000L, 250_000L, 3_000L, 120L,
-        LocalDate.of(2025, Month.MARCH, 1), LocalDate.of(2025, Month.MAY, 31), null));
+    adPerformanceRepository.saveAndFlush(AdPerformance.builder()
+        .userId(userId)
+        .sourceType(PerfSource.MANUAL)
+        .externalChannelName("인스타그램")
+        .budgetWon(3_000_000L)
+        .impressions(250_000L)
+        .clicks(3_000L)
+        .conversions(120L)
+        .startedAt(LocalDate.of(2025, Month.MARCH, 1))
+        .endedAt(LocalDate.of(2025, Month.MAY, 31))
+        .build());
 
     List<AdPerformance> found = adPerformanceRepository.findByUserId(userId);
     assertThat(found).hasSize(1);
