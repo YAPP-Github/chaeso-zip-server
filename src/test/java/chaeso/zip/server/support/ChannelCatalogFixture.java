@@ -20,6 +20,12 @@ public final class ChannelCatalogFixture {
   private ChannelCatalogFixture() {
   }
 
+  public static Channel persistableChannel(String name) {
+    Channel channel = BeanUtils.instantiateClass(Channel.class);
+    set(channel, "name", name);
+    return channel;
+  }
+
   public static Channel channel(UUID id, String name) {
     Channel channel = BeanUtils.instantiateClass(Channel.class);
     set(channel, "id", id);

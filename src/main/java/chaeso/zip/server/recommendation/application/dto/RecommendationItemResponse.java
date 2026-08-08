@@ -1,20 +1,16 @@
 package chaeso.zip.server.recommendation.application.dto;
 
-import chaeso.zip.server.channel.domain.entity.Channel;
-import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
-import chaeso.zip.server.estimation.domain.ClickCostPolicy;
-import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
-import chaeso.zip.server.estimation.domain.vo.EstimationResult;
-import chaeso.zip.server.recommendation.domain.MatchScore;
-import chaeso.zip.server.recommendation.domain.PrimaryTarget;
-import chaeso.zip.server.recommendation.domain.RecommendationReason;
+import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Schema(description = "추천 채널")
+@JsonInclude(Include.NON_NULL)
 public record RecommendationItemResponse(
     @Schema(description = "채널 식별자", example = "550e8400-e29b-41d4-a716-446655440000",
         requiredMode = Schema.RequiredMode.REQUIRED)
@@ -30,63 +26,44 @@ public record RecommendationItemResponse(
     @Schema(description = "주요 타깃", example = "20~40대 여성",
         requiredMode = Schema.RequiredMode.REQUIRED)
     String primaryTarget,
-    @Schema(description = "클릭당 비용(원)", example = "150", nullable = true)
+    @Schema(description = "클릭당 비용(원). 예상 클릭이 없어 환산할 수 없으면 생략", example = "150",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     BigDecimal cpcWon,
-    @Schema(description = "대표 단가의 과금 방식", example = "CPM", nullable = true)
+    @Schema(description = "대표 단가의 과금 방식. 등록된 단가가 없으면 생략", example = "CPM",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     PricingModel pricingModel,
-    @Schema(description = "최소 집행 예산(원)",
-        example = "3000000", nullable = true)
+    @Schema(description = "최소 집행 예산(원). 등록된 단가가 없으면 생략", example = "3000000",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     Long minBudgetWon,
-    @Schema(description = "예상 노출 수 범위", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "예상 노출 수 범위. 추정 불가 시 생략",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estImpressions,
-    @Schema(description = "예상 클릭 수 범위", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "예상 클릭 수 범위. 추정 불가 시 생략",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     CountRangeResponse estClicks,
     @Schema(description = "온보딩 예산(상한)으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
-    @Schema(description = "집행에 부족한 금액(원)", example = "500000", nullable = true)
+    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 생략", example = "500000",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     Long shortfallWon) {
 
   /**
-   * 단가 정보가 있는 상품이 없어 집행 금액을 알 수 없는 매체
+   * 계산 결과에서 화면에 쓰는 값만 골라 담는다. 근거 태그·대표 단가·과금 방식 전체는 저장에만 쓰므로
+   * 응답에 넣지 않는다.
    */
-  public static RecommendationItemResponse quoteRequired(Channel channel, MatchScore score,
-      Category industry) {
+  public static RecommendationItemResponse from(RecommendationSnapshot snapshot) {
     return new RecommendationItemResponse(
-        channel.getId(),
-        channel.getName(),
-        score.matchRate(),
-        RecommendationReason.of(score, industry, null, false),
-        PrimaryTarget.of(channel.getPrimaryAgeBand(), channel.getPrimaryGender()),
-        null,
-        null,
-        null,
-        null,
-        null,
-        false,
-        null);
-  }
-
-  /**
-   * 대표 상품으로 추정을 마친 매체
-   */
-  public static RecommendationItemResponse estimated(Channel channel, MatchScore score,
-      Category industry, EstimationPricing pricing, EstimationResult result, long minBudgetWon,
-      boolean isExecutable, Long shortfallWon, long estimationBudgetWon) {
-    CountRangeResponse impressions = CountRangeResponse.from(result.impressions());
-    CountRangeResponse clicks = CountRangeResponse.from(result.clicks());
-    return new RecommendationItemResponse(
-        channel.getId(),
-        channel.getName(),
-        score.matchRate(),
-        RecommendationReason.of(score, industry, shortfallWon, true),
-        PrimaryTarget.of(channel.getPrimaryAgeBand(), channel.getPrimaryGender()),
-        ClickCostPolicy.cpcWon(pricing, estimationBudgetWon,
-            clicks == null ? null : clicks.midpoint()),
-        pricing.pricingModel(),
-        minBudgetWon,
-        impressions,
-        clicks,
-        isExecutable,
-        shortfallWon);
+        snapshot.channelId(),
+        snapshot.channelName(),
+        snapshot.matchRate(),
+        snapshot.reason(),
+        snapshot.primaryTarget(),
+        snapshot.cpcWon(),
+        snapshot.pricingModel(),
+        snapshot.minBudgetWon(),
+        CountRangeResponse.from(snapshot.impressions()),
+        CountRangeResponse.from(snapshot.clicks()),
+        snapshot.isExecutable(),
+        snapshot.shortfallWon());
   }
 }

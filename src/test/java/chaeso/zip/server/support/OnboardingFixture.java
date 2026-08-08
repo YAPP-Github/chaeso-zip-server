@@ -35,7 +35,15 @@ public final class OnboardingFixture {
    */
   public static Onboarding onboarding(Category industry, CampaignObjective campaignObjective,
       List<AgeBand> targetAgeBands, Long budgetMin, Long budgetMax, CampaignPeriod period) {
-    return Onboarding.create(null, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
+    return onboarding(null, industry, campaignObjective, targetAgeBands, budgetMin, budgetMax,
+        period);
+  }
+
+  /** 매칭 축·예산·기간에 제출자까지 지정하는 온보딩. 소유권을 따지는 테스트에 쓴다. */
+  public static Onboarding onboarding(UUID userId, Category industry,
+      CampaignObjective campaignObjective, List<AgeBand> targetAgeBands, Long budgetMin,
+      Long budgetMax, CampaignPeriod period) {
+    return Onboarding.create(userId, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
         campaignObjective, budgetMin, budgetMax, period, AdExperience.NONE, List.of());
   }
 
