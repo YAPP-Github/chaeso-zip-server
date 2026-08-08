@@ -15,6 +15,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelReferenceRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
+import chaeso.zip.server.channel.domain.vo.Category;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,8 +39,10 @@ public class ChannelServiceImpl implements ChannelService {
 
   @Override
   @Transactional(readOnly = true)
-  public Page<ChannelListItemResponse> getChannels(String name, Pageable pageable) {
-    return channelRepository.searchActiveChannels(name, pageable).map(ChannelListItemResponse::from);
+  public Page<ChannelListItemResponse> getChannels(String name, List<Category> primaryCategories,
+      Pageable pageable) {
+    return channelRepository.searchActiveChannels(name, primaryCategories, pageable)
+        .map(ChannelListItemResponse::from);
   }
 
   @Override
