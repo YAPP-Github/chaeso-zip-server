@@ -6,6 +6,7 @@ import chaeso.zip.server.common.response.ErrorResponse.FieldError;
 import java.util.List;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +50,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return ResponseEntity.status(errorCode.getHttpStatus())
             .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
             .body(ApiResponse.fail(ErrorResponse.of(errorCode)));
+  }
+
+  /**
+   * 클라이언트 연결 끊김 처리.
+   */
+  @ExceptionHandler(ClientAbortException.class)
+  public void handleClientAbort(ClientAbortException e) {
+    log.warn("Client aborted connection", e);
   }
 
   /**

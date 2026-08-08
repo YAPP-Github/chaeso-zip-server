@@ -27,6 +27,7 @@ services:
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"
       SENTRY_ENV: dev
+      SENTRY_RELEASE: ${IMAGE_TAG:-dev}
       SWAGGER_ENABLED: "true"
     mem_limit: 900m
     cpus: 1.5
