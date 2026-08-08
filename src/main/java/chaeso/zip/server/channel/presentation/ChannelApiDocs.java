@@ -71,10 +71,8 @@ public interface ChannelApiDocs {
               "supportedObjectives": ["AWARENESS", "TRAFFIC"],
               "minBudgetWon": 3000000,
               "maxBudgetWon": 20000000,
-              "ctr": 0.35,
-              "ctrMin": 0.20,
-              "ctrMax": 0.55,
               "expectedImpressions": 1500000,
+              "expectedClicks": 5250,
               "expectedPeriod": "2주",
               "pricing": [
                 {

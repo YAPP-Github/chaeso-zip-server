@@ -16,6 +16,8 @@ import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelReferenceRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.Category;
+import chaeso.zip.server.estimation.domain.EstimationService;
+import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,7 +57,8 @@ public class ChannelServiceImpl implements ChannelService {
     Map<UUID, List<PricingResponse>> pricingByProductId = pricingByProductId(channelProducts);
     List<ProductResponse> products = channelProducts.stream()
         .map(product -> ProductResponse.from(product,
-            pricingByProductId.getOrDefault(product.getId(), List.of())))
+            pricingByProductId.getOrDefault(product.getId(), List.of()),
+            expectedClicks(product)))
         .toList();
 
     List<AudienceMetricResponse> audienceMetrics =
@@ -69,6 +72,15 @@ public class ChannelServiceImpl implements ChannelService {
         .toList();
 
     return ChannelDetailResponse.from(channel, products, audienceMetrics, references);
+  }
+
+  /**
+   * 상품의 기대 노출에 대표 CTR 을 적용한 예상 클릭 수
+   * CTR 이 없는 상품은 기본 CTR 로 채우지 않고 값을 비운다.
+   */
+  private static Long expectedClicks(ChannelProduct product) {
+    return EstimationService.estimateClicks(product.getExpectedImpressions(),
+        EstimationProduct.ctrPercentOf(product, null));
   }
 
   private Map<UUID, List<PricingResponse>> pricingByProductId(List<ChannelProduct> products) {
