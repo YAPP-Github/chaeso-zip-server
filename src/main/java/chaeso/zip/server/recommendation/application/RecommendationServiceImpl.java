@@ -14,6 +14,7 @@ import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
+import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
@@ -95,16 +96,13 @@ public class RecommendationServiceImpl implements RecommendationService {
 
   private Onboarding findOnboarding(UUID onboardingId) {
     return onboardingRepository.findById(onboardingId)
-        .orElseThrow(() -> new OnboardingBusinessException(
-            OnboardingErrorCode.ONBOARDING_NOT_FOUND,
-            "온보딩 정보가 없습니다. id=" + onboardingId));
+        .orElseThrow(() -> new OnboardingNotFoundException(onboardingId));
   }
 
   private Onboarding findOwnedOnboarding(UUID userId, UUID onboardingId) {
     Onboarding onboarding = findOnboarding(onboardingId);
     if (!userId.equals(onboarding.getUserId())) {
-      throw new OnboardingBusinessException(OnboardingErrorCode.ONBOARDING_NOT_FOUND,
-          "온보딩 정보가 없습니다. id=" + onboardingId);
+      throw new OnboardingNotFoundException(onboardingId);
     }
     return onboarding;
   }

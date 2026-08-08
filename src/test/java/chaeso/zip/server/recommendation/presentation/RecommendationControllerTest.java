@@ -15,6 +15,7 @@ import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
+import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.recommendation.application.RecommendationService;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
@@ -108,8 +109,7 @@ class RecommendationControllerTest {
   @Test
   @DisplayName("존재하지 않는 온보딩으로 조회하면 404 와 공통 에러 포맷을 반환한다")
   void getRecommendations_onboardingNotFound() throws Exception {
-    BDDMockito.willThrow(new OnboardingBusinessException(
-            OnboardingErrorCode.ONBOARDING_NOT_FOUND, "온보딩 정보가 없습니다. id=" + ONBOARDING_ID))
+    BDDMockito.willThrow(new OnboardingNotFoundException(ONBOARDING_ID))
         .given(recommendationService).recommend(ONBOARDING_ID);
 
     mockMvc.perform(get("/api/v1/recommendations").param("onboardingId", ONBOARDING_ID.toString()))
@@ -177,8 +177,7 @@ class RecommendationControllerTest {
   @Test
   @DisplayName("없는 온보딩이나 남의 온보딩으로 저장하면 404 ONB-007 을 반환한다")
   void saveRecommendation_onboardingNotFound() throws Exception {
-    BDDMockito.willThrow(new OnboardingBusinessException(
-            OnboardingErrorCode.ONBOARDING_NOT_FOUND, "온보딩 정보가 없습니다. id=" + ONBOARDING_ID))
+    BDDMockito.willThrow(new OnboardingNotFoundException(ONBOARDING_ID))
         .given(recommendationService).save(USER_ID, ONBOARDING_ID);
 
     mockMvc.perform(post("/api/v1/recommendations")
