@@ -141,6 +141,17 @@ public interface OnboardingApiDocs {
       }
       """;
 
+  String INVALID_AGE_BAND_SELECTION_EXAMPLE = """
+      {
+        "success": false,
+        "error": {
+          "code": "ONB-011",
+          "message": "잘 모르겠어요는 다른 연령대와 함께 선택할 수 없습니다.",
+          "fieldErrors": []
+        }
+      }
+      """;
+
   @Operation(operationId = "submitOnboarding", summary = "온보딩 제출",
       description = """
           로그인 여부와 관계없이 제출할 수 있다. \
@@ -152,7 +163,7 @@ public interface OnboardingApiDocs {
       content = @Content(
           examples = @ExampleObject(name = "SUBMIT_SUCCESS", value = SUBMIT_SUCCESS_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
-      description = "형식 오류(C-001) 또는 비즈니스 규칙 위반(ONB-001~003, ONB-008, ONB-010)",
+      description = "형식 오류(C-001) 또는 비즈니스 규칙 위반(ONB-001~003, ONB-008, ONB-010~011)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
@@ -160,7 +171,8 @@ public interface OnboardingApiDocs {
               @ExampleObject(name = "OBJECTIVE_NOT_ALLOWED", value = OBJECTIVE_NOT_ALLOWED_EXAMPLE),
               @ExampleObject(name = "AD_EXPERIENCE_MISMATCH", value = AD_EXPERIENCE_MISMATCH_EXAMPLE),
               @ExampleObject(name = "PERFORMANCE_FILE_INVALID", value = PERFORMANCE_FILE_INVALID_EXAMPLE),
-              @ExampleObject(name = "TOO_FEW_MANUAL_FIELDS", value = TOO_FEW_MANUAL_FIELDS_EXAMPLE)
+              @ExampleObject(name = "TOO_FEW_MANUAL_FIELDS", value = TOO_FEW_MANUAL_FIELDS_EXAMPLE),
+              @ExampleObject(name = "INVALID_AGE_BAND_SELECTION", value = INVALID_AGE_BAND_SELECTION_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 채널(CH-001)",
