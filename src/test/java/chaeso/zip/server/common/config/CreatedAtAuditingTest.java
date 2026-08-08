@@ -9,13 +9,17 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapsho
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
-import chaeso.zip.server.performance.domain.vo.PerfSource;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
-
-import java.time.*;
+import chaeso.zip.server.support.AdPerformanceFixture;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,18 +58,7 @@ class CreatedAtAuditingTest {
   @Test
   @DisplayName("광고 집행 실적 저장 시 생성 시각이 채워진다")
   void fillsAdPerformanceCreatedAt() {
-    AdPerformance saved = adPerformanceRepository.save(AdPerformance.builder()
-        .userId(UUID.randomUUID())
-        .sourceType(PerfSource.MANUAL)
-        .channelId(UUID.randomUUID())
-        .externalChannelName("11번가 광고")
-        .budgetWon(1_000_000L)
-        .impressions(100_000L)
-        .clicks(2_000L)
-        .conversions(10L)
-        .startedAt(LocalDate.of(2026, Month.JULY, 1))
-        .endedAt(LocalDate.of(2026, Month.JULY, 31))
-        .build());
+    AdPerformance saved = adPerformanceRepository.save(AdPerformanceFixture.adPerformance());
 
     assertUtcNow(saved.getCreatedAt());
   }

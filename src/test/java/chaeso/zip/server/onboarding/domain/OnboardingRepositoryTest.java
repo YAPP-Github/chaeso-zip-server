@@ -8,7 +8,7 @@ import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
-import chaeso.zip.server.performance.domain.vo.PerfSource;
+import chaeso.zip.server.support.AdPerformanceFixture;
 import chaeso.zip.server.support.OnboardingFixture;
 import chaeso.zip.server.support.PostgresDataJpaTest;
 import chaeso.zip.server.support.UserFixture;
@@ -58,9 +58,9 @@ class OnboardingRepositoryTest {
   void savesAdPerformances() {
     UUID userId = persistUser();
 
-    adPerformanceRepository.saveAndFlush(AdPerformance.builder()
+    adPerformanceRepository.saveAndFlush(AdPerformanceFixture.builder()
         .userId(userId)
-        .sourceType(PerfSource.MANUAL)
+        .channelId(null)
         .externalChannelName("인스타그램")
         .budgetWon(3_000_000L)
         .impressions(250_000L)

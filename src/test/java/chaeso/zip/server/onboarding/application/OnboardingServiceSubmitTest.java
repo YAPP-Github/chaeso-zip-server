@@ -15,7 +15,6 @@ import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
-import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
@@ -25,7 +24,6 @@ import chaeso.zip.server.onboarding.domain.entity.OnboardingAdHistorySnapshot;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapshotRepository;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
-import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
@@ -157,16 +155,30 @@ class OnboardingServiceSubmitTest {
     @Test
     @DisplayName("잘 모르겠어요를 다른 연령대와 함께 선택하면 ONB-011")
     void rejectsUndecidedWithOtherAgeBands() {
-      SubmitOnboardingCommand command = new SubmitOnboardingCommand(
-          "채소집", Category.SHOPPING_COMMERCE, ServiceType.WEB,
-          List.of(AgeBand.UNDECIDED, AgeBand.AGE_20S), CampaignObjective.TRAFFIC,
-          1L, 2L, CampaignPeriod.M1, AdExperience.NONE, List.of(), List.of());
+      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+          List.of(AgeBand.UNDECIDED, AgeBand.AGE_20S), CampaignObjective.TRAFFIC, 1L, 2L,
+          AdExperience.NONE, List.of(), List.of());
 
       assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
           .isInstanceOf(OnboardingBusinessException.class)
           .extracting("errorCode")
           .isEqualTo(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
       then(onboardingRepository).should(never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("잘 모르겠어요만 단독으로 선택하면 통과한다")
+    void allowsUndecidedAlone() {
+      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
+          List.of(AgeBand.UNDECIDED), CampaignObjective.TRAFFIC, 1L, 2L, AdExperience.NONE,
+          List.of(), List.of());
+      given(onboardingRepository.findByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
+      given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
+          .willAnswer(invocation -> invocation.getArgument(0));
+
+      onboardingService.submit(USER_ID, command);
+
+      then(onboardingRepository).should().saveAndFlush(any(Onboarding.class));
     }
   }
 
