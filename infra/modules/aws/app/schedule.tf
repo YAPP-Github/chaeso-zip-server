@@ -23,7 +23,8 @@ resource "aws_iam_role_policy" "scheduler" {
 }
 
 resource "aws_scheduler_schedule" "stop" {
-  name = "${var.name_prefix}-stop-night"
+  name  = "${var.name_prefix}-stop-night"
+  state = "DISABLED"
   flexible_time_window {
     mode = "OFF"
   }
@@ -42,7 +43,8 @@ resource "aws_scheduler_schedule" "stop" {
 }
 
 resource "aws_scheduler_schedule" "start" {
-  name = "${var.name_prefix}-start-morning"
+  name  = "${var.name_prefix}-start-morning"
+  state = "DISABLED"
   flexible_time_window {
     mode = "OFF"
   }
