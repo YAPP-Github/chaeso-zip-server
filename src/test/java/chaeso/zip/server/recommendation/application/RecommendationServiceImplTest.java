@@ -189,6 +189,25 @@ class RecommendationServiceImplTest {
     }
 
     @Test
+    @DisplayName("연령대를 모르는 온보딩은 연령을 빼고 업종/목적만으로 적합도를 매긴다")
+    void ranksWithoutAgeBandWhenUndecided() {
+      Channel bothAxes = matchingChannel("두 축 채널", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+      Channel categoryOnly = matchingChannel("업종 채널", List.of(INDUSTRY),
+          List.of(TARGET_AGE_BAND));
+
+      givenCatalog(
+          entry(bothAxes, OBJECTIVE, PricingModel.CPM, "3000"),
+          entry(categoryOnly, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"));
+
+      List<RecommendationItemResponse> items = recommend(undecidedAgeOnboarding());
+
+      assertThat(items).extracting(RecommendationItemResponse::matchRate)
+          .containsExactly(100, 57);
+      assertThat(items).extracting(RecommendationItemResponse::recommendationReason)
+          .allSatisfy(reason -> assertThat(reason).doesNotContain("연령"));
+    }
+
+    @Test
     @DisplayName("매칭되지 않은 채널의 단가는 조회하지 않는다")
     void loadsPricingOnlyForMatchedChannels() {
       Channel matched = matchingChannel("매칭 채널", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
@@ -545,6 +564,12 @@ class RecommendationServiceImplTest {
   /** 업종·목적·연령이 모두 맞는 온보딩. 예산 상한 300만원, 기간 1개월. */
   private static Onboarding onboarding() {
     return OnboardingFixture.onboarding(INDUSTRY, OBJECTIVE, List.of(TARGET_AGE_BAND),
+        1_000_000L, BUDGET_MAX, CampaignPeriod.M1);
+  }
+
+  /** 주요 연령대를 "잘 모르겠어요"로 답한 온보딩. */
+  private static Onboarding undecidedAgeOnboarding() {
+    return OnboardingFixture.onboarding(INDUSTRY, OBJECTIVE, List.of(AgeBand.UNDECIDED),
         1_000_000L, BUDGET_MAX, CampaignPeriod.M1);
   }
 

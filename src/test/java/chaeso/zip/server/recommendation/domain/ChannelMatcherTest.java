@@ -92,15 +92,89 @@ class ChannelMatcherTest {
           matchingChannel(List.of(Category.GAME, INDUSTRY), List.of(AgeBand.AGE_20S)),
           List.of(products(OBJECTIVE)));
 
-      assertThat(score.score()).isEqualTo(MatchAxis.MAX_SCORE);
+      assertThat(score.appliedAxes()).containsExactly(MatchAxis.values());
+      assertThat(score.score()).isEqualTo(90);
       assertThat(score.matchRate()).isEqualTo(100);
     }
 
     @Test
-    @DisplayName("만점은 축 배점의 합이라 배점을 조정해도 적합도 %가 어긋나지 않는다")
-    void maxScoreIsSumOfWeights() {
-      assertThat(MatchAxis.MAX_SCORE)
+    @DisplayName("만점은 적용된 축 배점의 합이라 배점을 조정해도 적합도 %가 어긋나지 않는다")
+    void maxScoreIsSumOfAppliedWeights() {
+      MatchScore score = ChannelMatcher.match(ONBOARDING,
+          matchingChannel(List.of(INDUSTRY), List.of(AgeBand.AGE_20S)),
+          List.of(products(OBJECTIVE)));
+
+      assertThat(score.maxScore())
           .isEqualTo(Arrays.stream(MatchAxis.values()).mapToInt(MatchAxis::getWeight).sum());
+    }
+  }
+
+  @Nested
+  @DisplayName("연령대를 모르는 온보딩")
+  class UndecidedAgeBand {
+
+    private static final Onboarding UNDECIDED_ONBOARDING = OnboardingFixture.onboarding(
+        INDUSTRY, OBJECTIVE, List.of(AgeBand.UNDECIDED), 1_000_000L, 3_000_000L, CampaignPeriod.M1);
+
+    @Test
+    @DisplayName("연령 축을 배점에서 빼고 만점을 70으로 낮춘다")
+    void dropsAgeBandAxis() {
+      MatchScore score = ChannelMatcher.match(UNDECIDED_ONBOARDING,
+          matchingChannel(List.of(Category.GAME), List.of(AgeBand.AGE_20S)),
+          List.of(products(CampaignObjective.CONVERSION)));
+
+      assertThat(score.appliedAxes())
+          .containsExactly(MatchAxis.CATEGORY, MatchAxis.OBJECTIVE);
+      assertThat(score.maxScore()).isEqualTo(70);
+    }
+
+    @Test
+    @DisplayName("업종·목적이 다 맞으면 연령을 몰라도 적합도가 100% 다")
+    void scoresFullMatchWithoutAgeBand() {
+      MatchScore score = ChannelMatcher.match(UNDECIDED_ONBOARDING,
+          matchingChannel(List.of(INDUSTRY), List.of(AgeBand.AGE_50S_PLUS)),
+          List.of(products(OBJECTIVE)));
+
+      assertThat(score.matchedAxes())
+          .containsExactly(MatchAxis.CATEGORY, MatchAxis.OBJECTIVE);
+      assertThat(score.score()).isEqualTo(70);
+      assertThat(score.matchRate()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("업종만 맞으면 70점 만점으로 환산한다")
+    void scoresCategoryOnlyAgainstReducedMax() {
+      MatchScore score = ChannelMatcher.match(UNDECIDED_ONBOARDING,
+          matchingChannel(List.of(INDUSTRY), List.of(AgeBand.AGE_20S)),
+          List.of(products(CampaignObjective.CONVERSION)));
+
+      assertThat(score.score()).isEqualTo(40);
+      assertThat(score.matchRate()).isEqualTo(57);   // 40 / 70
+    }
+
+    @Test
+    @DisplayName("채널 타깃 연령대와 무관하게 연령 배점을 주지 않는다")
+    void neverScoresAgeBand() {
+      // 채널 타깃에는 UNDECIDED 가 없으므로 실제 연령대를 모두 가진 채널로 확인한다
+      Channel channel = matchingChannel(List.of(Category.GAME),
+          List.of(AgeBand.AGE_10S, AgeBand.AGE_20S, AgeBand.AGE_30S, AgeBand.AGE_40S,
+              AgeBand.AGE_50S_PLUS));
+
+      MatchScore score = ChannelMatcher.match(UNDECIDED_ONBOARDING, channel,
+          List.of(products(CampaignObjective.CONVERSION)));
+
+      assertThat(score.matchedAxes()).doesNotContain(MatchAxis.AGE_BAND);
+      assertThat(score.isMatched()).isFalse();
+    }
+
+    @Test
+    @DisplayName("업종·목적 중 하나라도 맞으면 추천 후보로 남는다")
+    void staysCandidateOnOtherAxes() {
+      MatchScore score = ChannelMatcher.match(UNDECIDED_ONBOARDING,
+          matchingChannel(List.of(Category.GAME), List.of(AgeBand.AGE_20S)),
+          List.of(products(OBJECTIVE)));
+
+      assertThat(score.isMatched()).isTrue();
     }
   }
 

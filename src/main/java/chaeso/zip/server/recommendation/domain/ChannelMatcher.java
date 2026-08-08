@@ -28,6 +28,8 @@ public final class ChannelMatcher {
     Objects.requireNonNull(onboarding, "onboarding 은 null 일 수 없습니다");
     Objects.requireNonNull(channel, "channel 은 null 일 수 없습니다");
 
+    Set<MatchAxis> applied = appliedAxes(onboarding);
+
     Set<MatchAxis> matched = EnumSet.noneOf(MatchAxis.class);
     if (suitsIndustry(onboarding.getIndustry(), channel.getSuitableCategories())) {
       matched.add(MatchAxis.CATEGORY);
@@ -35,10 +37,23 @@ public final class ChannelMatcher {
     if (supportsObjective(onboarding.getCampaignObjective(), products)) {
       matched.add(MatchAxis.OBJECTIVE);
     }
-    if (overlapsAgeBand(onboarding.getTargetAgeBands(), channel.getAgeBandCodes())) {
+    if (applied.contains(MatchAxis.AGE_BAND)
+        && overlapsAgeBand(onboarding.getTargetAgeBands(), channel.getAgeBandCodes())) {
       matched.add(MatchAxis.AGE_BAND);
     }
-    return new MatchScore(matched);
+    return new MatchScore(matched, applied);
+  }
+
+  private static Set<MatchAxis> appliedAxes(Onboarding onboarding) {
+    Set<MatchAxis> applied = EnumSet.allOf(MatchAxis.class);
+    if (ageUndecided(onboarding.getTargetAgeBands())) {
+      applied.remove(MatchAxis.AGE_BAND);
+    }
+    return applied;
+  }
+
+  private static boolean ageUndecided(Collection<AgeBand> targetAgeBands) {
+    return targetAgeBands != null && targetAgeBands.contains(AgeBand.UNDECIDED);
   }
 
   private static boolean suitsIndustry(Category industry, List<Category> suitableCategories) {
