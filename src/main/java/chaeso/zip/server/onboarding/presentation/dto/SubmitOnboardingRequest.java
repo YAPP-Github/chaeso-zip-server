@@ -62,17 +62,18 @@ public record SubmitOnboardingRequest(
     @NotNull @Size(max = 5) List<String> rawFileKeys) {
 
   public SubmitOnboardingCommand toCommand() {
-    return new SubmitOnboardingCommand(
-        serviceName,
-        industry,
-        serviceType,
-        targetAgeBands,
-        campaignObjective,
-        budgetMin,
-        budgetMax,
-        period,
-        adExperience,
-        adHistory.stream().map(AdHistoryRequest::toCommand).toList(),
-        rawFileKeys);
+    return SubmitOnboardingCommand.builder()
+        .serviceName(serviceName)
+        .industry(industry)
+        .serviceType(serviceType)
+        .targetAgeBands(targetAgeBands)
+        .campaignObjective(campaignObjective)
+        .budgetMin(budgetMin)
+        .budgetMax(budgetMax)
+        .period(period)
+        .adExperience(adExperience)
+        .adHistory(adHistory.stream().map(AdHistoryRequest::toCommand).toList())
+        .rawFileKeys(rawFileKeys)
+        .build();
   }
 }

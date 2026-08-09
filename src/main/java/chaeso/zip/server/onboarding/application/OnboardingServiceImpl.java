@@ -69,18 +69,19 @@ public class OnboardingServiceImpl implements OnboardingService {
 
   private OnboardingSubmitResponse saveOnboarding(UUID userId, SubmitOnboardingCommand command,
       List<String> confirmedFileUrls) {
-    Onboarding response = Onboarding.create(
-        userId,
-        command.serviceName(),
-        command.industry(),
-        command.serviceType(),
-        command.targetAgeBands(),
-        command.campaignObjective(),
-        command.budgetMin(),
-        command.budgetMax(),
-        command.period(),
-        command.adExperience(),
-        confirmedFileUrls);
+    Onboarding response = Onboarding.createBuilder()
+        .userId(userId)
+        .serviceName(command.serviceName())
+        .industry(command.industry())
+        .serviceType(command.serviceType())
+        .targetAgeBands(command.targetAgeBands())
+        .campaignObjective(command.campaignObjective())
+        .budgetMin(command.budgetMin())
+        .budgetMax(command.budgetMax())
+        .period(command.period())
+        .adExperience(command.adExperience())
+        .rawFileUrls(confirmedFileUrls)
+        .build();
 
     if (userId != null) {
       onboardingRepository.findByUserIdAndIsActiveTrue(userId)
@@ -106,9 +107,17 @@ public class OnboardingServiceImpl implements OnboardingService {
         .toList());
 
     onboardingAdHistorySnapshotRepository.saveAll(command.adHistory().stream()
-        .map(row -> OnboardingAdHistorySnapshot.snapshot(saved.getId(), row.channelId(),
-            row.channelNameRaw(), row.budgetWon(), row.impressions(), row.clicks(),
-            row.conversions(), row.startedAt(), row.endedAt()))
+        .map(row -> OnboardingAdHistorySnapshot.snapshotBuilder()
+            .onboardingId(saved.getId())
+            .channelId(row.channelId())
+            .channelNameSnap(row.channelNameRaw())
+            .budgetWonSnap(row.budgetWon())
+            .impressionsSnap(row.impressions())
+            .clicksSnap(row.clicks())
+            .conversionsSnap(row.conversions())
+            .startedAtSnap(row.startedAt())
+            .endedAtSnap(row.endedAt())
+            .build())
         .toList());
 
     return OnboardingSubmitResponse.from(saved);
