@@ -224,8 +224,8 @@ class SimulationControllerTest {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {99_999, 5_000_001})
-  @DisplayName("총 예산이 10만~500만 범위를 벗어나면 400 C-001 과 필드 에러를 반환한다")
+  @ValueSource(ints = {99_999, 10_000_001})
+  @DisplayName("총 예산이 10만~1,000만 범위를 벗어나면 400 C-001 과 필드 에러를 반환한다")
   void rejectsBudgetOutOfRange(int totalBudgetWon) throws Exception {
     // 배분은 두 총 예산 모두에 들어가는 금액으로 둔다. 넘치면 배분 합계 검증까지 함께 위반되고,
     // 검증 실행 순서는 보장되지 않아 어느 필드가 먼저 담길지 알 수 없다
@@ -239,6 +239,20 @@ class SimulationControllerTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("C-001"))
         .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("totalBudgetWon")));
+  }
+
+  @Test
+  @DisplayName("총 예산이 상한과 같으면 통과한다")
+  void allowsBudgetAtUpperBound() throws Exception {
+    given(simulationService.estimate(any(SimulationCommand.class))).willReturn(response(null));
+    SimulationRequest request = new SimulationRequest(10_000_000, CampaignPeriod.M1,
+        List.of(new AllocationRequest(CHANNEL_ID, 10_000_000, new BigDecimal("100"))));
+
+    mockMvc.perform(post("/api/v1/simulations/estimate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
   }
 
   @Test

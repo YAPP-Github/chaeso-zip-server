@@ -17,9 +17,9 @@ import java.util.UUID;
 
 @Schema(description = "예산 시뮬레이션 요청")
 public record SimulationRequest(
-    @Schema(description = "총 예산(원). 10만 이상 500만 이하", example = "3000000",
+    @Schema(description = "총 예산(원). 10만 이상 1,000만 이하", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull @Min(100_000) @Max(5_000_000) Integer totalBudgetWon,
+    @NotNull @Min(100_000) @Max(10_000_000) Integer totalBudgetWon,
 
     @Schema(description = """
         집행 기간(온보딩과 같은 구간). 구간이라 계산에는 대표 일수를 쓴다 — \

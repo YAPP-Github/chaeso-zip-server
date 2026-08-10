@@ -203,7 +203,7 @@ public interface SimulationApiDocs {
       content = @Content(
           examples = @ExampleObject(name = "SIMULATION", value = SIMULATION_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
-      description = "입력값 검증 실패(C-001). 총 예산 범위(10만~500만), 기간, 배분 목록을 확인한다",
+      description = "입력값 검증 실패(C-001). 총 예산 범위(10만~1,000만), 기간, 배분 목록을 확인한다",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
