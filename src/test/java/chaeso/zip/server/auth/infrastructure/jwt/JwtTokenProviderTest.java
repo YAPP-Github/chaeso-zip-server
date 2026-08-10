@@ -21,25 +21,27 @@ class JwtTokenProviderTest {
   class RoundTrip {
 
     @Test
-    @DisplayName("access 토큰을 발급하고 파싱하면 사용자 식별자가 복원된다")
+    @DisplayName("access 토큰을 발급하고 파싱하면 사용자 식별자와 세션 버전이 복원된다")
     void access() {
       JwtTokenProvider provider = JwtTestFixture.provider();
 
-      String token = provider.createAccessToken(USER_ID);
+      String token = provider.createAccessToken(USER_ID, 7);
       UserPrincipal principal = provider.parseAccess(token);
 
       assertThat(principal.userId()).isEqualTo(USER_ID);
+      assertThat(principal.sessionVersion()).isEqualTo(7);
     }
 
     @Test
-    @DisplayName("refresh 토큰을 발급하고 파싱하면 세션 식별자가 복원된다")
+    @DisplayName("refresh 토큰을 발급하고 파싱하면 세션 식별자와 세션 버전이 복원된다")
     void refresh() {
       JwtTokenProvider provider = JwtTestFixture.provider();
 
-      String token = provider.createRefreshToken(USER_ID, "family-1", "jti-1");
+      String token = provider.createRefreshToken(USER_ID, 7, "family-1", "jti-1");
       RefreshTokenInfo info = provider.parseRefresh(token);
 
       assertThat(info.userId()).isEqualTo(USER_ID);
+      assertThat(info.sessionVersion()).isEqualTo(7);
       assertThat(info.familyId()).isEqualTo("family-1");
       assertThat(info.jti()).isEqualTo("jti-1");
     }
@@ -51,6 +53,7 @@ class JwtTokenProviderTest {
       String token = Jwts.builder()
           .subject(USER_ID.toString())
           .claim("type", "access")
+          .claim("sessionVersion", 0)
           .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
           .signWith(JwtTestFixture.signingKey())
           .compact();
@@ -58,6 +61,7 @@ class JwtTokenProviderTest {
       UserPrincipal principal = provider.parseAccess(token);
 
       assertThat(principal.userId()).isEqualTo(USER_ID);
+      assertThat(principal.sessionVersion()).isZero();
     }
   }
 
@@ -123,7 +127,7 @@ class JwtTokenProviderTest {
     @DisplayName("refresh 토큰은 access 인증에 사용할 수 없다")
     void refreshCannotBeParsedAsAccess() {
       JwtTokenProvider provider = JwtTestFixture.provider();
-      String refresh = provider.createRefreshToken(USER_ID, "family-1", "jti-1");
+      String refresh = provider.createRefreshToken(USER_ID, 0, "family-1", "jti-1");
 
       assertThatThrownBy(() -> provider.parseAccess(refresh))
           .isInstanceOf(InvalidTokenException.class);
@@ -133,7 +137,7 @@ class JwtTokenProviderTest {
     @DisplayName("access 토큰은 refresh 파싱에 사용할 수 없다")
     void accessCannotBeParsedAsRefresh() {
       JwtTokenProvider provider = JwtTestFixture.provider();
-      String access = provider.createAccessToken(USER_ID);
+      String access = provider.createAccessToken(USER_ID, 0);
 
       assertThatThrownBy(() -> provider.parseRefresh(access))
           .isInstanceOf(InvalidTokenException.class);
@@ -148,7 +152,7 @@ class JwtTokenProviderTest {
     @DisplayName("변조된 토큰은 파싱할 수 없다")
     void tamperedToken() {
       JwtTokenProvider provider = JwtTestFixture.provider();
-      String token = provider.createAccessToken(USER_ID);
+      String token = provider.createAccessToken(USER_ID, 0);
       String tamperedToken = token.substring(0, token.length() - 1)
           + (token.endsWith("a") ? "b" : "a");
 
@@ -169,7 +173,7 @@ class JwtTokenProviderTest {
     @DisplayName("만료된 access 토큰은 파싱할 수 없다")
     void expiredToken() {
       JwtTokenProvider provider = JwtTestFixture.provider(Duration.ofSeconds(-60));
-      String token = provider.createAccessToken(USER_ID);
+      String token = provider.createAccessToken(USER_ID, 0);
 
       assertThatThrownBy(() -> provider.parseAccess(token))
           .isInstanceOf(InvalidTokenException.class);
