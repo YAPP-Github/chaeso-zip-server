@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -471,6 +472,21 @@ class AuthServiceTest {
           .willReturn(Optional.of(UserFixture.user()));
       given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
           .willReturn(Optional.of(AuthIdentity.createLocal(null, null)));
+      LoginCommand command = loginCommand();
+
+      assertThatThrownBy(() -> authService.login(command))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+      verify(passwordEncoder).matches(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("비밀번호 해시가 공백 문자열이면 상수 시간 유지를 위해 매칭을 1회 수행하고 AUTH-003 으로 실패한다")
+    void blankPasswordHash_throwsInvalidCredentials() {
+      given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
+          .willReturn(Optional.of(UserFixture.user()));
+      given(authIdentityRepository.findByUserIdAndProvider(any(), eq(AuthProvider.LOCAL)))
+          .willReturn(Optional.of(AuthIdentity.createLocal(null, "   ")));
       LoginCommand command = loginCommand();
 
       assertThatThrownBy(() -> authService.login(command))
@@ -1037,7 +1053,7 @@ class AuthServiceTest {
     void alreadyExistingEmail_rejected() {
       given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
       User activeUser = UserFixture.user();
-      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(activeUser));
+      doReturn(Optional.of(activeUser)).when(userRepository).findByEmail("user@chaeso.zip");
 
       GoogleSignupCommand command = googleSignupCommand("signup-ticket");
       assertThatThrownBy(() -> authService.signupGoogle(command))
@@ -1129,11 +1145,25 @@ class AuthServiceTest {
     @DisplayName("탈퇴한 LOCAL 계정은 비밀번호가 맞아도 로그인을 거절한다")
     void localLoginRejectsWithdrawnAccount() {
       User user = withdrawnUser(1);
-      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+      doReturn(Optional.of(user)).when(userRepository).findByEmail("user@chaeso.zip");
       given(userRepository.findByIdForUpdate(user.getId())).willReturn(Optional.of(user));
       given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
           .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "ENCODED")));
       given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(true);
+
+      LoginCommand loginCmd = loginCommand();
+      assertThatThrownBy(() -> authService.login(loginCmd))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 계정(로컬 identity 없음)으로 로컬 로그인 시도 시 ACCOUNT_DELETION_IN_PROGRESS로 실패한다")
+    void withdrawnAccountWithoutLocalIdentity_rejectionHasPriority() {
+      User user = withdrawnUser(1);
+      doReturn(Optional.of(user)).when(userRepository).findByEmail("user@chaeso.zip");
+      given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+          .willReturn(Optional.empty());
 
       LoginCommand loginCmd = loginCommand();
       assertThatThrownBy(() -> authService.login(loginCmd))
