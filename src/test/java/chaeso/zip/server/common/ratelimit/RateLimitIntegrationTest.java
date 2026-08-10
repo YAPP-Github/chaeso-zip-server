@@ -4,31 +4,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.IOException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
+import chaeso.zip.server.support.redis.EmbeddedRedisTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import redis.embedded.RedisServer;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@EmbeddedRedisTest(port = RateLimitIntegrationTest.PORT)
 class RateLimitIntegrationTest {
 
-  private static final int PORT = 16386;
-  private static RedisServer redisServer;
+  static final int PORT = 16386;
 
   @DynamicPropertySource
   static void redisProperties(DynamicPropertyRegistry registry) {
@@ -37,27 +32,6 @@ class RateLimitIntegrationTest {
 
   @Autowired
   private MockMvc mockMvc;
-
-  @Autowired
-  private StringRedisTemplate redisTemplate;
-
-  @BeforeAll
-  static void startRedis() throws IOException {
-    redisServer = RedisServer.newRedisServer().port(PORT).build();
-    redisServer.start();
-  }
-
-  @AfterAll
-  static void stopRedis() throws IOException {
-    redisServer.stop();
-  }
-
-  @AfterEach
-  void flush() {
-    if (redisTemplate != null && redisTemplate.getConnectionFactory() != null) {
-      redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
-    }
-  }
 
   @Nested
   @DisplayName("로그인 수단 조회 API")

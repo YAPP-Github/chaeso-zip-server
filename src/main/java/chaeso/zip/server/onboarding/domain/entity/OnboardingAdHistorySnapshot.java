@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
@@ -60,6 +61,7 @@ public class OnboardingAdHistorySnapshot {
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  @Builder(builderMethodName = "snapshotBuilder")
   private OnboardingAdHistorySnapshot(UUID onboardingId, UUID channelId, String channelNameSnap,
       Long budgetWonSnap, Long impressionsSnap, Long clicksSnap, Long conversionsSnap,
       LocalDate startedAtSnap, LocalDate endedAtSnap) {
@@ -76,13 +78,5 @@ public class OnboardingAdHistorySnapshot {
     this.conversionsSnap = conversionsSnap;
     this.startedAtSnap = startedAtSnap;
     this.endedAtSnap = endedAtSnap;
-  }
-
-  /** 온보딩 제출 한 건(adHistory 한 행)의 스냅샷을 만든다. */
-  public static OnboardingAdHistorySnapshot snapshot(UUID onboardingId, UUID channelId,
-      String channelNameSnap, Long budgetWonSnap, Long impressionsSnap, Long clicksSnap,
-      Long conversionsSnap, LocalDate startedAtSnap, LocalDate endedAtSnap) {
-    return new OnboardingAdHistorySnapshot(onboardingId, channelId, channelNameSnap,
-        budgetWonSnap, impressionsSnap, clicksSnap, conversionsSnap, startedAtSnap, endedAtSnap);
   }
 }

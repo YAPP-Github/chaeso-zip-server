@@ -8,18 +8,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.ratelimit.RateLimiter;
+import chaeso.zip.server.support.security.WithUserPrincipal;
 import chaeso.zip.server.user.application.UserService;
 import chaeso.zip.server.user.application.dto.UpdateProfileCommand;
 import chaeso.zip.server.user.application.dto.UserProfileResponse;
 import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.user.domain.UserNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,16 +24,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(UserController.class)
+@WithUserPrincipal
 class UserControllerTest {
 
-  private static final UUID USER_ID = UUID.randomUUID();
+  private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
 
   @Autowired
   private MockMvc mockMvc;
@@ -49,17 +45,6 @@ class UserControllerTest {
 
   @MockitoBean
   private RateLimiter rateLimiter;
-
-  @BeforeEach
-  void authenticate() {
-    SecurityContextHolder.getContext().setAuthentication(
-        new UsernamePasswordAuthenticationToken(new UserPrincipal(USER_ID), null, List.of()));
-  }
-
-  @AfterEach
-  void clearContext() {
-    SecurityContextHolder.clearContext();
-  }
 
   @Nested
   @DisplayName("내 정보 조회")

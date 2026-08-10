@@ -39,10 +39,19 @@ class OnboardingServiceSubmitIntegrationTest {
   @Test
   @DisplayName("온보딩을 제출하면 실제로 저장되어 별도 조회로 확인된다")
   void submitActuallyCommits() {
-    SubmitOnboardingCommand command = new SubmitOnboardingCommand(
-        "채소집", Category.SHOPPING_COMMERCE, ServiceType.WEB, List.of(),
-        CampaignObjective.TRAFFIC, 1_000_000L, 5_000_000L, CampaignPeriod.M1,
-        AdExperience.NONE, List.of(), List.of());
+    SubmitOnboardingCommand command = SubmitOnboardingCommand.builder()
+        .serviceName("채소집")
+        .industry(Category.SHOPPING_COMMERCE)
+        .serviceType(ServiceType.WEB)
+        .targetAgeBands(List.of())
+        .campaignObjective(CampaignObjective.TRAFFIC)
+        .budgetMin(1_000_000L)
+        .budgetMax(5_000_000L)
+        .period(CampaignPeriod.M1)
+        .adExperience(AdExperience.NONE)
+        .adHistory(List.of())
+        .rawFileKeys(List.of())
+        .build();
 
     OnboardingSubmitResponse response = onboardingService.submit(null, command);
 

@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.application.SimulationService;
@@ -24,14 +23,13 @@ import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.presentation.dto.AllocationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
+import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,8 +41,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -52,9 +48,10 @@ import chaeso.zip.server.common.ratelimit.RateLimiter;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(SimulationController.class)
+@WithUserPrincipal
 class SimulationControllerTest {
 
-  private static final UUID USER_ID = UUID.randomUUID();
+  private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
   private static final UUID CHANNEL_ID = UUID.randomUUID();
   private static final UUID PRODUCT_ID = UUID.randomUUID();
 
@@ -69,17 +66,6 @@ class SimulationControllerTest {
 
   @MockitoBean
   private RateLimiter rateLimiter;
-
-  @BeforeEach
-  void authenticate() {
-    SecurityContextHolder.getContext().setAuthentication(
-        new UsernamePasswordAuthenticationToken(new UserPrincipal(USER_ID), null, List.of()));
-  }
-
-  @AfterEach
-  void clearContext() {
-    SecurityContextHolder.clearContext();
-  }
 
   @Test
   @DisplayName("계산 요청이 성공하면 200 과 매체별 추정치를 반환하고 simulationId 는 응답에 없다")

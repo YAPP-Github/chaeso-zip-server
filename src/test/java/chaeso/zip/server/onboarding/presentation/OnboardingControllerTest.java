@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
@@ -27,14 +26,13 @@ import chaeso.zip.server.onboarding.presentation.dto.PerformanceFileMeta;
 import chaeso.zip.server.onboarding.presentation.dto.PresignPerformanceFilesRequest;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
 import chaeso.zip.server.support.OnboardingFixture;
+import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,8 +40,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,9 +48,10 @@ import chaeso.zip.server.common.ratelimit.RateLimiter;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(OnboardingController.class)
+@WithUserPrincipal
 class OnboardingControllerTest {
 
-  private static final UUID USER_ID = UUID.randomUUID();
+  private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
 
   @Autowired
   private MockMvc mockMvc;
@@ -67,17 +64,6 @@ class OnboardingControllerTest {
 
   @MockitoBean
   private RateLimiter rateLimiter;
-
-  @BeforeEach
-  void authenticate() {
-    SecurityContextHolder.getContext().setAuthentication(
-        new UsernamePasswordAuthenticationToken(new UserPrincipal(USER_ID), null, List.of()));
-  }
-
-  @AfterEach
-  void clearContext() {
-    SecurityContextHolder.clearContext();
-  }
 
   @Nested
   @DisplayName("온보딩을 제출한다")

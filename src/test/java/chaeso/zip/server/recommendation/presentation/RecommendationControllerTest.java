@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
@@ -18,12 +17,11 @@ import chaeso.zip.server.recommendation.application.RecommendationService;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
 import chaeso.zip.server.recommendation.presentation.dto.SaveRecommendationRequest;
+import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
@@ -31,17 +29,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(RecommendationController.class)
+@WithUserPrincipal
 class RecommendationControllerTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
-  private static final UUID USER_ID = UUID.randomUUID();
+  private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
 
   @Autowired
   private MockMvc mockMvc;
@@ -54,17 +51,6 @@ class RecommendationControllerTest {
 
   @MockitoBean
   private RateLimiter rateLimiter;
-
-  @BeforeEach
-  void authenticate() {
-    SecurityContextHolder.getContext().setAuthentication(
-        new UsernamePasswordAuthenticationToken(new UserPrincipal(USER_ID), null, List.of()));
-  }
-
-  @AfterEach
-  void clearContext() {
-    SecurityContextHolder.clearContext();
-  }
 
   @Test
   @DisplayName("추천 조회가 성공하면 200 과 적합도·추정값을 반환하고 enum 은 코드값으로 직렬화된다")

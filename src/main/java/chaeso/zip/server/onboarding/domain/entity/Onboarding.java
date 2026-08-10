@@ -18,6 +18,7 @@ import jakarta.persistence.Table;
 import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -94,6 +95,7 @@ public class Onboarding extends BaseEntity {
     this.isActive = true;
   }
 
+  @Builder(builderMethodName = "createBuilder")
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
       Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
