@@ -117,6 +117,23 @@ class JwtTokenProviderTest {
       assertThatThrownBy(() -> provider.parseRefresh(token))
           .isInstanceOf(InvalidTokenException.class);
     }
+
+    @Test
+    @DisplayName("refresh 토큰의 familyId 또는 jti가 공백이면 파싱할 수 없다")
+    void blankFamilyIdOrJti() {
+      JwtTokenProvider provider = JwtTestFixture.provider();
+      String tokenWithBlankFamily = Jwts.builder()
+          .subject(USER_ID.toString())
+          .id("jti-1")
+          .claim("familyId", "   ")
+          .claim("type", "refresh")
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofDays(14))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      assertThatThrownBy(() -> provider.parseRefresh(tokenWithBlankFamily))
+          .isInstanceOf(InvalidTokenException.class);
+    }
   }
 
   @Nested
@@ -177,6 +194,101 @@ class JwtTokenProviderTest {
 
       assertThatThrownBy(() -> provider.parseAccess(token))
           .isInstanceOf(InvalidTokenException.class);
+    }
+
+    @Test
+    @DisplayName("토큰 주체(subject) claim이 없으면 파싱할 수 없다")
+    void missingSubject() {
+      JwtTokenProvider provider = JwtTestFixture.provider();
+      String token = Jwts.builder()
+          .claim("type", "access")
+          .claim("sessionVersion", 0)
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      assertThatThrownBy(() -> provider.parseAccess(token))
+          .isInstanceOf(InvalidTokenException.class)
+          .hasMessage("토큰 subject가 없습니다.");
+    }
+
+    @Test
+    @DisplayName("토큰 주체(subject)가 UUID 형식이 아니면 파싱할 수 없다")
+    void invalidUuidSubject() {
+      JwtTokenProvider provider = JwtTestFixture.provider();
+      String token = Jwts.builder()
+          .subject("invalid-uuid-string")
+          .claim("type", "access")
+          .claim("sessionVersion", 0)
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      assertThatThrownBy(() -> provider.parseAccess(token))
+          .isInstanceOf(InvalidTokenException.class)
+          .hasMessage("토큰 subject가 UUID 형식이 아닙니다.");
+    }
+
+    @Test
+    @DisplayName("세션 버전 claim이 누락되거나 음수·소수점이 포함되면 파싱할 수 없다")
+    void invalidSessionVersion() {
+      JwtTokenProvider provider = JwtTestFixture.provider();
+
+      String notANumberToken = Jwts.builder()
+          .subject(USER_ID.toString())
+          .claim("type", "access")
+          .claim("sessionVersion", "not-a-number")
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      String decimalToken = Jwts.builder()
+          .subject(USER_ID.toString())
+          .claim("type", "access")
+          .claim("sessionVersion", 1.5)
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      String negativeToken = Jwts.builder()
+          .subject(USER_ID.toString())
+          .claim("type", "access")
+          .claim("sessionVersion", -1)
+          .expiration(Date.from(FIXED_NOW.plus(Duration.ofMinutes(30))))
+          .signWith(JwtTestFixture.signingKey())
+          .compact();
+
+      assertThatThrownBy(() -> provider.parseAccess(notANumberToken))
+          .isInstanceOf(InvalidTokenException.class)
+          .hasMessage("토큰 세션 버전이 올바르지 않습니다.");
+
+      assertThatThrownBy(() -> provider.parseAccess(decimalToken))
+          .isInstanceOf(InvalidTokenException.class)
+          .hasMessage("토큰 세션 버전이 올바르지 않습니다.");
+
+      assertThatThrownBy(() -> provider.parseAccess(negativeToken))
+          .isInstanceOf(InvalidTokenException.class)
+          .hasMessage("토큰 세션 버전이 올바르지 않습니다.");
+    }
+  }
+
+  @Nested
+  @DisplayName("생성자 검증")
+  class ConstructorValidation {
+
+    @Test
+    @DisplayName("JWT 비밀키(secret)가 null이거나 공백이면 초기화 시 IllegalArgumentException을 던진다")
+    void nullOrBlankSecret() {
+      JwtProperties nullSecretProperties = new JwtProperties(null, Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(90));
+      JwtProperties blankSecretProperties = new JwtProperties("   ", Duration.ofMinutes(30), Duration.ofDays(14), Duration.ofDays(90));
+
+      assertThatThrownBy(() -> new JwtTokenProvider(nullSecretProperties, JwtTestFixture.FIXED_CLOCK))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("JWT_SECRET 환경변수가 필요합니다.");
+
+      assertThatThrownBy(() -> new JwtTokenProvider(blankSecretProperties, JwtTestFixture.FIXED_CLOCK))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("JWT_SECRET 환경변수가 필요합니다.");
     }
   }
 }

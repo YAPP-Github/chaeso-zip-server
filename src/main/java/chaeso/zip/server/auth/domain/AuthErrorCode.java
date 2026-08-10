@@ -21,7 +21,7 @@ public enum AuthErrorCode implements ErrorCode {
   ACCOUNT_REGISTERED_WITH_GOOGLE(HttpStatus.UNAUTHORIZED, "AUTH-010", "Google 계정으로 가입된 이메일입니다. Google 로그인을 이용해 주세요."),
   GOOGLE_SIGNUP_SESSION_INVALID(HttpStatus.BAD_REQUEST, "AUTH-011", "가입 세션이 만료되었습니다. Google 로그인을 다시 시도해 주세요."),
   LOGIN_METHOD_LOOKUP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "AUTH-012", "조회 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
-  ACCOUNT_DELETION_IN_PROGRESS(HttpStatus.CONFLICT, "AUTH-015", "탈퇴 처리된 계정입니다.");
+  ACCOUNT_DELETION_IN_PROGRESS(HttpStatus.CONFLICT, "AUTH-013", "탈퇴 처리된 계정입니다.");
 
   private final HttpStatus httpStatus;
   private final String code;

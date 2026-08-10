@@ -67,7 +67,7 @@ public interface AuthApiDocs {
         "success": false,
         "data": null,
         "error": {
-          "code": "AUTH-015",
+          "code": "AUTH-013",
           "message": "탈퇴 처리된 계정입니다.",
           "fieldErrors": []
         },
@@ -223,7 +223,7 @@ public interface AuthApiDocs {
                   value = ACCOUNT_REGISTERED_WITH_GOOGLE_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "탈퇴 처리된 계정(AUTH-015)",
+      description = "탈퇴 처리된 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
               value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))
@@ -412,7 +412,7 @@ public interface AuthApiDocs {
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
       description = """
           구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다. \
-          탈퇴 처리된 계정인 경우 가입 수단과 관계없이 409(AUTH-015) 예외를 반환한다. \
+          탈퇴 처리된 계정인 경우 가입 수단과 관계없이 409(AUTH-013) 예외를 반환한다. \
           
           LOGIN: 토큰 발급. \
           LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출. \
@@ -434,7 +434,7 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "GOOGLE_AUTH_FAILED", value = GOOGLE_AUTH_FAILED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "탈퇴 처리된 계정(AUTH-015)",
+      description = "탈퇴 처리된 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
               value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))

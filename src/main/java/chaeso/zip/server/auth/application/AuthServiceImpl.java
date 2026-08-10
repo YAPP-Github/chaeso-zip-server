@@ -149,8 +149,11 @@ public class AuthServiceImpl implements AuthService {
     boolean passwordMatches =
         passwordEncoder.matches(command.rawPassword(), hasHash ? passwordHash : dummyPasswordHash);
     if (!hasHash || !passwordMatches) {
-      if (user != null && !hasHash && hasGoogleIdentity(user)) {
-        throw new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+      if (user != null && !hasHash) {
+        rejectWithdrawn(user);
+        if (hasGoogleIdentity(user)) {
+          throw new AuthBusinessException(AuthErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+        }
       }
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }

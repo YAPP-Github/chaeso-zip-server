@@ -128,6 +128,7 @@ class AuthServiceTest {
         loginMethodLookupLimiter,
         new AuthSessionService(userRepository, jwtTokenProvider, JWT_PROPERTIES, refreshTokenStore, CLOCK),
         CLOCK);
+    authService.initDummyPasswordHash();
     lenient().when(userRepository.findByEmailForUpdate(anyString()))
         .thenAnswer(invocation ->
             userRepository.findByEmailAndDeletedAtIsNull(invocation.getArgument(0)));
@@ -269,11 +270,39 @@ class AuthServiceTest {
           .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
       verify(authIdentityRepository, never()).findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE);
     }
+
+    @Test
+    @DisplayName("계정 연동 정보(identity)가 전부 비어있는 회원 이메일이어도 정상적으로 인증 코드를 저장하고 메일을 발송한다")
+    void existingUserWithoutIdentities_sendsVerificationCode() {
+      User user = UserFixture.user();
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+      given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+          .willReturn(Optional.empty());
+      given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE))
+          .willReturn(Optional.empty());
+      given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
+
+      String code = authService.sendSignupVerificationCode("user@chaeso.zip");
+
+      assertThat(code).isNull();
+      verify(verificationCodeStore).saveCode(eq("user@chaeso.zip"), anyString());
+      verify(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
+    }
   }
 
   @Nested
   @DisplayName("회원가입")
   class Signup {
+
+    @Test
+    @DisplayName("이메일과 발송된 인증 코드가 일치하면 예외 없이 코드 검증을 완료한다")
+    void verifyCode_success() {
+      given(verificationCodeStore.verifyCode("user@chaeso.zip", "123456")).willReturn(true);
+
+      authService.verifySignupCode("user@chaeso.zip", "123456");
+
+      verify(verificationCodeStore).verifyCode("user@chaeso.zip", "123456");
+    }
 
     @Test
     @DisplayName("인증 코드가 틀리면 VERIFICATION_CODE_INVALID로 실패한다")
@@ -327,6 +356,20 @@ class AuthServiceTest {
       assertThat(captor.getValue().getProvider()).isEqualTo(AuthProvider.LOCAL);
       assertThat(captor.getValue().getPasswordHash()).isEqualTo("ENCODED");
       verify(verificationCodeStore).clearVerified("user@chaeso.zip");
+    }
+
+    @Test
+    @DisplayName("동시 가입 등으로 회원 저장 중 이메일 중복 제약조건과 충돌하면 EMAIL_ALREADY_EXISTS로 실패한다")
+    void concurrentEmailConstraintViolation_rejected() {
+      given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
+      given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
+      willThrow(new DataIntegrityViolationException("duplicate"))
+          .given(userRepository).saveAndFlush(any(User.class));
+
+      SignupCommand signupCmd = command("user@chaeso.zip");
+      assertThatThrownBy(() -> authService.signup(signupCmd))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
   }
 
@@ -574,6 +617,21 @@ class AuthServiceTest {
           .isEqualTo(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
 
       verify(refreshTokenStore, never()).revoke(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("회원의 세션 버전과 토큰의 세션 버전이 다르면 AUTH-004를 던진다")
+    void sessionVersionMismatch_throwsInvalidRefreshToken() {
+      UUID userId = UUID.randomUUID();
+      given(jwtTokenProvider.parseRefresh("version-mismatch"))
+          .willReturn(new RefreshTokenInfo(userId, 1, "family-1", "jti-1"));
+
+      assertThatThrownBy(() -> authService.reissue("version-mismatch"))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode")
+          .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+      verify(refreshTokenStore, never()).rotate(any(), anyString(), anyString(), anyString());
     }
   }
 
@@ -973,6 +1031,32 @@ class AuthServiceTest {
       verify(googleSignupStore, never()).delete(anyString());
       verify(refreshTokenStore, never()).save(any(), anyString(), anyString());
     }
+
+    @Test
+    @DisplayName("이미 가입된 회원의 이메일로 구글 회원가입 시도 시 EMAIL_ALREADY_EXISTS로 실패한다")
+    void alreadyExistingEmail_rejected() {
+      given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+      User activeUser = UserFixture.user();
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(activeUser));
+
+      GoogleSignupCommand command = googleSignupCommand("signup-ticket");
+      assertThatThrownBy(() -> authService.signupGoogle(command))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+    }
+
+    @Test
+    @DisplayName("탈퇴 처리 진행 중인 회원의 이메일로 구글 회원가입 시도 시 ACCOUNT_DELETION_IN_PROGRESS로 실패한다")
+    void withdrawnUserEmail_rejected() {
+      given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+      User withdrawnUser = withdrawnUser(1);
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(withdrawnUser));
+
+      GoogleSignupCommand command = googleSignupCommand("signup-ticket");
+      assertThatThrownBy(() -> authService.signupGoogle(command))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
+    }
   }
 
   @Nested
@@ -1058,7 +1142,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 계정 이메일로 Google 인증 진입 시 가입 수단과 관계없이 AUTH-015를 반환한다")
+    @DisplayName("탈퇴한 계정 이메일로 Google 인증 진입 시 가입 수단과 관계없이 AUTH-013을 반환한다")
     void googleAuthRejectsWithdrawnAccount() {
       givenVerifiedGoogleToken();
       User user = withdrawnUser(1);
@@ -1070,7 +1154,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 이메일로 신규 가입하면 AUTH-015를 반환한다")
+    @DisplayName("탈퇴한 이메일로 신규 가입하면 AUTH-013을 반환한다")
     void signupRejectsWithdrawnAccount() {
       User user = withdrawnUser(1);
       given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);

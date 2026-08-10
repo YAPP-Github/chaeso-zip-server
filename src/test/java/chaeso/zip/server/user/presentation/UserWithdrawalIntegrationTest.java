@@ -96,6 +96,6 @@ class UserWithdrawalIntegrationTest {
                 {"email": "withdrawn@chaeso.zip", "password": "P@ssw0rd!"}
                 """))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.error.code").value("AUTH-015"));
+        .andExpect(jsonPath("$.error.code").value("AUTH-013"));
   }
 }

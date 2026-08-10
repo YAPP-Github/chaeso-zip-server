@@ -48,7 +48,7 @@ class RefreshTokenStoreTest {
   private RefreshTokenStore storeAt(Instant now) {
     return new RefreshTokenStore(
         template,
-        new JwtProperties("dummy-secret", Duration.ofMinutes(30), REFRESH_TTL, ABSOLUTE_TTL),
+        new JwtProperties(JwtTestFixture.SECRET, Duration.ofMinutes(30), REFRESH_TTL, ABSOLUTE_TTL),
         Clock.fixed(now, ZoneOffset.UTC));
   }
 
@@ -227,6 +227,19 @@ class RefreshTokenStoreTest {
     @DisplayName("회전에 실패하면 TTL은 null이다")
     void rotate_failure_hasNoTtl() {
       assertThat(store.rotate(USER_ID, "no-such-family", "jti-1", "jti-2").ttl()).isNull();
+    }
+
+    @Test
+    @DisplayName("단일 리프레시 TTL이 절대 만료 기한보다 길면 상한값인 절대 만료 기한을 키 TTL로 적용한다")
+    void refreshTtlExceedsAbsoluteTtl_capsWithAbsoluteTtl() {
+      RefreshTokenStore customStore = new RefreshTokenStore(
+          template,
+          new JwtProperties(JwtTestFixture.SECRET, Duration.ofMinutes(30), Duration.ofDays(90), Duration.ofDays(14)),
+          Clock.fixed(T0, ZoneOffset.UTC));
+
+      Duration appliedTtl = customStore.save(USER_ID, FAMILY_ID, "jti-1");
+
+      assertThat(appliedTtl).isEqualTo(Duration.ofDays(14));
     }
   }
 }
