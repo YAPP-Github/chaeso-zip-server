@@ -4,10 +4,12 @@ import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.user.application.UserService;
 import chaeso.zip.server.user.application.dto.UserProfileResponse;
+import chaeso.zip.server.user.application.dto.WithdrawalResponse;
 import chaeso.zip.server.user.presentation.dto.UpdateProfileRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,5 +40,13 @@ public class UserController implements UserApiDocs {
       @Valid @RequestBody UpdateProfileRequest request) {
     return ApiResponse.success(
         userService.updateMyProfile(principal.userId(), request.toCommand()));
+  }
+
+  @Override
+  @DeleteMapping
+  public ApiResponse<WithdrawalResponse> withdraw(
+      @AuthenticationPrincipal UserPrincipal principal) {
+    return ApiResponse.success(
+        userService.withdraw(principal.userId(), principal.sessionVersion()));
   }
 }

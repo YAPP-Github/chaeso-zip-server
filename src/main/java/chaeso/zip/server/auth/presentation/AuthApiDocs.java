@@ -62,6 +62,19 @@ public interface AuthApiDocs {
       }
       """;
 
+  String ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-015",
+          "message": "탈퇴 처리된 계정입니다.",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   String VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE = """
       {
         "success": false,
@@ -99,9 +112,14 @@ public interface AuthApiDocs {
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 사용 중인 이메일",
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
+          examples = {
+              @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+                  value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
+          }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "인증번호 재발송 쿨다운(AUTH-008)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VERIFICATION_CODE_SEND_COOLDOWN",
@@ -152,9 +170,14 @@ public interface AuthApiDocs {
               @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE),
               @ExampleObject(name = "EMAIL_NOT_VERIFIED", value = EMAIL_NOT_VERIFIED_EXAMPLE)
           }))
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 사용 중인 이메일",
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
+          examples = {
+              @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+                  value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
+          }))
   ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request);
 
   String INVALID_CREDENTIALS_EXAMPLE = """
@@ -199,6 +222,11 @@ public interface AuthApiDocs {
               @ExampleObject(name = "ACCOUNT_REGISTERED_WITH_GOOGLE",
                   value = ACCOUNT_REGISTERED_WITH_GOOGLE_EXAMPLE)
           }))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+      description = "탈퇴 처리된 계정(AUTH-015)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+              value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))
   ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request);
 
   String LOGIN_METHODS_EXAMPLE = """
@@ -384,6 +412,7 @@ public interface AuthApiDocs {
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
       description = """
           구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다. \
+          탈퇴 처리된 계정인 경우 가입 수단과 관계없이 409(AUTH-015) 예외를 반환한다. \
           
           LOGIN: 토큰 발급. \
           LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출. \
@@ -404,6 +433,11 @@ public interface AuthApiDocs {
       description = "idToken 만료/위조/aud 불일치 또는 미검증 이메일(AUTH-009)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "GOOGLE_AUTH_FAILED", value = GOOGLE_AUTH_FAILED_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+      description = "탈퇴 처리된 계정(AUTH-015)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+              value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))
   ApiResponse<GoogleAuthResponse> googleAuth(@Valid @RequestBody GoogleAuthRequest request);
 
   String GOOGLE_ACCOUNT_LINKED = "GOOGLE_ACCOUNT_LINKED";
@@ -483,9 +517,13 @@ public interface AuthApiDocs {
                   value = GOOGLE_SIGNUP_SESSION_INVALID_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "가입 처리 중 타인이 먼저 같은 이메일로 가입함(AUTH-002)",
+      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE)))
+          examples = {
+              @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+                  value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
+          }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
       description = "구글 sub 가 이미 다른 활성 계정에 연결돼 있는 에러 상태(AUTH-009)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),

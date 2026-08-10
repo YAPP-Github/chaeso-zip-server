@@ -3,6 +3,7 @@ package chaeso.zip.server.user.presentation;
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.user.application.dto.UserProfileResponse;
+import chaeso.zip.server.user.application.dto.WithdrawalResponse;
 import chaeso.zip.server.user.presentation.dto.UpdateProfileRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -65,6 +66,17 @@ public interface UserApiDocs {
       }
       """;
 
+  String WITHDRAWAL_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "withdrawnAt": "2026-08-20T03:00:00Z"
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
   @Operation(operationId = "getMyProfile", summary = "내 정보 조회",
       description = "닉네임, 이메일, 회사, 직무를 반환한다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
@@ -93,4 +105,16 @@ public interface UserApiDocs {
   ApiResponse<UserProfileResponse> updateMyProfile(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody UpdateProfileRequest request);
+
+  @Operation(operationId = "withdraw", summary = "회원 탈퇴",
+      description = "회원 계정을 즉시 비활성화하고 탈퇴 시각을 반환한다.")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "탈퇴 성공",
+      useReturnTypeSchema = true,
+      content = @Content(examples = @ExampleObject(name = "WITHDRAWAL", value = WITHDRAWAL_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+      description = "존재하지 않는 회원(USER-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "USER_NOT_FOUND", value = USER_NOT_FOUND_EXAMPLE)))
+  ApiResponse<WithdrawalResponse> withdraw(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 }

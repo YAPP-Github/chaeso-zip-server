@@ -13,7 +13,6 @@ import chaeso.zip.server.auth.domain.AuthIdentity;
 import chaeso.zip.server.auth.domain.AuthIdentityRepository;
 import chaeso.zip.server.auth.domain.AuthProvider;
 import chaeso.zip.server.auth.domain.InvalidTokenException;
-import chaeso.zip.server.auth.infrastructure.jwt.JwtProperties;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenInfo;
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore;
@@ -30,7 +29,8 @@ import chaeso.zip.server.user.domain.User;
 import chaeso.zip.server.user.domain.UserRepository;
 import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
-import java.time.Duration;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -60,11 +60,12 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder;
   private final ConsentProperties consentProperties;
   private final JwtTokenProvider jwtTokenProvider;
-  private final JwtProperties jwtProperties;
   private final RefreshTokenStore refreshTokenStore;
   private final GoogleIdTokenVerifier googleIdTokenVerifier;
   private final GoogleSignupStore googleSignupStore;
   private final LoginMethodLookupLimiter loginMethodLookupLimiter;
+  private final AuthSessionService authSessionService;
+  private final Clock clock;
 
   private final SecureRandom secureRandom = new SecureRandom();
 
@@ -79,8 +80,9 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public String sendSignupVerificationCode(String email) {
     String normalized = normalizeEmail(email);
-    User user = userRepository.findByEmailAndDeletedAtIsNull(normalized).orElse(null);
+    User user = userRepository.findByEmail(normalized).orElse(null);
     if (user != null) {
+      rejectWithdrawn(user);
       if (hasLocalIdentity(user)) {
         throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
       }
@@ -125,6 +127,7 @@ public class AuthServiceImpl implements AuthService {
     if (userRepository.existsByEmailAndDeletedAtIsNull(email)) {
       throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
+    userRepository.findByEmail(email).ifPresent(this::rejectWithdrawn);
 
     User user = saveUser(command, email);
     authIdentityRepository.save(
@@ -136,7 +139,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public TokenResponse login(LoginCommand command) {
     String email = normalizeEmail(command.email());
-    User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+    User user = userRepository.findByEmail(email).orElse(null);
     AuthIdentity identity = user == null ? null
         : authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL)
             .orElse(null);
@@ -151,7 +154,7 @@ public class AuthServiceImpl implements AuthService {
       }
       throw new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS);
     }
-    return openSession(user, AuthProvider.LOCAL);
+    return authSessionService.openLocalSession(user.getId());
   }
 
   @Override
@@ -172,6 +175,12 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public TokenResponse reissue(String refreshToken) {
     RefreshTokenInfo info = parseRefreshToken(refreshToken);
+    User user = userRepository.findByIdAndDeletedAtIsNull(info.userId())
+        .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+    // 탈퇴로 세션 버전이 올라간 뒤에도 이전 refresh 토큰이 살아있지 않도록 같이 검사한다.
+    if (user.getSessionVersion() != info.sessionVersion()) {
+      throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
     String newJti = UUID.randomUUID().toString();
     RotateOutcome outcome =
         refreshTokenStore.rotate(info.userId(), info.familyId(), info.jti(), newJti);
@@ -181,7 +190,8 @@ public class AuthServiceImpl implements AuthService {
     if (outcome.result() != RotateResult.ROTATED) {
       throw new AuthBusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
-    return tokenResponse(info.userId(), info.familyId(), newJti, outcome.ttl());
+    return authSessionService.createTokenResponse(
+        info.userId(), info.sessionVersion(), info.familyId(), newJti, outcome.ttl());
   }
 
   @Override
@@ -194,19 +204,26 @@ public class AuthServiceImpl implements AuthService {
   }
 
   /**
-   * 구글 계정 상태는 이메일로 판정.
+   * 이메일로 가입 여부와 계정 상태를 확인해 가입 필요/로그인/연동 필요 중 하나로 응답한다.
    */
   @Override
+  @Transactional
   public GoogleAuthResponse googleAuth(String idToken) {
     GoogleIdTokenInfo info = googleIdTokenVerifier.verify(idToken);
     String email = normalizeEmail(info.email());
 
-    User user = userRepository.findByEmailAndDeletedAtIsNull(email).orElse(null);
+    User user = userRepository.findByEmailForUpdate(email).orElse(null);
     if (user == null) {
       return GoogleAuthResponse.signupRequired(googleSignupStore.save(info), email, info.name());
     }
-    if (hasGoogleIdentity(user)) {
-      return GoogleAuthResponse.login(openSession(user, AuthProvider.GOOGLE));
+    rejectWithdrawn(user);
+
+    Optional<AuthIdentity> googleIdentity = findGoogleIdentity(user);
+    if (googleIdentity.isPresent()) {
+      if (!googleIdentity.get().getProviderUid().equals(info.sub())) {
+        throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
+      }
+      return GoogleAuthResponse.login(authSessionService.openSession(user, AuthProvider.GOOGLE));
     }
     return GoogleAuthResponse.linkRequired(email);
   }
@@ -219,32 +236,28 @@ public class AuthServiceImpl implements AuthService {
     User user = userRepository.findByEmailAndDeletedAtIsNull(email)
         .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED));
     attachGoogleIdentity(user, info);
-    return openSession(user, AuthProvider.GOOGLE);
+    return authSessionService.openSession(user, AuthProvider.GOOGLE);
   }
 
   /**
-   * providerUid 는 구글 계정당 하나. 같은 providerUid 의 identity 가 있으면 소유자가 소프트
-   * 삭제된 상태일 때만 재소유시킨다. 소유자가 활성 상태면 거부한다.
+   * 구글 계정(providerUid)을 회원에게 연동한다.
+   * 이미 다른 회원에게 연동된 계정인 경우 중복 바인딩을 방지하기 위해 예외 발생
    */
   private void attachGoogleIdentity(User user, GoogleIdTokenInfo info) {
-    if (hasGoogleIdentity(user)) {
+    Optional<AuthIdentity> linkedIdentity = findGoogleIdentity(user);
+    if (linkedIdentity.isPresent()) {
+      if (!linkedIdentity.get().getProviderUid().equals(info.sub())) {
+        throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
+      }
       return;
     }
     Optional<AuthIdentity> existing =
         authIdentityRepository.findByProviderAndProviderUid(AuthProvider.GOOGLE, info.sub());
     if (existing.isPresent()) {
       AuthIdentity identity = existing.get();
-      if (userRepository.findByIdAndDeletedAtIsNull(identity.getUserId()).isPresent()) {
-        log.warn("Google sub already linked to a different active user; refusing to reassign. "
-            + "identityId={}, activeOwnerId={}", identity.getId(), identity.getUserId());
-        throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
-      }
-      log.warn("Reassigning orphaned GOOGLE identity from a deleted/missing user. "
-          + "identityId={}, previousOwnerId={}, newOwnerId={}",
-          identity.getId(), identity.getUserId(), user.getId());
-      identity.reassignTo(user.getId());
-      authIdentityRepository.save(identity);
-      return;
+      log.warn("Google sub already linked to a different user; refusing to reassign. "
+          + "identityId={}, ownerId={}", identity.getId(), identity.getUserId());
+      throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
     }
     try {
       authIdentityRepository.save(AuthIdentity.createGoogle(user.getId(), info.sub()));
@@ -254,8 +267,11 @@ public class AuthServiceImpl implements AuthService {
   }
 
   private boolean hasGoogleIdentity(User user) {
-    return authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE)
-        .isPresent();
+    return findGoogleIdentity(user).isPresent();
+  }
+
+  private Optional<AuthIdentity> findGoogleIdentity(User user) {
+    return authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.GOOGLE);
   }
 
   @Override
@@ -265,11 +281,18 @@ public class AuthServiceImpl implements AuthService {
         .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.GOOGLE_SIGNUP_SESSION_INVALID));
     String email = normalizeEmail(info.email());
 
+    userRepository.findByEmail(email).ifPresent(existing -> {
+      if (existing.getDeletedAt() == null) {
+        throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+      }
+      rejectWithdrawn(existing);
+    });
+
     User user = saveGoogleUser(command, email);
     attachGoogleIdentity(user, info);
     googleSignupStore.delete(command.signupToken());
 
-    return openSession(user, AuthProvider.GOOGLE);
+    return authSessionService.openSession(user, AuthProvider.GOOGLE);
   }
 
   private User saveGoogleUser(GoogleSignupCommand command, String email) {
@@ -281,38 +304,11 @@ public class AuthServiceImpl implements AuthService {
           command.occupation(),
           command.termsAgreed(),
           command.marketingAgreed(),
-          consentProperties.toVersions()));
+          consentProperties.toVersions(),
+          LocalDateTime.now(clock)));
     } catch (DataIntegrityViolationException exception) {
       throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
-  }
-
-  /**
-   * 새 refresh family 를 열고 토큰 쌍을 발급한다.
-   */
-  private TokenResponse openSession(User user, AuthProvider provider) {
-    UUID userId = user.getId();
-    String familyId = UUID.randomUUID().toString();
-    String jti = UUID.randomUUID().toString();
-    Duration refreshTtl = refreshTokenStore.save(userId, familyId, jti);
-
-    user.recordLogin(provider);
-    userRepository.save(user);
-
-    return tokenResponse(userId, familyId, jti, refreshTtl);
-  }
-
-  /**
-   * {@code refreshTtl} 은 Redis 키에 실제로 걸린 TTL 이다. 절대만료가 가까우면 refresh-ttl 보다
-   * 짧아지므로 설정값이 아니라 이 값을 내려준다.
-   */
-  private TokenResponse tokenResponse(UUID userId, String familyId, String jti,
-      Duration refreshTtl) {
-    return new TokenResponse(
-        jwtTokenProvider.createAccessToken(userId),
-        jwtTokenProvider.createRefreshToken(userId, familyId, jti),
-        jwtProperties.accessTtl().toSeconds(),
-        refreshTtl.toSeconds());
   }
 
   /**
@@ -336,10 +332,19 @@ public class AuthServiceImpl implements AuthService {
           command.occupation(),
           command.termsAgreed(),
           command.marketingAgreed(),
-          consentProperties.toVersions()));
+          consentProperties.toVersions(),
+          LocalDateTime.now(clock)));
     } catch (DataIntegrityViolationException exception) {
       throw new AuthBusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
+  }
+
+  /** 탈퇴한 회원이면 ACCOUNT_DELETION_IN_PROGRESS 에러로 거절한다. */
+  private void rejectWithdrawn(User user) {
+    if (user.getDeletedAt() == null) {
+      return;
+    }
+    throw new AuthBusinessException(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
   }
 
   private String generateCode() {
