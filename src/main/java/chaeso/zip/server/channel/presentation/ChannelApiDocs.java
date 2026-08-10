@@ -39,7 +39,9 @@ public interface ChannelApiDocs {
           "totalPages": 9,
           "first": true,
           "last": false
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -108,18 +110,22 @@ public interface ChannelApiDocs {
             "budgetMin": 3000000,
             "budgetMax": 10000000
           }
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
   String CHANNEL_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "CH-001",
           "message": "존재하지 않는 채널입니다. id=550e8400-e29b-41d4-a716-446655440000",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 

@@ -1,11 +1,9 @@
 package chaeso.zip.server.recommendation.presentation;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -78,7 +76,7 @@ class RecommendationControllerTest {
         .andExpect(jsonPath("$.data[0].estImpressions.min").value(850000))
         .andExpect(jsonPath("$.data[0].estClicks.max").value(28750))
         .andExpect(jsonPath("$.data[0].isExecutable").value(true))
-        .andExpect(content().string(not(containsString("shortfallWon"))));
+        .andExpect(jsonPath("$.data[0].shortfallWon").value(nullValue()));
   }
 
   @Test

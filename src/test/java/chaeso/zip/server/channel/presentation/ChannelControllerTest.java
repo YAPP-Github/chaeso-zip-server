@@ -1,6 +1,7 @@
 package chaeso.zip.server.channel.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -226,6 +227,8 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.products[0].id").value(productId.toString()))
         .andExpect(jsonPath("$.data.products[0].expectedClicks").value(5250))
         .andExpect(jsonPath("$.data.products[0].ctr").doesNotExist())
+        .andExpect(jsonPath("$.data.logoUrl").value(nullValue()))
+        .andExpect(jsonPath("$.data.products[0].pricing[0].valueMax").value(nullValue()))
         .andExpect(jsonPath("$.data.products[0].pricing[0].pricingModel").value("CPM"))
         .andExpect(jsonPath("$.data.products[0].pricing[0].vat").value("EXCLUDED"))
         .andExpect(jsonPath("$.data.audienceMetrics[0].metricName").value("MAU"))

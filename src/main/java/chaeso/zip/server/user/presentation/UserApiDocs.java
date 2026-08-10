@@ -27,13 +27,16 @@ public interface UserApiDocs {
           "email": "user@example.com",
           "companyName": "채소집",
           "occupation": "MARKETING"
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -44,18 +47,21 @@ public interface UserApiDocs {
               "reason": "공백일 수 없습니다"
             }
           ]
-        }
+        },
+        "code": null
       }
       """;
 
   String USER_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "USER-001",
           "message": "존재하지 않는 회원입니다. id=3f2504e0-4f89-11d3-9a0c-0305e82c3301",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 

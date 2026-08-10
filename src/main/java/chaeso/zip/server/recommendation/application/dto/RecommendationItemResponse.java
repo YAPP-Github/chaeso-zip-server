@@ -3,14 +3,11 @@ package chaeso.zip.server.recommendation.application.dto;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Schema(description = "추천 채널")
-@JsonInclude(Include.NON_NULL)
 public record RecommendationItemResponse(
     @Schema(description = "채널 식별자", example = "550e8400-e29b-41d4-a716-446655440000",
         requiredMode = Schema.RequiredMode.REQUIRED)
@@ -26,25 +23,25 @@ public record RecommendationItemResponse(
     @Schema(description = "주요 타깃", example = "20~40대 여성",
         requiredMode = Schema.RequiredMode.REQUIRED)
     String primaryTarget,
-    @Schema(description = "클릭당 비용(원). 예상 클릭이 없어 환산할 수 없으면 생략", example = "150",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "클릭당 비용(원). 예상 클릭이 없어 환산할 수 없으면 null", example = "150",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpcWon,
-    @Schema(description = "대표 단가의 과금 방식. 등록된 단가가 없으면 생략", example = "CPM",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "대표 단가의 과금 방식. 등록된 단가가 없으면 null", example = "CPM",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     PricingModel pricingModel,
-    @Schema(description = "최소 집행 예산(원). 등록된 단가가 없으면 생략", example = "3000000",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "최소 집행 예산(원). 등록된 단가가 없으면 null", example = "3000000",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Long minBudgetWon,
-    @Schema(description = "예상 노출 수 범위. 추정 불가 시 생략",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "예상 노출 수 범위. 추정 불가 시 null",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estImpressions,
-    @Schema(description = "예상 클릭 수 범위. 추정 불가 시 생략",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "예상 클릭 수 범위. 추정 불가 시 null",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks,
     @Schema(description = "온보딩 예산(상한)으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
-    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 생략", example = "500000",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 null", example = "500000",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Long shortfallWon) {
 
   /**

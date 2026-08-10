@@ -36,7 +36,8 @@ public interface RecommendationApiDocs {
             "minBudgetWon": 3000,
             "estImpressions": { "min": 2833333, "max": 3833333 },
             "estClicks": { "min": 70833, "max": 95833 },
-            "isExecutable": true
+            "isExecutable": true,
+            "shortfallWon": null
           },
           {
             "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
@@ -52,7 +53,9 @@ public interface RecommendationApiDocs {
             "isExecutable": false,
             "shortfallWon": 5000000
           }
-        ]
+        ],
+        "error": null,
+        "code": null
       }
       """;
 
@@ -74,27 +77,33 @@ public interface RecommendationApiDocs {
               "minBudgetWon": 3000,
               "estImpressions": { "min": 2833333, "max": 3833333 },
               "estClicks": { "min": 70833, "max": 95833 },
-              "isExecutable": true
+              "isExecutable": true,
+              "shortfallWon": null
             }
           ]
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
   String ONBOARDING_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-007",
           "message": "온보딩 정보가 없습니다. id=550e8400-e29b-41d4-a716-446655440000",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -105,18 +114,21 @@ public interface RecommendationApiDocs {
               "reason": "온보딩 응답 식별자는 필수입니다"
             }
           ]
-        }
+        },
+        "code": null
       }
       """;
 
   String CONCURRENT_SUBMISSION_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-006",
           "message": "동시에 제출된 요청이 있어 처리할 수 없습니다. 다시 시도해주세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 

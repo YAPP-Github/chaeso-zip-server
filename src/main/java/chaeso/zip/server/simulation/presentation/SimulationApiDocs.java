@@ -29,6 +29,7 @@ public interface SimulationApiDocs {
       {
         "success": true,
         "data": {
+          "simulationId": null,
           "totalBudgetWon": 3000000,
           "period": "M1",
           "totalEstImpressions": 1150000,
@@ -46,18 +47,27 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
+              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             },
             {
               "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
               "channelName": "당근마켓 광고",
+              "channelProductId": null,
               "allocatedBudgetWon": 1000000,
               "allocationPct": 33.3,
+              "estImpressions": null,
+              "estClicks": null,
+              "cpcWon": null,
+              "cpmWon": null,
               "isExecutable": false,
+              "shortfallWon": null,
               "basisNote": "견적 문의 필요 (등록된 단가 정보 없음) / 매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -83,10 +93,13 @@ public interface SimulationApiDocs {
               "cpcWon": 150,
               "cpmWon": 3000,
               "isExecutable": true,
+              "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
             }
           ]
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -113,35 +126,42 @@ public interface SimulationApiDocs {
           "totalPages": 1,
           "first": true,
           "last": true
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
   String PAGE_SIZE_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "page 는 0 이상, size 는 1 이상 50 이하여야 합니다",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String SIMULATION_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "SIM-001",
           "message": "존재하지 않는 시뮬레이션입니다. id=3f2504e0-4f89-11d3-9a0c-0305e82c3301",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -152,18 +172,21 @@ public interface SimulationApiDocs {
               "reason": "100000 이상이어야 합니다"
             }
           ]
-        }
+        },
+        "code": null
       }
       """;
 
   String CHANNEL_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "CH-001",
           "message": "존재하지 않는 채널입니다. id=550e8400-e29b-41d4-a716-446655440000",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
