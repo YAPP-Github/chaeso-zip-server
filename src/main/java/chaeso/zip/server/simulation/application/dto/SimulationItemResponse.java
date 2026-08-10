@@ -7,46 +7,43 @@ import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
 import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Schema(description = "매체별 시뮬레이션 결과")
-@JsonInclude(Include.NON_NULL)
 public record SimulationItemResponse(
     @Schema(description = "채널 id", requiredMode = Schema.RequiredMode.REQUIRED)
     UUID channelId,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String channelName,
-    @Schema(description = "추정 근거가 된 대표 상품 id. 단가 정보가 없으면 생략",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "추정 근거가 된 대표 상품 id. 단가 정보가 없으면 null",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     UUID channelProductId,
     @Schema(description = "배분 예산(원). 0 은 미집행", example = "1000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     long allocatedBudgetWon,
     @Schema(description = "전체 예산 대비 배분 비율(%)", example = "40",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal allocationPct,
-    @Schema(description = "추정 노출 수 범위. 추정 불가 시 생략", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "추정 노출 수 범위. 추정 불가 시 null", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estImpressions,
-    @Schema(description = "추정 클릭 수 범위. 추정 불가 시 생략", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "추정 클릭 수 범위. 추정 불가 시 null", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks,
     @Schema(description = """
         클릭당 비용(원). 클릭당 과금 매체는 단가 그대로, 그 외 매체는 \
-        배분 예산 / 예상 클릭 수(중앙값)로 환산한다. 예상 클릭이 없으면 생략""",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        배분 예산 / 예상 클릭 수(중앙값)로 환산한다. 예상 클릭이 없으면 null""",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpcWon,
     @Schema(description = """
         1000회 노출당 단가(원). 대표 단가가 CPM 일 때만 채워진다. \
         화면에는 쓰지 않고 어떤 단가로 추정했는지 남기는 값""",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpmWon,
     @Schema(description = "배분 예산으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
-    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 생략", example = "500000",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 null", example = "500000",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Long shortfallWon,
     @Schema(description = "산출 근거 고지", requiredMode = Schema.RequiredMode.REQUIRED)
     String basisNote) {

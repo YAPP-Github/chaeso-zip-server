@@ -2,17 +2,14 @@ package chaeso.zip.server.simulation.application.dto;
 
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.simulation.domain.entity.BudgetSimulation;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "예산 시뮬레이션 결과")
-@JsonInclude(Include.NON_NULL)
 public record SimulationResponse(
-    @Schema(description = "저장된 시뮬레이션 id. 저장 전 계산 결과에는 생략된다",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "저장된 시뮬레이션 id. 저장 전 계산 결과에서는 null",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     UUID simulationId,
     @Schema(description = "총 예산(원)", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
