@@ -77,6 +77,19 @@ public interface UserApiDocs {
       }
       """;
 
+  String SESSION_EXPIRED_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-001",
+          "message": "Access Token 세션이 만료되었습니다.",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   @Operation(operationId = "getMyProfile", summary = "내 정보 조회",
       description = "닉네임, 이메일, 회사, 직무를 반환한다.")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
@@ -111,6 +124,10 @@ public interface UserApiDocs {
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "탈퇴 성공",
       useReturnTypeSchema = true,
       content = @Content(examples = @ExampleObject(name = "WITHDRAWAL", value = WITHDRAWAL_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+      description = "세션 버전 불일치로 인한 토큰 만료(AUTH-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "SESSION_EXPIRED", value = SESSION_EXPIRED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
       description = "존재하지 않는 회원(USER-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
