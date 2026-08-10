@@ -33,6 +33,7 @@ public interface AuthApiDocs {
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -43,36 +44,43 @@ public interface AuthApiDocs {
               "reason": "이메일을 입력해 주세요"
             }
           ]
-        }
+        },
+        "code": null
       }
       """;
 
   String EMAIL_ALREADY_EXISTS_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-002",
           "message": "이미 사용 중인 이메일입니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-008",
           "message": "인증 코드는 잠시 후 다시 요청해 주세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String EMAIL_ALREADY_USED_WITH_GOOGLE_EXAMPLE = """
       {
         "success": true,
-        "code": "EMAIL_ALREADY_USED_WITH_GOOGLE"
+        "code": "EMAIL_ALREADY_USED_WITH_GOOGLE",
+        "data": null,
+        "error": null
       }
       """;
 
@@ -125,11 +133,13 @@ public interface AuthApiDocs {
   String EMAIL_NOT_VERIFIED_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-006",
           "message": "이메일 인증이 필요합니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
@@ -150,22 +160,26 @@ public interface AuthApiDocs {
   String INVALID_CREDENTIALS_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-003",
           "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String ACCOUNT_REGISTERED_WITH_GOOGLE_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-010",
           "message": "Google 계정으로 가입된 이메일입니다. Google 로그인을 이용해 주세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
@@ -201,18 +215,22 @@ public interface AuthApiDocs {
         "success": true,
         "data": {
           "methods": []
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
   String LOGIN_METHOD_LOOKUP_COOLDOWN_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-012",
           "message": "조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
@@ -258,11 +276,13 @@ public interface AuthApiDocs {
   String REFRESH_TOKEN_REUSE_DETECTED_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "AUTH-005",
           "message": "재사용이 감지되어 해당 세션이 만료되었습니다. 다시 로그인하세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
@@ -312,7 +332,9 @@ public interface AuthApiDocs {
           "signupRequired": null,
           "signupToken": null,
           "prefill": null
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -330,7 +352,9 @@ public interface AuthApiDocs {
           "signupRequired": null,
           "signupToken": null,
           "prefill": null
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -351,7 +375,9 @@ public interface AuthApiDocs {
             "email": "user@chaeso.zip",
             "suggestedNickname": "홍길동"
           }
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -433,7 +459,9 @@ public interface AuthApiDocs {
           "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
           "accessTokenExpiresIn": 1800,
           "refreshTokenExpiresIn": 1209600
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 

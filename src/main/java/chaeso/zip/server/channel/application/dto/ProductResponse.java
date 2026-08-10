@@ -15,8 +15,8 @@ public record ProductResponse(
     String productName,
     @Schema(description = "인벤토리 유형", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String inventoryType,
-    @Schema(description = "지원 광고 목표 코드값 목록", example = "[\"AWARENESS\", \"TRAFFIC\"]",
-        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "지원 광고 목표 코드값 목록(없으면 빈 배열)",
+        example = "[\"AWARENESS\", \"TRAFFIC\"]", requiredMode = Schema.RequiredMode.REQUIRED)
     List<CampaignObjective> supportedObjectives,
     @Schema(description = "최소 예산(원)", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer minBudgetWon,
@@ -38,12 +38,17 @@ public record ProductResponse(
         product.getId(),
         product.getProductName(),
         product.getInventoryType(),
-        product.getSupportedObjectives(),
+        emptyIfNull(product.getSupportedObjectives()),
         product.getMinBudgetWon(),
         product.getMaxBudgetWon(),
         product.getExpectedImpressions(),
         expectedClicks,
         product.getExpectedPeriod(),
         pricing);
+  }
+
+  /** 목록은 값이 없어도 null 대신 빈 배열로 준다. */
+  private static <T> List<T> emptyIfNull(List<T> values) {
+    return values == null ? List.of() : values;
   }
 }

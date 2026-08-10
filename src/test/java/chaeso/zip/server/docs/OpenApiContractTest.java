@@ -345,6 +345,23 @@ class OpenApiContractTest {
     }
 
     @Test
+    @DisplayName("목록 필드는 nullable 이 아니다. 값이 없으면 빈 배열로 준다")
+    void arrayPropertiesAreNeverNullable() throws Exception {
+      JsonNode spec = loadOpenApiSpec();
+
+      spec.path("components").path("schemas").properties().forEach(entry ->
+          entry.getValue().path("properties").properties().forEach(property -> {
+            if (!"array".equals(property.getValue().path("type").asText())) {
+              return;
+            }
+            assertThat(property.getValue().path("nullable").asBoolean())
+                .as("%s.%s 는 목록이라 null 대신 빈 배열을 주므로 nullable 일 수 없습니다",
+                    entry.getKey(), property.getKey())
+                .isFalse();
+          }));
+    }
+
+    @Test
     @DisplayName("$ref 객체 필드의 nullable 은 공유 컴포넌트를 오염시키지 않는다")
     void nullableRefPropertiesDoNotLeakIntoComponents() throws Exception {
       JsonNode spec = loadOpenApiSpec();

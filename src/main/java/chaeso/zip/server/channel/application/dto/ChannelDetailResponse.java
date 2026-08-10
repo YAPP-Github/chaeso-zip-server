@@ -25,9 +25,11 @@ public record ChannelDetailResponse(
     Category primaryCategory,
     @Schema(description = "매체 유형", example = "DISPLAY", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String mediaType,
-    @Schema(description = "적합 업종 코드값 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "적합 업종 코드값 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<Category> suitableCategories,
-    @Schema(description = "연령대 코드값 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "연령대 코드값 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<AgeBand> ageBandCodes,
     @Schema(description = "대표 연령대", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String primaryAgeBand,
@@ -37,7 +39,8 @@ public record ChannelDetailResponse(
     String audienceSummary,
     @Schema(description = "오디언스 특성", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceTraits,
-    @Schema(description = "채널 강점 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "채널 강점 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> advantages,
     @Schema(description = "최소 예산(원)", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer minBudgetWon,
@@ -45,9 +48,11 @@ public record ChannelDetailResponse(
     Integer maxBudgetWon,
     @Schema(description = "집행 방식 코드값", example = "SELF", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     ExecutionType executionType,
-    @Schema(description = "지원 광고 형식 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "지원 광고 형식 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> adFormats,
-    @Schema(description = "지원 타게팅 방식 목록", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    @Schema(description = "지원 타게팅 방식 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> targetingMethods,
     @Schema(description = "채널 광고 상품 목록(상품 없는 채널은 빈 배열)",
         requiredMode = Schema.RequiredMode.REQUIRED)
@@ -57,7 +62,7 @@ public record ChannelDetailResponse(
     @Schema(description = "집행 사례 목록", requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> references,
     @Schema(description = "추천 근거",
-        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     RecommendationBasisResponse recommendationBasis) {
 
   public static ChannelDetailResponse from(
@@ -73,21 +78,26 @@ public record ChannelDetailResponse(
         channel.getDescription(),
         channel.getPrimaryCategory(),
         channel.getMediaType(),
-        channel.getSuitableCategories(),
-        channel.getAgeBandCodes(),
+        emptyIfNull(channel.getSuitableCategories()),
+        emptyIfNull(channel.getAgeBandCodes()),
         channel.getPrimaryAgeBand(),
         channel.getPrimaryGender(),
         channel.getAudienceSummary(),
         channel.getAudienceTraits(),
-        channel.getAdvantages(),
+        emptyIfNull(channel.getAdvantages()),
         channel.getMinBudgetWon(),
         channel.getMaxBudgetWon(),
         channel.getExecutionType(),
-        channel.getAdFormats(),
-        channel.getTargetingMethods(),
+        emptyIfNull(channel.getAdFormats()),
+        emptyIfNull(channel.getTargetingMethods()),
         products,
         audienceMetrics,
         references,
         recommendationBasis);
+  }
+
+  /** 목록은 값이 없어도 null 대신 빈 배열로 준다. */
+  private static <T> List<T> emptyIfNull(List<T> values) {
+    return values == null ? List.of() : values;
   }
 }
