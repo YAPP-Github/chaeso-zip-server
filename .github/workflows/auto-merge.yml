@@ -32,5 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
         run: |
-          gh pr create --base main --head dev --title "merge dev to main" --body "" --assignee SinnoLn
+          if ! gh pr view dev --json number >/dev/null 2>&1; then
+            gh pr create --base main --head dev --title "merge dev to main" --body "" --assignee SinnoLn
+          fi
           gh pr merge dev --merge
