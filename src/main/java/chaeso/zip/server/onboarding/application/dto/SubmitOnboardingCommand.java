@@ -7,10 +7,12 @@ import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import java.util.List;
+import lombok.Builder;
 
 /**
  * 온보딩 제출 유스케이스의 입력 커맨드.
  */
+@Builder
 public record SubmitOnboardingCommand(
     String serviceName,
     Category industry,

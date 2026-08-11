@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.data.Offset.offset;
 
 import chaeso.zip.server.auth.infrastructure.jwt.RefreshTokenStore.RotateResult;
-import java.io.IOException;
+import chaeso.zip.server.support.redis.EmbeddedRedisTest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -18,51 +18,30 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import redis.embedded.RedisServer;
 
 /**
  * Refresh Token family 저장소 동작 검증
  */
+@EmbeddedRedisTest(port = 16381)
 class RefreshTokenStoreTest {
 
-  private static final int PORT = 16381;
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
   private static final String FAMILY_ID = "family-1";
   private static final Instant T0 = Instant.parse("2026-07-05T00:00:00Z");
   private static final Duration REFRESH_TTL = Duration.ofDays(14);
   private static final Duration ABSOLUTE_TTL = Duration.ofDays(90);
 
-  private static RedisServer redisServer;
-
   private StringRedisTemplate template;
   private RefreshTokenStore store;
 
-  @BeforeAll
-  static void startRedis() throws IOException {
-    redisServer = RedisServer.newRedisServer().port(PORT).build();
-    redisServer.start();
-  }
-
-  @AfterAll
-  static void stopRedis() throws IOException {
-    redisServer.stop();
-  }
-
   @BeforeEach
-  void setUp() {
-    LettuceConnectionFactory factory = new LettuceConnectionFactory("localhost", PORT);
-    factory.afterPropertiesSet();
-    template = new StringRedisTemplate(factory);
-    template.afterPropertiesSet();
-    template.getConnectionFactory().getConnection().serverCommands().flushAll();
+  void setUp(StringRedisTemplate template) {
+    this.template = template;
     store = storeAt(T0);
   }
 

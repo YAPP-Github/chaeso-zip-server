@@ -67,9 +67,17 @@ class CreatedAtAuditingTest {
   @DisplayName("온보딩 집행 실적 스냅샷 저장 시 생성 시각이 채워진다")
   void fillsOnboardingAdHistorySnapshotCreatedAt() {
     OnboardingAdHistorySnapshot saved =
-        onboardingAdHistorySnapshotRepository.save(OnboardingAdHistorySnapshot.snapshot(
-            UUID.randomUUID(), UUID.randomUUID(), "11번가 광고", 1_000_000L, 100_000L,
-            2_000L, 10L, LocalDate.of(2026, Month.JULY, 1), LocalDate.of(2026, Month.JULY, 31)));
+        onboardingAdHistorySnapshotRepository.save(OnboardingAdHistorySnapshot.snapshotBuilder()
+            .onboardingId(UUID.randomUUID())
+            .channelId(UUID.randomUUID())
+            .channelNameSnap("11번가 광고")
+            .budgetWonSnap(1_000_000L)
+            .impressionsSnap(100_000L)
+            .clicksSnap(2_000L)
+            .conversionsSnap(10L)
+            .startedAtSnap(LocalDate.of(2026, Month.JULY, 1))
+            .endedAtSnap(LocalDate.of(2026, Month.JULY, 31))
+            .build());
 
     assertUtcNow(saved.getCreatedAt());
   }

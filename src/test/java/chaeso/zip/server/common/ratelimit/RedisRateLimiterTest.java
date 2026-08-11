@@ -6,12 +6,9 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import java.io.IOException;
+import chaeso.zip.server.support.redis.EmbeddedRedisTest;
 import java.time.Duration;
 import java.util.Map;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,39 +18,19 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import redis.embedded.RedisServer;
 
+@EmbeddedRedisTest(port = 16385)
 class RedisRateLimiterTest {
 
-  private static final int PORT = 16385;
   private static final Duration FAIL_CLOSED_RETRY_AFTER = Duration.ofSeconds(5);
   private static final RateLimitProperties PROPERTIES =
       new RateLimitProperties(Map.of(), FAIL_CLOSED_RETRY_AFTER);
-  private static RedisServer redisServer;
 
-  private StringRedisTemplate template;
   private RedisRateLimiter limiter;
   private io.micrometer.core.instrument.simple.SimpleMeterRegistry meterRegistry;
 
-  @BeforeAll
-  static void startRedis() throws IOException {
-    redisServer = RedisServer.newRedisServer().port(PORT).build();
-    redisServer.start();
-  }
-
-  @AfterAll
-  static void stopRedis() throws IOException {
-    redisServer.stop();
-  }
-
   @BeforeEach
-  void setUp() {
-    LettuceConnectionFactory factory = new LettuceConnectionFactory("localhost", PORT);
-    factory.afterPropertiesSet();
-    template = new StringRedisTemplate(factory);
-    template.afterPropertiesSet();
-    Assertions.assertNotNull(template.getConnectionFactory());
-    template.getConnectionFactory().getConnection().serverCommands().flushAll();
+  void setUp(StringRedisTemplate template) {
     meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
     limiter = new RedisRateLimiter(template, meterRegistry, PROPERTIES);
   }

@@ -3,6 +3,7 @@ package chaeso.zip.server.recommendation.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import chaeso.zip.server.channel.domain.vo.Category;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +17,7 @@ class RecommendationReasonTest {
   @DisplayName("맞은 축을 업종 → 목적 → 연령 순서로 한 문장에 담는다")
   void composesMatchedAxesInFixedOrder() {
     String reason = RecommendationReason.of(
-        new MatchScore(Set.of(MatchAxis.AGE_BAND, MatchAxis.OBJECTIVE, MatchAxis.CATEGORY)),
+        matchScore(MatchAxis.AGE_BAND, MatchAxis.OBJECTIVE, MatchAxis.CATEGORY),
         INDUSTRY, null, true);
 
     assertThat(reason)
@@ -26,7 +27,7 @@ class RecommendationReasonTest {
   @Test
   @DisplayName("업종 축이 맞으면 업종명을 문장에 넣는다")
   void namesMatchedIndustry() {
-    String reason = RecommendationReason.of(new MatchScore(Set.of(MatchAxis.CATEGORY)),
+    String reason = RecommendationReason.of(matchScore(MatchAxis.CATEGORY),
         Category.FOOD_BEVERAGE, null, true);
 
     assertThat(reason).startsWith("음식·음료 업종에 적합하고");
@@ -35,7 +36,7 @@ class RecommendationReasonTest {
   @Test
   @DisplayName("집행 불가면 부족액을 천 단위로 끊어 알려준다")
   void reportsShortfall() {
-    String reason = RecommendationReason.of(new MatchScore(Set.of(MatchAxis.OBJECTIVE)),
+    String reason = RecommendationReason.of(matchScore(MatchAxis.OBJECTIVE),
         INDUSTRY, 1_500_000L, true);
 
     assertThat(reason).isEqualTo("설정한 광고 목적에 적합하지만 집행에는 1,500,000원이 더 필요해요");
@@ -44,7 +45,7 @@ class RecommendationReasonTest {
   @Test
   @DisplayName("등록된 단가가 없으면 집행 가능 여부를 말하지 않고 문의로 안내한다")
   void guidesToQuoteWithoutPricing() {
-    String reason = RecommendationReason.of(new MatchScore(Set.of(MatchAxis.CATEGORY)),
+    String reason = RecommendationReason.of(matchScore(MatchAxis.CATEGORY),
         INDUSTRY, null, false);
 
     assertThat(reason).isEqualTo("의료·헬스케어 업종에 적합해요. 등록된 단가가 없어 집행 금액은 문의가 필요해요");
@@ -58,12 +59,16 @@ class RecommendationReasonTest {
     for (MatchAxis axis : MatchAxis.values()) {
       for (Long shortfall : shortfalls) {
         for (boolean quoted : List.of(true, false)) {
-          String reason = RecommendationReason.of(new MatchScore(Set.of(axis)), INDUSTRY,
+          String reason = RecommendationReason.of(matchScore(axis), INDUSTRY,
               shortfall == 0 ? null : shortfall, quoted);
 
           assertThat(reason).doesNotContain("가장", "최고", "최적", "1위");
         }
       }
     }
+  }
+
+  private static MatchScore matchScore(MatchAxis... matchedAxes) {
+    return new MatchScore(Set.of(matchedAxes), EnumSet.allOf(MatchAxis.class));
   }
 }

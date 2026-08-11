@@ -29,7 +29,9 @@ public interface OnboardingApiDocs {
         "data": {
           "onboardingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
           "createdAt": "2026-07-28T10:00:00"
-        }
+        },
+        "error": null,
+        "code": null
       }
       """;
 
@@ -43,13 +45,16 @@ public interface OnboardingApiDocs {
             "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "expiresAt": "2026-07-28T10:05:00Z"
           }
-        ]
+        ],
+        "error": null,
+        "code": null
       }
       """;
 
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "C-001",
           "message": "입력값이 올바르지 않습니다.",
@@ -60,95 +65,112 @@ public interface OnboardingApiDocs {
               "reason": "연령대를 1개 이상 선택해 주세요"
             }
           ]
-        }
+        },
+        "code": null
       }
       """;
 
   String INVALID_BUDGET_RANGE_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-001",
           "message": "최소 예산은 최대 예산보다 클 수 없습니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String OBJECTIVE_NOT_ALLOWED_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-002",
           "message": "선택한 서비스 형태에서 사용할 수 없는 광고 목표입니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String AD_EXPERIENCE_MISMATCH_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-003",
           "message": "집행 경험 여부와 입력한 집행 내역이 일치하지 않습니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String CHANNEL_NOT_FOUND_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "CH-001",
           "message": "존재하지 않는 채널입니다. id=3fa85f64-5717-4562-b3fc-2c963f66afa6",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String CONCURRENT_SUBMISSION_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-006",
           "message": "동시에 제출된 요청이 있어 처리할 수 없습니다. 다시 시도해주세요.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String PERFORMANCE_FILE_INVALID_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-008",
           "message": "첨부한 성과파일을 확인할 수 없습니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String TOO_FEW_MANUAL_FIELDS_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-010",
           "message": "직접 입력한 집행 내역은 예산/집행기간/노출수/클릭수/전환수 중 2개 이상을 입력해야 합니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 
   String INVALID_AGE_BAND_SELECTION_EXAMPLE = """
       {
         "success": false,
+        "data": null,
         "error": {
           "code": "ONB-011",
           "message": "잘 모르겠어요는 다른 연령대와 함께 선택할 수 없습니다.",
           "fieldErrors": []
-        }
+        },
+        "code": null
       }
       """;
 

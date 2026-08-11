@@ -17,9 +17,13 @@ class OnboardingAdHistorySnapshotTest {
   @ValueSource(strings = " ")
   @DisplayName("channelNameSnap이 비어있으면 예외를 던진다")
   void rejectsBlankChannelName(String channelNameSnap) {
-    UUID userId = UUID.randomUUID();
-    assertThatThrownBy(() -> OnboardingAdHistorySnapshot.snapshot(
-        userId, null, channelNameSnap, 1000L, null, null, null, null, null))
+    UUID onboardingId = UUID.randomUUID();
+    var snapshotBuilder = OnboardingAdHistorySnapshot.snapshotBuilder()
+        .onboardingId(onboardingId)
+        .channelNameSnap(channelNameSnap)
+        .budgetWonSnap(1000L);
+
+    assertThatThrownBy(snapshotBuilder::build)
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

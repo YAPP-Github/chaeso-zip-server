@@ -2,44 +2,21 @@ package chaeso.zip.server.auth.infrastructure.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
+import chaeso.zip.server.support.redis.EmbeddedRedisTest;
 import java.time.Duration;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import redis.embedded.RedisServer;
 
+@EmbeddedRedisTest(port = 16380)
 class EmailVerificationCodeStoreTest {
 
-  private static final int PORT = 16380;
-  private static RedisServer redisServer;
-
-  private StringRedisTemplate template;
   private EmailVerificationCodeStore store;
 
-  @BeforeAll
-  static void startRedis() throws IOException {
-    redisServer = RedisServer.newRedisServer().port(PORT).build();
-    redisServer.start();
-  }
-
-  @AfterAll
-  static void stopRedis() throws IOException {
-    redisServer.stop();
-  }
-
   @BeforeEach
-  void setUp() {
-    LettuceConnectionFactory factory = new LettuceConnectionFactory("localhost", PORT);
-    factory.afterPropertiesSet();
-    template = new StringRedisTemplate(factory);
-    template.afterPropertiesSet();
-    template.getConnectionFactory().getConnection().serverCommands().flushAll();
+  void setUp(StringRedisTemplate template) {
     store = new EmailVerificationCodeStore(
         template,
         new EmailVerificationProperties(

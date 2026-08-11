@@ -27,13 +27,13 @@ public record EstimationProduct(BigDecimal ctr, Long expectedImpressions, String
   public static EstimationProduct from(ChannelProduct product, List<ChannelPricing> pricings,
       BigDecimal defaultCtrPercent) {
     return new EstimationProduct(
-        resolveCtr(product, defaultCtrPercent),
+        ctrPercentOf(product, defaultCtrPercent),
         product.getExpectedImpressions(),
         product.getExpectedPeriod(),
         pricings.stream().map(EstimationPricing::from).toList());
   }
 
-  private static BigDecimal resolveCtr(ChannelProduct product, BigDecimal defaultCtrPercent) {
+  public static BigDecimal ctrPercentOf(ChannelProduct product, BigDecimal defaultCtrPercent) {
     if (product.getCtr() != null) {
       return product.getCtr();
     }

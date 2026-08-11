@@ -72,12 +72,14 @@ management:
 sentry:
   dsn: ${SENTRY_DSN:}
   environment: ${SENTRY_ENV:prod}
+  release: ${SENTRY_RELEASE:}
   traces-sample-rate: ${SENTRY_TRACES:0.1}
   send-default-pii: false
   logging:
     minimum-event-level: error
     minimum-breadcrumb-level: info
   exception-resolver-order: 2147483647
+  ignored-exceptions-for-type: org.apache.catalina.connector.ClientAbortException
 
 jwt:
   secret: ${JWT_SECRET}

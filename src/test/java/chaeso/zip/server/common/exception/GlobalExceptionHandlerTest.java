@@ -1,11 +1,13 @@
 package chaeso.zip.server.common.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import chaeso.zip.server.common.ratelimit.RateLimitExceededException;
 import chaeso.zip.server.common.response.ApiResponse;
 import java.time.Duration;
 
+import org.apache.catalina.connector.ClientAbortException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +35,19 @@ class GlobalExceptionHandlerTest {
       assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("2");
         Assertions.assertNotNull(response.getBody());
         assertThat(response.getBody().getError().getCode()).isEqualTo("C-005");
+    }
+  }
+
+  @Nested
+  @DisplayName("클라이언트 연결 끊김 처리")
+  class HandleClientAbortTest {
+
+    @Test
+    @DisplayName("ClientAbortException 발생 시 예외 없이 처리한다")
+    void handleClientAbort_doesNotThrow() {
+      ClientAbortException exception = new ClientAbortException("Connection reset by peer");
+
+      assertThatCode(() -> handler.handleClientAbort(exception)).doesNotThrowAnyException();
     }
   }
 }

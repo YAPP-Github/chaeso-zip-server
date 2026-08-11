@@ -24,9 +24,19 @@ public final class OnboardingFixture {
 
   /** MOBILE_APP/IN_APP_ACTION/300만~1000만원/EXPERIENCED, 20·30대 대상. */
   public static Onboarding onboarding(UUID userId) {
-    return Onboarding.create(userId, SERVICE_NAME, INDUSTRY, ServiceType.MOBILE_APP,
-        List.of(AgeBand.AGE_20S, AgeBand.AGE_30S), CampaignObjective.IN_APP_ACTION,
-        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.EXPERIENCED, List.of());
+    return Onboarding.createBuilder()
+        .userId(userId)
+        .serviceName(SERVICE_NAME)
+        .industry(INDUSTRY)
+        .serviceType(ServiceType.MOBILE_APP)
+        .targetAgeBands(List.of(AgeBand.AGE_20S, AgeBand.AGE_30S))
+        .campaignObjective(CampaignObjective.IN_APP_ACTION)
+        .budgetMin(3_000_000L)
+        .budgetMax(10_000_000L)
+        .period(CampaignPeriod.M2_3)
+        .adExperience(AdExperience.EXPERIENCED)
+        .rawFileUrls(List.of())
+        .build();
   }
 
   /**
@@ -43,8 +53,19 @@ public final class OnboardingFixture {
   public static Onboarding onboarding(UUID userId, Category industry,
       CampaignObjective campaignObjective, List<AgeBand> targetAgeBands, Long budgetMin,
       Long budgetMax, CampaignPeriod period) {
-    return Onboarding.create(userId, SERVICE_NAME, industry, ServiceType.MOBILE_APP, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, period, AdExperience.NONE, List.of());
+    return Onboarding.createBuilder()
+        .userId(userId)
+        .serviceName(SERVICE_NAME)
+        .industry(industry)
+        .serviceType(ServiceType.MOBILE_APP)
+        .targetAgeBands(targetAgeBands)
+        .campaignObjective(campaignObjective)
+        .budgetMin(budgetMin)
+        .budgetMax(budgetMax)
+        .period(period)
+        .adExperience(AdExperience.NONE)
+        .rawFileUrls(List.of())
+        .build();
   }
 
   /** WEB/TRAFFIC/100만~500만원/NONE, 집행 내역 없음. */
@@ -72,9 +93,19 @@ public final class OnboardingFixture {
       List<AgeBand> targetAgeBands, CampaignObjective campaignObjective, Long budgetMin,
       Long budgetMax, AdExperience adExperience, List<AdHistoryCommand> adHistory,
       List<String> rawFileKeys) {
-    return new SubmitOnboardingCommand(SERVICE_NAME, INDUSTRY, serviceType, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, CampaignPeriod.M1, adExperience, adHistory,
-        rawFileKeys);
+    return SubmitOnboardingCommand.builder()
+        .serviceName(SERVICE_NAME)
+        .industry(INDUSTRY)
+        .serviceType(serviceType)
+        .targetAgeBands(targetAgeBands)
+        .campaignObjective(campaignObjective)
+        .budgetMin(budgetMin)
+        .budgetMax(budgetMax)
+        .period(CampaignPeriod.M1)
+        .adExperience(adExperience)
+        .adHistory(adHistory)
+        .rawFileKeys(rawFileKeys)
+        .build();
   }
 
   /** WEB/TRAFFIC/300만~1000만원/NONE, 20·30대 대상, 집행 내역 없음.*/
