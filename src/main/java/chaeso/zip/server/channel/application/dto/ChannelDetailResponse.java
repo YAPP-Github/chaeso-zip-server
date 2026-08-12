@@ -16,6 +16,10 @@ public record ChannelDetailResponse(
     UUID id,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String name,
+    @Schema(description = "채널명 아래 한 줄 설명",
+        example = "월 방문자 수 상위 오픈마켓",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    String tagline,
     @Schema(description = "로고 이미지 URL", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String logoUrl,
     @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
@@ -74,6 +78,7 @@ public record ChannelDetailResponse(
     return new ChannelDetailResponse(
         channel.getId(),
         channel.getName(),
+        channel.getTagline(),
         channel.getLogoUrl(),
         channel.getDescription(),
         channel.getPrimaryCategory(),

@@ -95,6 +95,8 @@ public class Channel extends BaseEntity {
   @Column(name = "avg_daily_impressions")
   private Long avgDailyImpressions;
 
+  private String tagline;
+
   private String description;
 
   @Column(name = "recommendation_basis")
