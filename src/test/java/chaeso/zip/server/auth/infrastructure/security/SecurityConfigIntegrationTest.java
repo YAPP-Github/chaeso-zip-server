@@ -11,7 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import chaeso.zip.server.common.ratelimit.RateLimiter;
+import chaeso.zip.server.support.UserFixture;
+import chaeso.zip.server.user.domain.UserRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,6 +48,9 @@ class SecurityConfigIntegrationTest {
   @MockitoBean
   private RateLimiter rateLimiter;
 
+  @MockitoBean
+  private UserRepository userRepository;
+
   @TestConfiguration
   static class TestBeans {
     @Bean
@@ -53,12 +59,7 @@ class SecurityConfigIntegrationTest {
     }
   }
 
-  /**
-   * 실제 AuthController와 동일한 경로를 그대로 흉내내 SecurityConfig의 allow-list를 검증한다.
-   * {@code @TestComponent}가 없으면 이 컨트롤러가 전체 앱 컴포넌트 스캔에 함께 걸려
-   * 진짜 AuthController와 매핑이 충돌한다({@code @TestConfiguration}은 자동 제외되지만
-   * {@code @RestController}는 아니다).
-   */
+  /** SecurityConfig 허용 목록(allow-list) 검증용 테스트 컨트롤러. */
   @TestComponent
   @RestController
   public static class SecurityProbeController {
@@ -135,8 +136,11 @@ class SecurityConfigIntegrationTest {
     @DisplayName("유효한 Access Token이면 보호 경로에 접근할 수 있다")
     void validAccessToken_passes() throws Exception {
       UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
-      given(jwtTokenProvider.parseAccess("valid-access-token"))
-          .willReturn(new UserPrincipal(userId));
+      given(jwtTokenProvider.resolveToken(org.mockito.ArgumentMatchers.any())).willReturn("valid-access-token");
+      given(jwtTokenProvider.tryParseAccess("valid-access-token"))
+          .willReturn(Optional.of(new UserPrincipal(userId)));
+      given(userRepository.findByIdAndDeletedAtIsNull(userId))
+          .willReturn(Optional.of(UserFixture.user()));
 
       mockMvc.perform(get("/api/v1/security/protected")
               .header("Authorization", "Bearer valid-access-token"))

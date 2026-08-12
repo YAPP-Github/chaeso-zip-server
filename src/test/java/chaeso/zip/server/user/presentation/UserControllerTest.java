@@ -3,6 +3,7 @@ package chaeso.zip.server.user.presentation;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,9 +14,11 @@ import chaeso.zip.server.support.security.WithUserPrincipal;
 import chaeso.zip.server.user.application.UserService;
 import chaeso.zip.server.user.application.dto.UpdateProfileCommand;
 import chaeso.zip.server.user.application.dto.UserProfileResponse;
+import chaeso.zip.server.user.application.dto.WithdrawalResponse;
 import chaeso.zip.server.user.domain.Occupation;
 import chaeso.zip.server.user.domain.UserNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -108,6 +111,33 @@ class UserControllerTest {
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.success").value(false))
           .andExpect(jsonPath("$.error.code").value("C-001"));
+    }
+  }
+
+  @Nested
+  @DisplayName("회원 탈퇴")
+  class Withdraw {
+
+    @Test
+    @DisplayName("인증된 회원을 탈퇴 처리하고 UTC 탈퇴 시각을 반환한다")
+    void returnsWithdrawnAt() throws Exception {
+      given(userService.withdraw(USER_ID, 0))
+          .willReturn(new WithdrawalResponse(Instant.parse("2026-08-20T03:00:00Z")));
+
+      mockMvc.perform(delete("/api/v1/users/me"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.success").value(true))
+          .andExpect(jsonPath("$.data.withdrawnAt").value("2026-08-20T03:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원이면 404를 반환한다")
+    void missingUser() throws Exception {
+      given(userService.withdraw(USER_ID, 0)).willThrow(new UserNotFoundException(USER_ID));
+
+      mockMvc.perform(delete("/api/v1/users/me"))
+          .andExpect(status().isNotFound())
+          .andExpect(jsonPath("$.error.code").value("USER-001"));
     }
   }
 }

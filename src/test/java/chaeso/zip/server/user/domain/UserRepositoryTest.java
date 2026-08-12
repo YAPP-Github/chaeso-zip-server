@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.support.PostgresDataJpaTest;
 import chaeso.zip.server.support.UserFixture;
+import java.time.LocalDateTime;
+import java.time.Month;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +48,7 @@ class UserRepositoryTest {
   @DisplayName("회사명 없이 회원을 저장할 수 없다")
   void saveWithoutCompanyName() {
     User user = User.create("user@chaeso.zip", "채소러버", null, Occupation.DEVELOPMENT, true, false,
-        UserFixture.consentVersions());
+        UserFixture.consentVersions(), LocalDateTime.now());
 
     assertThatThrownBy(() -> userRepository.saveAndFlush(user))
         .isInstanceOf(DataIntegrityViolationException.class);
@@ -55,7 +58,7 @@ class UserRepositoryTest {
   @DisplayName("마케팅 수신에 동의하면 현재 광고성 동의 버전과 동의 시각이 저장된다")
   void saveWithMarketingAgreement() {
     User saved = userRepository.save(User.create("marketing@chaeso.zip", "채소러버", "채소컴퍼니",
-        Occupation.DEVELOPMENT, true, true, UserFixture.consentVersions()));
+        Occupation.DEVELOPMENT, true, true, UserFixture.consentVersions(), LocalDateTime.now()));
 
     assertThat(saved.isMarketingAgreed()).isTrue();
     assertThat(saved.getTermsVersion()).isEqualTo(UserFixture.consentVersions().termsVersion());
@@ -63,12 +66,24 @@ class UserRepositoryTest {
   }
 
   @Test
-  @DisplayName("대소문자만 다른 이메일로 중복 저장하면 부분 유니크 인덱스 위반으로 실패한다")
+  @DisplayName("대소문자만 다른 이메일로 중복 저장하면 전체 이메일 유니크 인덱스 위반으로 실패한다")
   void rejectsDuplicateActiveEmailCaseInsensitive() {
     userRepository.saveAndFlush(UserFixture.user("dup-index@chaeso.zip"));
 
     User duplicateUser = UserFixture.user("DUP-INDEX@Chaeso.Zip");
     assertThatThrownBy(() -> userRepository.saveAndFlush(duplicateUser))
         .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
+  @DisplayName("탈퇴 계정도 전체 이메일 조회와 잠금 조회로 찾을 수 있다")
+  void findsWithdrawnUserForRecovery() {
+    User user = userRepository.saveAndFlush(UserFixture.user("restore@chaeso.zip"));
+    user.withdraw(LocalDateTime.of(2026, Month.AUGUST, 1, 0, 0));
+    userRepository.saveAndFlush(user);
+
+    assertThat(userRepository.findByEmailAndDeletedAtIsNull("restore@chaeso.zip")).isEmpty();
+    assertThat(userRepository.findByEmail("RESTORE@CHAESO.ZIP")).contains(user);
+    assertThat(userRepository.findByEmailForUpdate("restore@chaeso.zip")).contains(user);
   }
 }
