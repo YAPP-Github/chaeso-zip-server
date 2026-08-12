@@ -12,19 +12,21 @@ STATE_BUCKET    := chaeso-zip-tfstate
 ENV_DIR         := infra/environments/aws/prod
 CHECK_SCRIPT    := infra/check.sh
 MANAGEMENT_PORT := 8081
+DB_LOCAL_PORT   ?= 15432
 INSTANCE_TAG    := chaeso-zip-vm
 ASSET_DOMAIN    := assets.chaeso-zip.com
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up down status redeploy health check ps logs ssh upload-asset upload-assets _profile
+.PHONY: help bootstrap up down status redeploy health check ps logs ssh db-tunnel upload-asset upload-assets _profile
 
 # 접속 헬퍼
 ssm_target = $$(aws ec2 describe-instances \
+  --region $(REGION) \
   --filters "Name=tag:Name,Values=$(INSTANCE_TAG)" "Name=instance-state-name,Values=running" \
   --query "Reservations[0].Instances[0].InstanceId" --output text)
 
 ssh_via_ssm = ssh -i ~/.ssh/chaeso-zip -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-  -o ProxyCommand="aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p"
+  -o ProxyCommand="aws ssm start-session --region $(REGION) --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p"
 
 ssh_to = $(ssh_via_ssm) ubuntu@$(ssm_target)
 
@@ -40,6 +42,7 @@ help:
 	@echo "  make check      컨테이너/DB/볼륨 종합 점검"
 	@echo "  make ps         컨테이너 상태"
 	@echo "  make logs       실시간 로그"
+	@echo "  make db-tunnel [COPY_DB_PASSWORD=1]  DataGrip용 운영 DB 터널 (localhost:$(DB_LOCAL_PORT), 종료: Ctrl+C)"
 	@echo "  make upload-asset FILE=./logo.png [KEY=channels/xxx-logo.png]           공개 자산 1개(로고, 프로필 등)"
 	@echo "  make upload-asset FILE=\"./a.png ./b.png ./c.png\" [PREFIX=channels/]  공개 자산 여러 개"
 	@echo "  make upload-assets DIR=./logos [PREFIX=channels/]                      공개 자산 폴더 전체 업로드"
@@ -114,6 +117,39 @@ logs: _profile
 
 ssh: _profile
 	$(ssh_to)
+
+db-tunnel: _profile
+	@if command -v lsof >/dev/null && lsof -nP -iTCP:$(DB_LOCAL_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "localhost:$(DB_LOCAL_PORT)이 이미 사용 중입니다. 기존 터널을 확인하거나 DB_LOCAL_PORT를 바꿔주세요."; \
+		exit 1; \
+	fi
+	@iid=$(ssm_target); \
+	[ -n "$$iid" ] && [ "$$iid" != "None" ] || { echo "실행 중인 $(INSTANCE_TAG) 인스턴스를 찾지 못했습니다."; exit 1; }; \
+	connection_info=$$($(ssh_via_ssm) ubuntu@$$iid 'set -e; \
+		cid=$$(sudo docker compose -f /opt/app/docker-compose.yml ps -q db); \
+		[ -n "$$cid" ]; \
+		sudo docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" "$$cid"; \
+		sudo sed -n "s/^DB_PASSWORD=//p" /opt/app/.env; \
+		sudo sed -n "s/^DB_NAME=//p" /opt/app/.env; \
+		sudo sed -n "s/^DB_USER=//p" /opt/app/.env'); \
+	db_ip=$$(printf '%s\n' "$$connection_info" | sed -n '1p'); \
+	db_password=$$(printf '%s\n' "$$connection_info" | sed -n '2p'); \
+	db_name=$$(printf '%s\n' "$$connection_info" | sed -n '3p'); \
+	db_user=$$(printf '%s\n' "$$connection_info" | sed -n '4p'); \
+	[ -n "$$db_ip" ] || { echo "운영 DB 컨테이너 IP를 찾지 못했습니다."; exit 1; }; \
+	[ -n "$$db_password" ] || { echo "운영 DB 비밀번호를 찾지 못했습니다."; exit 1; }; \
+	[ -n "$$db_name" ] || { echo "운영 DB 이름(DB_NAME)을 찾지 못했습니다."; exit 1; }; \
+	[ -n "$$db_user" ] || { echo "운영 DB 사용자(DB_USER)를 찾지 못했습니다."; exit 1; }; \
+	unset connection_info; \
+	if [ "$(COPY_DB_PASSWORD)" = "1" ]; then \
+		command -v pbcopy >/dev/null || { echo "pbcopy가 필요합니다 (macOS 전용)."; exit 1; }; \
+		printf %s "$$db_password" | pbcopy; \
+		echo "✅ DB 비밀번호를 클립보드에 복사했습니다."; \
+	fi; \
+	unset db_password; \
+	echo "✅ DataGrip: localhost:$(DB_LOCAL_PORT) / database=$$db_name / user=$$db_user"; \
+	echo "터널 연결 중입니다. 사용하는 동안 이 터미널을 유지하고, 종료할 때 Ctrl+C를 누르세요."; \
+	$(ssh_via_ssm) -N -o ExitOnForwardFailure=yes -L $(DB_LOCAL_PORT):$$db_ip:5432 ubuntu@$$iid
 
 upload-asset: _profile
 	@test -n "$(FILE)" || { echo "사용법: make upload-asset FILE=\"./a.png ./b.png\" [PREFIX=channels/] [KEY=1개일 때만]"; exit 1; }

@@ -3,7 +3,10 @@ package chaeso.zip.server.auth.infrastructure.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
-import java.util.UUID;
+import chaeso.zip.server.support.UserFixture;
+import chaeso.zip.server.user.domain.User;
+import chaeso.zip.server.user.domain.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +36,14 @@ class ManagementPortSecurityIntegrationTest {
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
 
+  @Autowired
+  private UserRepository userRepository;
+
+  @AfterEach
+  void tearDown() {
+    userRepository.deleteAll();
+  }
+
   @Test
   @DisplayName("actuator health는 관리 포트에서 인증 없이 응답한다")
   void actuatorHealthOnManagementPortIsPublic() {
@@ -45,9 +56,9 @@ class ManagementPortSecurityIntegrationTest {
   @Test
   @DisplayName("메인 포트에는 actuator health가 매핑되지 않는다")
   void actuatorHealthIsNotServedOnMainPort() {
+    User user = userRepository.save(UserFixture.user("management@chaeso.zip"));
     HttpHeaders headers = new HttpHeaders();
-    headers.setBearerAuth(jwtTokenProvider.createAccessToken(
-        UUID.fromString("11111111-1111-1111-1111-111111111111")));
+    headers.setBearerAuth(jwtTokenProvider.createAccessToken(user.getId(), user.getSessionVersion()));
 
     ResponseEntity<String> response = restTemplate.exchange(
         "http://localhost:" + serverPort + "/actuator/health",

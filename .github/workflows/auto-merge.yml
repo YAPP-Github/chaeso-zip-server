@@ -1,0 +1,38 @@
+name: Auto Merge dev to main
+
+on:
+  schedule:
+    - cron: '0 21 * * *'   # 매일 UTC 21:00 = KST 06:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git fetch origin main dev
+          if [ -z "$(git log origin/main..origin/dev --oneline)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and merge PR
+        if: steps.diff.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
+        run: |
+          if ! gh pr view dev --json number >/dev/null 2>&1; then
+            gh pr create --base main --head dev --title "merge dev to main" --body "" --assignee SinnoLn
+          fi
+          gh pr merge dev --merge

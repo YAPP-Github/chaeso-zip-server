@@ -18,8 +18,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
- * 한 유저에 연결된 로그인 방식(자체/구글 등). 유저당 provider 1개(uq_auth_identities_user_provider).
- * 생성 후 갱신되지 않아 BaseTimeEntity 대신 created_at 만 감사(auditing)로 채운다
+ * 유저의 로그인 수단. 유저당 provider 1개(uq_auth_identities_user_provider).
  */
 @Getter
 @Entity
@@ -73,8 +72,4 @@ public class AuthIdentity {
         return new AuthIdentity(userId, AuthProvider.GOOGLE, providerUid, null);
     }
 
-    /** 이전 소유자가 soft delete된 identity 를 새 유저로 옮긴다. provider/providerUid 는 그대로 유지. */
-    public void reassignTo(UUID newUserId) {
-        this.userId = newUserId;
-    }
 }

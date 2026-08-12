@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -12,23 +11,27 @@ import org.springframework.stereotype.Component;
 
 /**
  * Refresh Token 세션(family)을 Redis에 저장한다.
- * {@code refresh:{userId}:{familyId}} 키 하나에 {@code {jti}|{family 절대만료 epoch millis}} 값을 저장해서,
- * 회전은 값 교체로, family 폐기는 키 삭제로 처리한다.
- * rotate 는 jti 검증과 교체를 Lua 스크립트로 원자적으로 수행한다.
- * 키 TTL 은 min(refresh-ttl, 절대만료까지 남은 시간)으로 설정되어 회전할 때마다 갱신되지만 절대만료 시각은 넘지 않는다.
- * refresh JWT의 exp 는 Redis 조회 전에 빠르게 거절하기 위한 용도라 실제 만료보다 더 길게 설정될 수 있다.
+ *
+ * <p>키 구조는 {@code refresh:{userId}:{familyId}}, 값은 {@code {jti}|{절대만료 epoch millis}}이다.
+ * {@code rotate()}는 Lua 스크립트로 jti 검증 및 교체를 원자적으로 수행한다.
+ *
+ * <p>키 TTL은 회전 시마다 갱신되지만 절대 만료 시각을 초과할 수 없으며,
+ * Refresh JWT의 {@code exp}는 Redis 조회 전 조기 거절(fast-fail) 용도로 사용한다.
  */
 @Component
 public class RefreshTokenStore {
 
-  /** 회전 시도 결과. REUSED 는 재사용을 탐지해 family 를 폐기했다는 뜻. */
+  /** 토큰 회전 결과 (REUSED: 토큰 재사용 감지로 세션 폐기). */
   public enum RotateResult {
     ROTATED,
     INVALID,
     REUSED
   }
 
-  /** 회전 결과. {@code ttl} 은 ROTATED 일 때 키에 걸린 TTL 이고, 나머지 결과에서는 null 이다. */
+  /** 세션 회전 결과.
+   *
+   * {@code ttl}은 ROTATED 시 적용된 키 TTL이며, 그 외 결과에서는 null
+   */
   public record RotateOutcome(RotateResult result, Duration ttl) {
 
   }
@@ -38,10 +41,8 @@ public class RefreshTokenStore {
   private static final long REUSED = -2L;
 
   /**
-   * 값은 마지막 {@code |} 기준으로 자른다. 첫 구분자로 자르면 구분자를 포함한 jti 가 쪼개져
-   * 정상 토큰이 재사용으로 오탐될 수 있다.
-   * deadline 비교에는 tonumber 를 쓰되 저장은 원본 문자열 그대로 한다. Lua(5.1)에서 큰 수를
-   * 문자열로 되돌리면 표기가 달라질 수 있기 때문이다.
+   * jti 파싱 오탐을 막기 위해 마지막 {@code |} 기준으로 분할한다.
+   * Lua(5.1)의 숫자 변환 오차를 방지하도록 deadline은 원본 문자열로 저장한다.
    */
   private static final RedisScript<Long> ROTATE_SCRIPT = new DefaultRedisScript<>(
           "local current = redis.call('GET', KEYS[1]) "
@@ -63,22 +64,14 @@ public class RefreshTokenStore {
   private final Duration absoluteTtl;
   private final Clock clock;
 
-  @Autowired
-  public RefreshTokenStore(StringRedisTemplate redis, JwtProperties properties) {
-    this(redis, properties, Clock.systemUTC());
-  }
-
-  RefreshTokenStore(StringRedisTemplate redis, JwtProperties properties, Clock clock) {
+  public RefreshTokenStore(StringRedisTemplate redis, JwtProperties properties, Clock clock) {
     this.redis = redis;
     this.refreshTtl = properties.refreshTtl();
     this.absoluteTtl = properties.refreshAbsoluteTtl();
     this.clock = clock;
   }
 
-  /**
-   * 로그인으로 새 family 를 연다. 절대만료 시각은 이 시점부터 계산한다.
-   * 적용한 키 TTL 을 반환한다.
-   */
+  /** 신규 토큰 세션(family)을 생성하여 저장하고, 적용된 키 TTL을 반환한다. */
   public Duration save(UUID userId, String familyId, String jti) {
     long deadline = clock.instant().plus(absoluteTtl).toEpochMilli();
     Duration ttl = refreshTtl.compareTo(absoluteTtl) <= 0 ? refreshTtl : absoluteTtl;
@@ -87,8 +80,8 @@ public class RefreshTokenStore {
   }
 
   /**
-   * {@code oldJti} 가 현재 값과 일치할 때만 {@code newJti} 로 교체한다.
-   * 일치하지 않으면 재사용으로 간주해 family 를 폐기한다.
+   * {@code oldJti} 검증 성공 시 {@code newJti}로 회전한다.
+   * 불일치 시 토큰 재사용으로 판단하여 해당 세션을 폐기한다.
    */
   public RotateOutcome rotate(UUID userId, String familyId, String oldJti, String newJti) {
     Long result = redis.execute(
@@ -98,7 +91,7 @@ public class RefreshTokenStore {
             newJti,
             String.valueOf(clock.instant().toEpochMilli()),
             String.valueOf(refreshTtl.toMillis()));
-    if (result > 0) {
+    if (result != null && result > 0) {
       return new RotateOutcome(RotateResult.ROTATED, Duration.ofMillis(result));
     }
     RotateResult failure =
@@ -106,7 +99,7 @@ public class RefreshTokenStore {
     return new RotateOutcome(failure, null);
   }
 
-  /** family 세션을 폐기한다. 존재하지 않는 세션이어도 그냥 통과한다(로그아웃 멱등성). */
+  /** 토큰 세션(family)을 폐기한다. 존재하지 않는 세션이어도 멱등성이 보장된다. */
   public void revoke(UUID userId, String familyId) {
     redis.delete(key(userId, familyId));
   }

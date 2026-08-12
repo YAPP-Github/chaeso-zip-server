@@ -3,13 +3,20 @@ package chaeso.zip.server.auth.infrastructure.security;
 import static chaeso.zip.server.auth.infrastructure.jwt.JwtTestFixture.USER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTestFixture;
 import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
+import chaeso.zip.server.support.UserFixture;
+import chaeso.zip.server.user.domain.User;
+import chaeso.zip.server.user.domain.UserRepository;
 import jakarta.servlet.FilterChain;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,12 +32,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 class JwtAuthenticationFilterTest {
 
   private JwtTokenProvider jwtTokenProvider;
+  private UserRepository userRepository;
   private JwtAuthenticationFilter filter;
 
   @BeforeEach
   void setUp() {
     jwtTokenProvider = JwtTestFixture.provider();
-    filter = new JwtAuthenticationFilter(jwtTokenProvider);
+    userRepository = mock(UserRepository.class);
+    filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
   }
 
   @AfterEach
@@ -41,7 +50,9 @@ class JwtAuthenticationFilterTest {
   @Test
   @DisplayName("유효한 access 토큰이 있으면 SecurityContext에 사용자를 인증한다")
   void validTokenSetsAuthentication() throws Exception {
-    String token = jwtTokenProvider.createAccessToken(USER_ID);
+    String token = jwtTokenProvider.createAccessToken(USER_ID, 0);
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID))
+        .willReturn(Optional.of(UserFixture.user()));
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.addHeader("Authorization", "Bearer " + token);
     FilterChain chain = new MockFilterChain();
@@ -52,6 +63,34 @@ class JwtAuthenticationFilterTest {
         .getAuthentication()
         .getPrincipal();
     assertThat(principal).isEqualTo(new UserPrincipal(USER_ID));
+  }
+
+  @Test
+  @DisplayName("토큰의 회원이 탈퇴했으면 인증하지 않는다")
+  void withdrawnUserKeepsAnonymous() throws Exception {
+    String token = jwtTokenProvider.createAccessToken(USER_ID, 0);
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.empty());
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.addHeader("Authorization", "Bearer " + token);
+
+    filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  @DisplayName("토큰과 현재 회원의 세션 버전이 다르면 인증하지 않는다")
+  void staleSessionVersionKeepsAnonymous() throws Exception {
+    User user = UserFixture.user();
+    user.withdraw(LocalDateTime.of(2026, Month.AUGUST, 1, 0, 0));
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
+    String token = jwtTokenProvider.createAccessToken(USER_ID, 0);
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.addHeader("Authorization", "Bearer " + token);
+
+    filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 
   @ParameterizedTest
@@ -76,7 +115,9 @@ class JwtAuthenticationFilterTest {
   @Test
   @DisplayName("인증된 이후 요청에서 변조된 토큰이 오면 이전 인증 정보를 지운다")
   void invalidTokenClearsPreviousAuthentication() throws Exception {
-    String token = jwtTokenProvider.createAccessToken(USER_ID);
+    String token = jwtTokenProvider.createAccessToken(USER_ID, 0);
+    given(userRepository.findByIdAndDeletedAtIsNull(USER_ID))
+        .willReturn(Optional.of(UserFixture.user()));
     MockHttpServletRequest validRequest = new MockHttpServletRequest();
     validRequest.addHeader("Authorization", "Bearer " + token);
     filter.doFilter(validRequest, new MockHttpServletResponse(), new MockFilterChain());
@@ -93,9 +134,10 @@ class JwtAuthenticationFilterTest {
   @DisplayName("토큰 검증 중 예상하지 못한 예외는 숨기지 않고 전파한다")
   void unexpectedTokenProviderExceptionPropagates() {
     JwtTokenProvider failingProvider = mock(JwtTokenProvider.class);
-    given(failingProvider.parseAccess("valid-looking-token"))
+    given(failingProvider.resolveToken(any())).willReturn("valid-looking-token");
+    given(failingProvider.tryParseAccess("valid-looking-token"))
         .willThrow(new IllegalStateException("JWT infrastructure failure"));
-    JwtAuthenticationFilter failingFilter = new JwtAuthenticationFilter(failingProvider);
+    JwtAuthenticationFilter failingFilter = new JwtAuthenticationFilter(failingProvider, userRepository);
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.addHeader("Authorization", "Bearer valid-looking-token");
     MockHttpServletResponse response = new MockHttpServletResponse();

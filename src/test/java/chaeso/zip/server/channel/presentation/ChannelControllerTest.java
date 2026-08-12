@@ -209,7 +209,8 @@ class ChannelControllerTest {
         productId, "메인 배너", "DISPLAY", List.of(), 1_000_000, 5_000_000,
         1_500_000L, 5_250L, null, List.of(pricing));
     ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "11번가 광고", null, "요약", Category.SHOPPING_COMMERCE, "DISPLAY",
+        channelId, "11번가 광고", "월 방문자 수 상위 오픈마켓", null, "요약",
+        Category.SHOPPING_COMMERCE, "DISPLAY",
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         ExecutionType.SELF, List.of(), List.of(),
         List.of(product),
@@ -222,6 +223,7 @@ class ChannelControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.id").value(channelId.toString()))
+        .andExpect(jsonPath("$.data.tagline").value("월 방문자 수 상위 오픈마켓"))
         .andExpect(jsonPath("$.data.primaryCategory").value("SHOPPING_COMMERCE"))
         .andExpect(jsonPath("$.data.executionType").value("SELF"))
         .andExpect(jsonPath("$.data.products[0].id").value(productId.toString()))
@@ -284,7 +286,7 @@ class ChannelControllerTest {
   void getChannel_emptyProducts() throws Exception {
     UUID channelId = UUID.randomUUID();
     ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "상품없는 채널", null, null, Category.SHOPPING_COMMERCE, null,
+        channelId, "상품없는 채널", null, null, null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), null);
@@ -313,7 +315,7 @@ class ChannelControllerTest {
   private static ChannelDetailResponse channelDetail(UUID channelId,
       RecommendationBasisResponse basis) {
     return new ChannelDetailResponse(
-        channelId, "11번가 광고", null, null, Category.SHOPPING_COMMERCE, null,
+        channelId, "11번가 광고", null, null, null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), basis);

@@ -4,6 +4,7 @@ import chaeso.zip.server.auth.infrastructure.jwt.JwtTokenProvider;
 import chaeso.zip.server.common.exception.CommonErrorCode;
 import chaeso.zip.server.common.response.ApiResponse;
 import chaeso.zip.server.common.response.ErrorResponse;
+import chaeso.zip.server.user.domain.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,7 @@ public class SecurityConfig {
   private final JwtTokenProvider jwtTokenProvider;
   private final ObjectMapper objectMapper;
   private final CorsProperties corsProperties;
+  private final UserRepository userRepository;
 
   @Bean
   @Order(1)
@@ -89,7 +91,7 @@ public class SecurityConfig {
         .exceptionHandling(exception ->
             exception.authenticationEntryPoint(authenticationEntryPoint()))
         .addFilterBefore(
-            new JwtAuthenticationFilter(jwtTokenProvider),
+            new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
             UsernamePasswordAuthenticationFilter.class);
     return http.build();
   }

@@ -54,12 +54,9 @@ reviews:
 
   ##################### 자동 리뷰 #####################
   auto_review:
-    # 기본 브랜치(main)는 base_branches와 무관하게 자동 리뷰 대상이므로,
-    # 전용 라벨이 붙은 PR만 리뷰하도록 opt-in 방식으로 운영
-    enabled: false
-    labels:
-      - "coderabbit-auto-review"
-    # 전용 라벨과 함께 dev로 가는 PR만 자동 리뷰 실행
+    # PR 생성 시 자동 리뷰
+    enabled: true
+    # dev로 가는 PR 자동 리뷰 실행
     base_branches:
       - "dev"
     # 기존 리뷰가 있는 PR에 새 커밋이 추가되면 변경분만 다시 리뷰

@@ -1,4 +1,6 @@
 api.chaeso-zip.com {
+    log
+
     tls /certs/origin.pem /certs/origin.key {
         client_auth {
             mode       require_and_verify
