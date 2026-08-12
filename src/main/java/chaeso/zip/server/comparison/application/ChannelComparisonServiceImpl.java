@@ -145,7 +145,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     EstimationResult result =
         EstimationService.estimate(representative.product(), budgetWon, periodDays);
     if (result == null) {
-      return ChannelComparisonItemResponse.from(channel, tags, matchRate, null, null,
+      return ChannelComparisonItemResponse.from(channel, tags, matchRate, fixedCpcWon, cpmWon,
           null, null);
     }
 
