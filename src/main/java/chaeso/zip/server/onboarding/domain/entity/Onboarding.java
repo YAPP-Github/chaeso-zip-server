@@ -51,7 +51,7 @@ public class Onboarding extends BaseEntity {
   @Column(name = "campaign_objective", length = 20)
   private CampaignObjective campaignObjective;
 
-  @Column(name = "budget_min")
+  @Column(name = "budget_min", nullable = false)
   private Long budgetMin;
 
   @Column(name = "budget_max", nullable = false)

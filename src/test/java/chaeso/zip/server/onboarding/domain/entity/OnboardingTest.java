@@ -13,6 +13,18 @@ import org.junit.jupiter.api.Test;
 class OnboardingTest {
 
   @Test
+  @DisplayName("최소 예산이 없으면 온보딩을 생성할 수 없다")
+  void rejectsNullBudgetMin() {
+    Onboarding.OnboardingBuilder builder = validBuilder()
+        .budgetMin(null);
+
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(OnboardingBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(OnboardingErrorCode.INVALID_BUDGET_RANGE);
+  }
+
+  @Test
   @DisplayName("최대 예산이 없으면 온보딩을 생성할 수 없다")
   void rejectsNullBudgetMax() {
     Onboarding.OnboardingBuilder builder = validBuilder()
