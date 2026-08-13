@@ -9,10 +9,11 @@ import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -39,13 +40,13 @@ public record SubmitOnboardingRequest(
         requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull CampaignObjective campaignObjective,
 
-    @Schema(description = "최소 예산(원)", example = "3000000",
+    @Schema(description = "최소 예산(원). 0 이상 1,000만 이하", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull @PositiveOrZero Long budgetMin,
+    @NotNull @Min(0) @Max(10_000_000) Long budgetMin,
 
-    @Schema(description = "최대 예산(원)", example = "10000000",
+    @Schema(description = "최대 예산(원). 0 이상 1,000만 이하", example = "10000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull @PositiveOrZero Long budgetMax,
+    @NotNull @Min(0) @Max(10_000_000) Long budgetMax,
 
     @Schema(description = "집행 기간", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull CampaignPeriod period,

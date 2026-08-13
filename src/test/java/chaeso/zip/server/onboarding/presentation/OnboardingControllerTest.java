@@ -119,6 +119,32 @@ class OnboardingControllerTest {
     }
 
     @Test
+    @DisplayName("예산이 0원 미만이면 400 C-001을 반환한다")
+    void rejectsNegativeBudget() throws Exception {
+      SubmitOnboardingRequest request = OnboardingFixture.submitRequest(-1L, 2L);
+
+      mockMvc.perform(post("/api/v1/onboarding")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(request)))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.error.code").value("C-001"))
+          .andExpect(jsonPath("$.error.fieldErrors[0].field").value("budgetMin"));
+    }
+
+    @Test
+    @DisplayName("예산이 1,000만원을 초과하면 400 C-001을 반환한다")
+    void rejectsBudgetOverTenMillionWon() throws Exception {
+      SubmitOnboardingRequest request = OnboardingFixture.submitRequest(1L, 10_000_001L);
+
+      mockMvc.perform(post("/api/v1/onboarding")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(request)))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.error.code").value("C-001"))
+          .andExpect(jsonPath("$.error.fieldErrors[0].field").value("budgetMax"));
+    }
+
+    @Test
     @DisplayName("수동 입력 집행 내역이 3건을 넘으면 400 C-001")
     void rejectsTooManyAdHistoryRows() throws Exception {
       AdHistoryRequest row = new AdHistoryRequest(null, "인스타그램", 1000L, 10_000L, null, null, null);

@@ -51,14 +51,14 @@ public class Onboarding extends BaseEntity {
   @Column(name = "campaign_objective", length = 20)
   private CampaignObjective campaignObjective;
 
-  @Column(name = "budget_min")
+  @Column(name = "budget_min", nullable = false)
   private Long budgetMin;
 
-  @Column(name = "budget_max")
+  @Column(name = "budget_max", nullable = false)
   private Long budgetMax;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "period", length = 20)
+  @Column(name = "period", nullable = false, length = 20)
   private CampaignPeriod period;
 
   @Enumerated(EnumType.STRING)
@@ -102,6 +102,9 @@ public class Onboarding extends BaseEntity {
       List<String> rawFileUrls) {
     if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
+    }
+    if (period == null) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.PERIOD_REQUIRED);
     }
     if (!ObjectivePolicy.allows(serviceType, campaignObjective)) {
       throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);

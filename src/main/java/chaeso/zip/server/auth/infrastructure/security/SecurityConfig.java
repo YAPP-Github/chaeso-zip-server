@@ -54,7 +54,8 @@ public class SecurityConfig {
   };
 
   private static final String[] PUBLIC_GET_PATHS = {
-      "/api/v1/recommendations"
+      "/api/v1/recommendations",
+      "/api/v1/channel-comparisons"
   };
 
   private final JwtTokenProvider jwtTokenProvider;

@@ -19,7 +19,8 @@ public enum OnboardingErrorCode implements ErrorCode {
   ONBOARDING_NOT_FOUND(HttpStatus.NOT_FOUND, "ONB-007", "온보딩 정보가 없습니다."),
   PERFORMANCE_FILE_INVALID(HttpStatus.BAD_REQUEST, "ONB-008", "첨부한 성과파일을 확인할 수 없습니다."),
   TOO_FEW_MANUAL_FIELDS(HttpStatus.BAD_REQUEST, "ONB-010", "직접 입력한 집행 내역은 예산/집행기간/노출수/클릭수/전환수 중 2개 이상을 입력해야 합니다."),
-  INVALID_AGE_BAND_SELECTION(HttpStatus.BAD_REQUEST, "ONB-011", "잘 모르겠어요는 다른 연령대와 함께 선택할 수 없습니다.");
+  INVALID_AGE_BAND_SELECTION(HttpStatus.BAD_REQUEST, "ONB-011", "잘 모르겠어요는 다른 연령대와 함께 선택할 수 없습니다."),
+  PERIOD_REQUIRED(HttpStatus.BAD_REQUEST, "ONB-012", "집행 기간은 필수입니다.");
 
   private final HttpStatus httpStatus;
   private final String code;
