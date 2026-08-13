@@ -262,7 +262,7 @@ class OnboardingControllerTest {
       UUID onboardingId = UUID.randomUUID();
       Onboarding onboarding = OnboardingFixture.onboarding(USER_ID);
       ReflectionTestUtils.setField(onboarding, "id", onboardingId);
-      given(onboardingService.getMyOnboardingTag(eq(USER_ID)))
+      given(onboardingService.getMyOnboardingTag(USER_ID))
           .willReturn(MyOnboardingTagResponse.from(onboarding));
 
       mockMvc.perform(get("/api/v1/onboarding/me/tags"))
@@ -276,14 +276,16 @@ class OnboardingControllerTest {
     @Test
     @DisplayName("온보딩이 존재하지 않으면 200 OK와 hasOnboarding = false를 반환한다")
     void returnsHasOnboardingFalseWhenEmpty() throws Exception {
-      given(onboardingService.getMyOnboardingTag(eq(USER_ID)))
+      given(onboardingService.getMyOnboardingTag(USER_ID))
           .willReturn(MyOnboardingTagResponse.empty());
 
       mockMvc.perform(get("/api/v1/onboarding/me/tags"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.success").value(true))
           .andExpect(jsonPath("$.data.hasOnboarding").value(false))
-          .andExpect(jsonPath("$.data.onboardingId").isEmpty());
+          .andExpect(jsonPath("$.data.onboardingId").isEmpty())
+          .andExpect(jsonPath("$.data.targetAgeBands").isArray())
+          .andExpect(jsonPath("$.data.targetAgeBands").isEmpty());
     }
   }
 

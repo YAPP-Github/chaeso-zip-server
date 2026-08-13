@@ -186,7 +186,7 @@ public interface OnboardingApiDocs {
           "serviceName": "채소집",
           "industry": "SHOPPING_COMMERCE",
           "serviceType": "WEB",
-          "targetAgeBands": ["TWENTIES", "THIRTIES"],
+          "targetAgeBands": ["AGE_20S", "AGE_30S"],
           "campaignObjective": "CONVERSION",
           "budgetMin": 1000000,
           "budgetMax": 5000000,
@@ -198,7 +198,7 @@ public interface OnboardingApiDocs {
       }
       """;
 
-  String GET_TAGS_EMPTY_EXAMPLE = """
+  String GET_TAGS_NO_ONBOARDING_EXAMPLE = """
       {
         "success": true,
         "data": {
@@ -207,7 +207,7 @@ public interface OnboardingApiDocs {
           "serviceName": null,
           "industry": null,
           "serviceType": null,
-          "targetAgeBands": null,
+          "targetAgeBands": [],
           "campaignObjective": null,
           "budgetMin": null,
           "budgetMax": null,
@@ -228,7 +228,7 @@ public interface OnboardingApiDocs {
           "serviceName": "채소집",
           "industry": "FOOD_BEVERAGE",
           "serviceType": "MOBILE_APP",
-          "targetAgeBands": ["TWENTIES"],
+          "targetAgeBands": ["AGE_20S"],
           "campaignObjective": "CONVERSION",
           "budgetMin": 2000000,
           "budgetMax": 10000000,
@@ -297,8 +297,10 @@ public interface OnboardingApiDocs {
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
           useReturnTypeSchema = true,
       content = @Content(examples = {
-          @ExampleObject(name = "ONBOARDING_EXISTS", value = GET_TAGS_SUCCESS_EXAMPLE),
-          @ExampleObject(name = "ONBOARDING_EMPTY", value = GET_TAGS_EMPTY_EXAMPLE)
+          @ExampleObject(name = "ONBOARDING_EXISTS", summary = "온보딩 기록 있음",
+              value = GET_TAGS_SUCCESS_EXAMPLE),
+          @ExampleObject(name = "NO_ONBOARDING", summary = "온보딩 기록 없음",
+              value = GET_TAGS_NO_ONBOARDING_EXAMPLE)
       }))
   ApiResponse<MyOnboardingTagResponse> getMyOnboardingTag(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
