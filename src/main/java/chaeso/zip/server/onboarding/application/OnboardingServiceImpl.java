@@ -3,7 +3,6 @@ package chaeso.zip.server.onboarding.application;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
-import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
@@ -59,7 +58,7 @@ public class OnboardingServiceImpl implements OnboardingService {
   @Override
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public OnboardingSubmitResponse submit(UUID userId, SubmitOnboardingCommand command) {
-    validateSubmission(command.targetAgeBands(), command.adExperience(), command.adHistory(),
+    validateSubmission(command.adExperience(), command.adHistory(),
         command.rawFileKeys());
 
     List<String> fileUrls = verifyPerformanceFiles(command.rawFileKeys());
@@ -159,8 +158,8 @@ public class OnboardingServiceImpl implements OnboardingService {
   /**
    * targetAgeBands/adHistory/rawFileKeys의 관계 규칙을 검증한다.
    */
-  private void validateSubmission(List<AgeBand> targetAgeBands, AdExperience adExperience,
-      List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
+  private void validateSubmission(AdExperience adExperience,
+                                  List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
     boolean experienced = adExperience == AdExperience.EXPERIENCED;
     boolean hasAnyHistory = !adHistory.isEmpty() || !rawFileKeys.isEmpty();
     if (experienced != hasAnyHistory) {
@@ -239,6 +238,7 @@ public class OnboardingServiceImpl implements OnboardingService {
     } else {
       // Case B: 이미 추천 결과를 저장한 경우 -> 기존 비활성화 + 신규 온보딩 생성
       latestOnboarding.deactivate();
+      onboardingRepository.flush();
 
       Onboarding newOnboarding = Onboarding.createBuilder()
           .userId(userId)

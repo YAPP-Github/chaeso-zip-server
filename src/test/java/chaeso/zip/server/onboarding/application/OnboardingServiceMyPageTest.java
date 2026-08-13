@@ -7,20 +7,15 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
-import chaeso.zip.server.channel.domain.vo.AgeBand;
-import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
-import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
-import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.support.OnboardingFixture;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -90,21 +85,12 @@ class OnboardingServiceMyPageTest {
   @DisplayName("마이페이지 최신 온보딩 태그 수정")
   class UpdateMyOnboardingTag {
 
-    private UpdateOnboardingTagCommand updateCommand() {
-      return new UpdateOnboardingTagCommand(
-          Category.FOOD_BEVERAGE,
-          ServiceType.MOBILE_APP,
-          List.of(AgeBand.AGE_20S),
-          CampaignObjective.CONVERSION,
-          BudgetRange.of(2_000_000L, 10_000_000L),
-          CampaignPeriod.M2_3
-      );
-    }
-
     @Test
     @DisplayName("userId가 null이면 예외가 발생한다")
     void throwsExceptionWhenUserIdIsNull() {
-      assertThatThrownBy(() -> onboardingService.updateMyOnboardingTag(null, updateCommand()))
+      UpdateOnboardingTagCommand command = OnboardingFixture.updateTagCommand();
+
+      assertThatThrownBy(() -> onboardingService.updateMyOnboardingTag(null, command))
           .isInstanceOf(OnboardingNotFoundException.class);
     }
 
@@ -113,8 +99,9 @@ class OnboardingServiceMyPageTest {
     void throwsExceptionWhenOnboardingNotFound() {
       given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
           .willReturn(Optional.empty());
+      UpdateOnboardingTagCommand command = OnboardingFixture.updateTagCommand();
 
-      assertThatThrownBy(() -> onboardingService.updateMyOnboardingTag(USER_ID, updateCommand()))
+      assertThatThrownBy(() -> onboardingService.updateMyOnboardingTag(USER_ID, command))
           .isInstanceOf(OnboardingNotFoundException.class);
     }
 
@@ -127,7 +114,8 @@ class OnboardingServiceMyPageTest {
       given(channelRecommendationRepository.existsByOnboardingId(existing.getId()))
           .willReturn(false);
 
-      MyOnboardingTagResponse response = onboardingService.updateMyOnboardingTag(USER_ID, updateCommand());
+      MyOnboardingTagResponse response = onboardingService.updateMyOnboardingTag(
+          USER_ID, OnboardingFixture.updateTagCommand());
 
       assertThat(response.hasOnboarding()).isTrue();
       assertThat(response.onboardingId()).isEqualTo(existing.getId());
@@ -149,7 +137,8 @@ class OnboardingServiceMyPageTest {
       given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
           .willAnswer(invocation -> invocation.getArgument(0));
 
-      MyOnboardingTagResponse response = onboardingService.updateMyOnboardingTag(USER_ID, updateCommand());
+      MyOnboardingTagResponse response = onboardingService.updateMyOnboardingTag(
+          USER_ID, OnboardingFixture.updateTagCommand());
 
       assertThat(existing.isActive()).isFalse();
 
