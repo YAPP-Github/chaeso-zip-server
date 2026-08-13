@@ -189,10 +189,8 @@ class OnboardingServiceSubmitTest {
     @Test
     @DisplayName("최소 예산이 최대 예산보다 크면 ONB-001")
     void rejectsInvertedBudgetRange() {
-      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
-          CampaignObjective.TRAFFIC, 9_000_000L, 1_000_000L, AdExperience.NONE, List.of());
-
-      assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+      assertThatThrownBy(() -> OnboardingFixture.submitCommand(ServiceType.WEB,
+          CampaignObjective.TRAFFIC, 9_000_000L, 1_000_000L, AdExperience.NONE, List.of()))
           .isInstanceOf(OnboardingBusinessException.class)
           .extracting("errorCode")
           .isEqualTo(OnboardingErrorCode.INVALID_BUDGET_RANGE);
@@ -202,10 +200,8 @@ class OnboardingServiceSubmitTest {
     @Test
     @DisplayName("예산 범위 값이 null이면 ONB-001")
     void rejectsNullBudgetRange() {
-      SubmitOnboardingCommand command = OnboardingFixture.submitCommand(ServiceType.WEB,
-          CampaignObjective.TRAFFIC, null, 1_000_000L, AdExperience.NONE, List.of());
-
-      assertThatThrownBy(() -> onboardingService.submit(USER_ID, command))
+      assertThatThrownBy(() -> OnboardingFixture.submitCommand(ServiceType.WEB,
+          CampaignObjective.TRAFFIC, null, 1_000_000L, AdExperience.NONE, List.of()))
           .isInstanceOf(OnboardingBusinessException.class)
           .extracting("errorCode")
           .isEqualTo(OnboardingErrorCode.INVALID_BUDGET_RANGE);

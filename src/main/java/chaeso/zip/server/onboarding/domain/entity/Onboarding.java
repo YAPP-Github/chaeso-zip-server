@@ -7,10 +7,12 @@ import chaeso.zip.server.common.entity.BaseEntity;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ObjectivePolicy;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -51,11 +53,8 @@ public class Onboarding extends BaseEntity {
   @Column(name = "campaign_objective", length = 20)
   private CampaignObjective campaignObjective;
 
-  @Column(name = "budget_min", nullable = false)
-  private Long budgetMin;
-
-  @Column(name = "budget_max", nullable = false)
-  private Long budgetMax;
+  @Embedded
+  private BudgetRange budgetRange;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "period", nullable = false, length = 20)
@@ -79,7 +78,7 @@ public class Onboarding extends BaseEntity {
 
   private Onboarding(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      BudgetRange budgetRange, CampaignPeriod period, AdExperience adExperience,
       List<String> rawFileUrls) {
     this.userId = userId;
     this.serviceName = serviceName;
@@ -87,8 +86,7 @@ public class Onboarding extends BaseEntity {
     this.serviceType = serviceType;
     this.targetAgeBands = targetAgeBands;
     this.campaignObjective = campaignObjective;
-    this.budgetMin = budgetMin;
-    this.budgetMax = budgetMax;
+    this.budgetRange = budgetRange;
     this.period = period;
     this.adExperience = adExperience;
     this.rawFileUrls = rawFileUrls;
@@ -98,39 +96,48 @@ public class Onboarding extends BaseEntity {
   @Builder(builderMethodName = "createBuilder")
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      BudgetRange budgetRange, CampaignPeriod period, AdExperience adExperience,
       List<String> rawFileUrls) {
-    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetMin, budgetMax);
+    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetRange);
     return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, period, adExperience, rawFileUrls);
+        campaignObjective, budgetRange, period, adExperience, rawFileUrls);
   }
 
   /** 최신 온보딩 태그 수정을 위한 메서드 */
   public void updateTags(Category industry, ServiceType serviceType,
       List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period) {
-    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetMin, budgetMax);
+      BudgetRange budgetRange, CampaignPeriod period) {
+    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetRange);
     this.industry = industry;
     this.serviceType = serviceType;
     this.targetAgeBands = targetAgeBands;
     this.campaignObjective = campaignObjective;
-    this.budgetMin = budgetMin;
-    this.budgetMax = budgetMax;
+    this.budgetRange = budgetRange;
     this.period = period;
+  }
+
+  /** 최소 예산을 반환한다. */
+  public Long getBudgetMin() {
+    return budgetRange.getBudgetMin();
+  }
+
+  /** 최대 예산을 반환한다. */
+  public Long getBudgetMax() {
+    return budgetRange.getBudgetMax();
   }
 
   /** 온보딩 태그 속성들의 도메인 규칙을 일괄 검증한다. */
   private static void validateTagRules(ServiceType serviceType, CampaignObjective campaignObjective,
-      List<AgeBand> targetAgeBands, CampaignPeriod period, Long budgetMin, Long budgetMax) {
+      List<AgeBand> targetAgeBands, CampaignPeriod period, BudgetRange budgetRange) {
     validateObjectivePolicy(serviceType, campaignObjective);
     validateTargetAgeBands(targetAgeBands);
     validatePeriod(period);
-    validateBudgetRange(budgetMin, budgetMax);
+    validateBudgetRange(budgetRange);
   }
 
   /** 예산 범위 존재 여부를 검증한다. */
-  private static void validateBudgetRange(Long budgetMin, Long budgetMax) {
-    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
+  private static void validateBudgetRange(BudgetRange budgetRange) {
+    if (budgetRange == null) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
   }

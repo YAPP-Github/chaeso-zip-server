@@ -4,6 +4,7 @@ import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -50,8 +51,7 @@ public record UpdateOnboardingTagRequest(
         serviceType,
         targetAgeBands,
         campaignObjective,
-        budgetMin,
-        budgetMax,
+        BudgetRange.of(budgetMin, budgetMax),
         period
     );
   }

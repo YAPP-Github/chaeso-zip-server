@@ -7,6 +7,7 @@ import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
@@ -31,8 +32,7 @@ public final class OnboardingFixture {
         .serviceType(ServiceType.MOBILE_APP)
         .targetAgeBands(List.of(AgeBand.AGE_20S, AgeBand.AGE_30S))
         .campaignObjective(CampaignObjective.IN_APP_ACTION)
-        .budgetMin(3_000_000L)
-        .budgetMax(10_000_000L)
+        .budgetRange(BudgetRange.of(3_000_000L, 10_000_000L))
         .period(CampaignPeriod.M2_3)
         .adExperience(AdExperience.EXPERIENCED)
         .rawFileUrls(List.of())
@@ -60,8 +60,7 @@ public final class OnboardingFixture {
         .serviceType(ServiceType.MOBILE_APP)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(period)
         .adExperience(AdExperience.NONE)
         .rawFileUrls(List.of())
@@ -99,8 +98,7 @@ public final class OnboardingFixture {
         .serviceType(serviceType)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(CampaignPeriod.M1)
         .adExperience(adExperience)
         .adHistory(adHistory)

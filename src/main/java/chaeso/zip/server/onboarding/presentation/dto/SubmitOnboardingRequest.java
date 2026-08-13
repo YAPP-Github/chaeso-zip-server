@@ -5,6 +5,7 @@ import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -69,8 +70,7 @@ public record SubmitOnboardingRequest(
         .serviceType(serviceType)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(period)
         .adExperience(adExperience)
         .adHistory(adHistory.stream().map(AdHistoryRequest::toCommand).toList())

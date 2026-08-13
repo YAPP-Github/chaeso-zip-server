@@ -15,6 +15,7 @@ import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
@@ -95,8 +96,7 @@ class OnboardingServiceMyPageTest {
           ServiceType.MOBILE_APP,
           List.of(AgeBand.AGE_20S),
           CampaignObjective.CONVERSION,
-          2_000_000L,
-          10_000_000L,
+          BudgetRange.of(2_000_000L, 10_000_000L),
           CampaignPeriod.M2_3
       );
     }

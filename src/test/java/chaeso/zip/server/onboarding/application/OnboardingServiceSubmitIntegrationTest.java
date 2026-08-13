@@ -9,6 +9,7 @@ import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import java.util.List;
@@ -45,8 +46,7 @@ class OnboardingServiceSubmitIntegrationTest {
         .serviceType(ServiceType.WEB)
         .targetAgeBands(List.of())
         .campaignObjective(CampaignObjective.TRAFFIC)
-        .budgetMin(1_000_000L)
-        .budgetMax(5_000_000L)
+        .budgetRange(BudgetRange.of(1_000_000L, 5_000_000L))
         .period(CampaignPeriod.M1)
         .adExperience(AdExperience.NONE)
         .adHistory(List.of())

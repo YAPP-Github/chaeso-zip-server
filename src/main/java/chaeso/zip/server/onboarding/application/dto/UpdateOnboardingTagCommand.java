@@ -3,6 +3,7 @@ package chaeso.zip.server.onboarding.application.dto;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import java.util.List;
@@ -15,8 +16,7 @@ public record UpdateOnboardingTagCommand(
     ServiceType serviceType,
     List<AgeBand> targetAgeBands,
     CampaignObjective campaignObjective,
-    Long budgetMin,
-    Long budgetMax,
+    BudgetRange budgetRange,
     CampaignPeriod period
 ) {
 }

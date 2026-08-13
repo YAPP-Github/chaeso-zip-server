@@ -4,6 +4,7 @@ import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import java.util.List;
@@ -19,8 +20,7 @@ public record SubmitOnboardingCommand(
     ServiceType serviceType,
     List<AgeBand> targetAgeBands,
     CampaignObjective campaignObjective,
-    Long budgetMin,
-    Long budgetMax,
+    BudgetRange budgetRange,
     CampaignPeriod period,
     AdExperience adExperience,
     List<AdHistoryCommand> adHistory,

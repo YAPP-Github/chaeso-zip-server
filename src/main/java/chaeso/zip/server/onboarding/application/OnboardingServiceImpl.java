@@ -81,8 +81,7 @@ public class OnboardingServiceImpl implements OnboardingService {
         .serviceType(command.serviceType())
         .targetAgeBands(command.targetAgeBands())
         .campaignObjective(command.campaignObjective())
-        .budgetMin(command.budgetMin())
-        .budgetMax(command.budgetMax())
+        .budgetRange(command.budgetRange())
         .period(command.period())
         .adExperience(command.adExperience())
         .rawFileUrls(confirmedFileUrls)
@@ -233,8 +232,7 @@ public class OnboardingServiceImpl implements OnboardingService {
           command.serviceType(),
           command.targetAgeBands(),
           command.campaignObjective(),
-          command.budgetMin(),
-          command.budgetMax(),
+          command.budgetRange(),
           command.period()
       );
       resultOnboarding = latestOnboarding;
@@ -249,8 +247,7 @@ public class OnboardingServiceImpl implements OnboardingService {
           .serviceType(command.serviceType())
           .targetAgeBands(command.targetAgeBands())
           .campaignObjective(command.campaignObjective())
-          .budgetMin(command.budgetMin())
-          .budgetMax(command.budgetMax())
+          .budgetRange(command.budgetRange())
           .period(command.period())
           .adExperience(latestOnboarding.getAdExperience())
           .rawFileUrls(latestOnboarding.getRawFileUrls())
