@@ -18,10 +18,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BudgetRange {
 
-  @Column(name = "budget_min")
+  @Column(name = "budget_min", nullable = false)
   private Long budgetMin;
 
-  @Column(name = "budget_max")
+  @Column(name = "budget_max", nullable = false)
   private Long budgetMax;
 
   public BudgetRange(Long budgetMin, Long budgetMax) {
