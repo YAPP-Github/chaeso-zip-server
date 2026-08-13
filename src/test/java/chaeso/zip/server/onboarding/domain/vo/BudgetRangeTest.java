@@ -7,6 +7,8 @@ import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class BudgetRangeTest {
 
@@ -17,6 +19,33 @@ class BudgetRangeTest {
 
     assertThat(range.getBudgetMin()).isEqualTo(1_000_000L);
     assertThat(range.getBudgetMax()).isEqualTo(5_000_000L);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "0, 0",
+      "0, 10000000",
+      "10000000, 10000000"
+  })
+  @DisplayName("0원과 1,000만원 경계값을 포함한 예산 범위를 허용한다")
+  void acceptsBoundaryValues(long budgetMin, long budgetMax) {
+    BudgetRange range = BudgetRange.of(budgetMin, budgetMax);
+
+    assertThat(range.getBudgetMin()).isEqualTo(budgetMin);
+    assertThat(range.getBudgetMax()).isEqualTo(budgetMax);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "-1, 0",
+      "0, 10000001"
+  })
+  @DisplayName("0원 미만이거나 1,000만원을 초과한 예산 범위를 거부한다")
+  void rejectsValuesOutsideAllowedBounds(long budgetMin, long budgetMax) {
+    assertThatThrownBy(() -> BudgetRange.of(budgetMin, budgetMax))
+        .isInstanceOf(OnboardingBusinessException.class)
+        .extracting("errorCode")
+        .isEqualTo(OnboardingErrorCode.INVALID_BUDGET_RANGE);
   }
 
   @Test

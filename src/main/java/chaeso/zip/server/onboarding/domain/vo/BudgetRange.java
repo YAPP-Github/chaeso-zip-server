@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BudgetRange {
 
+  private static final long MIN_BUDGET = 0L;
+  private static final long MAX_BUDGET = 10_000_000L;
+
   @Column(name = "budget_min", nullable = false)
   private Long budgetMin;
 
@@ -25,7 +28,10 @@ public class BudgetRange {
   private Long budgetMax;
 
   public BudgetRange(Long budgetMin, Long budgetMax) {
-    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
+    if (budgetMin == null || budgetMax == null
+        || budgetMin < MIN_BUDGET || budgetMax < MIN_BUDGET
+        || budgetMin > MAX_BUDGET || budgetMax > MAX_BUDGET
+        || budgetMin > budgetMax) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
     this.budgetMin = budgetMin;
