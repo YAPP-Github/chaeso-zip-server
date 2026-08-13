@@ -7,15 +7,19 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
+import chaeso.zip.server.channel.domain.vo.AgeBand;
+import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
+import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
-import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.support.OnboardingFixture;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -32,9 +36,6 @@ class OnboardingServiceMyPageTest {
 
   @Mock
   private OnboardingRepository onboardingRepository;
-
-  @Mock
-  private ChannelRecommendationRepository channelRecommendationRepository;
 
   @InjectMocks
   private OnboardingServiceImpl onboardingService;
@@ -57,7 +58,7 @@ class OnboardingServiceMyPageTest {
     @Test
     @DisplayName("활성 온보딩이 없으면 empty 응답을 반환한다")
     void returnsEmptyWhenNoActiveOnboarding() {
-      given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
+      given(onboardingRepository.findActiveByUserId(USER_ID))
           .willReturn(Optional.empty());
 
       MyOnboardingTagResponse response = onboardingService.getMyOnboardingTag(USER_ID);
@@ -69,7 +70,7 @@ class OnboardingServiceMyPageTest {
     @DisplayName("활성 온보딩이 있으면 온보딩 태그 정보를 반환한다")
     void returnsOnboardingTagWhenExists() {
       Onboarding onboarding = OnboardingFixture.onboarding(USER_ID);
-      given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
+      given(onboardingRepository.findActiveByUserId(USER_ID))
           .willReturn(Optional.of(onboarding));
 
       MyOnboardingTagResponse response = onboardingService.getMyOnboardingTag(USER_ID);
@@ -97,7 +98,7 @@ class OnboardingServiceMyPageTest {
     @Test
     @DisplayName("기존 온보딩이 없으면 OnboardingNotFoundException 예외가 발생한다")
     void throwsExceptionWhenOnboardingNotFound() {
-      given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
+      given(onboardingRepository.findActiveByUserIdForUpdate(USER_ID))
           .willReturn(Optional.empty());
       UpdateOnboardingTagCommand command = OnboardingFixture.updateTagCommand();
 
@@ -106,34 +107,35 @@ class OnboardingServiceMyPageTest {
     }
 
     @Test
-    @DisplayName("저장된 추천 결과가 없으면 기존 최신 온보딩을 덮어쓴다")
-    void updatesInPlaceWhenNoSavedRecommendation() {
+    @DisplayName("순서 상관없이 같은 태그이면 기존 온보딩을 그대로 반환한다")
+    void returnsExistingOnboardingWhenTagsAreUnchanged() {
       Onboarding existing = OnboardingFixture.onboarding(USER_ID);
-      given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
+      given(onboardingRepository.findActiveByUserIdForUpdate(USER_ID))
           .willReturn(Optional.of(existing));
-      given(channelRecommendationRepository.existsByOnboardingId(existing.getId()))
-          .willReturn(false);
+      UpdateOnboardingTagCommand unchangedCommand = new UpdateOnboardingTagCommand(
+          Category.SHOPPING_COMMERCE,
+          ServiceType.MOBILE_APP,
+          List.of(AgeBand.AGE_30S, AgeBand.AGE_20S),
+          CampaignObjective.IN_APP_ACTION,
+          BudgetRange.of(3_000_000L, 10_000_000L),
+          CampaignPeriod.M2_3
+      );
 
       MyOnboardingTagResponse response = onboardingService.updateMyOnboardingTag(
-          USER_ID, OnboardingFixture.updateTagCommand());
+          USER_ID, unchangedCommand);
 
-      assertThat(response.hasOnboarding()).isTrue();
-      assertThat(response.onboardingId()).isEqualTo(existing.getId());
-      assertThat(existing.getIndustry()).isEqualTo(Category.FOOD_BEVERAGE);
-      assertThat(existing.getServiceType()).isEqualTo(ServiceType.MOBILE_APP);
-      assertThat(existing.getBudgetMin()).isEqualTo(2_000_000L);
       assertThat(existing.isActive()).isTrue();
-      then(onboardingRepository).should(never()).saveAndFlush(any());
+      assertThat(response.onboardingId()).isEqualTo(existing.getId());
+      assertThat(response.industry()).isEqualTo(Category.SHOPPING_COMMERCE);
+      then(onboardingRepository).should(never()).saveAndFlush(any(Onboarding.class));
     }
 
     @Test
-    @DisplayName("저장된 추천 결과가 이미 존재하면 기존 온보딩을 비활성화하고 새 온보딩을 생성한다")
-    void createsNewOnboardingWhenSavedRecommendationExists() {
+    @DisplayName("태그를 수정하면 기존 온보딩을 비활성화하고 새 온보딩을 생성한다")
+    void createsNewOnboarding() {
       Onboarding existing = OnboardingFixture.onboarding(USER_ID);
-      given(onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(USER_ID))
+      given(onboardingRepository.findActiveByUserIdForUpdate(USER_ID))
           .willReturn(Optional.of(existing));
-      given(channelRecommendationRepository.existsByOnboardingId(existing.getId()))
-          .willReturn(true);
       given(onboardingRepository.saveAndFlush(any(Onboarding.class)))
           .willAnswer(invocation -> invocation.getArgument(0));
 
@@ -148,6 +150,8 @@ class OnboardingServiceMyPageTest {
 
       assertThat(created.getUserId()).isEqualTo(USER_ID);
       assertThat(created.getIndustry()).isEqualTo(Category.FOOD_BEVERAGE);
+      assertThat(created.getServiceType()).isEqualTo(ServiceType.MOBILE_APP);
+      assertThat(created.getBudgetMin()).isEqualTo(2_000_000L);
       assertThat(created.isActive()).isTrue();
       assertThat(response.hasOnboarding()).isTrue();
     }

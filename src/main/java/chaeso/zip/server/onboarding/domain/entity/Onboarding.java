@@ -18,6 +18,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -103,19 +105,6 @@ public class Onboarding extends BaseEntity {
         campaignObjective, budgetRange, period, adExperience, rawFileUrls);
   }
 
-  /** 최신 온보딩 태그 수정을 위한 메서드 */
-  public void updateTags(Category industry, ServiceType serviceType,
-      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      BudgetRange budgetRange, CampaignPeriod period) {
-    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetRange);
-    this.industry = industry;
-    this.serviceType = serviceType;
-    this.targetAgeBands = targetAgeBands;
-    this.campaignObjective = campaignObjective;
-    this.budgetRange = budgetRange;
-    this.period = period;
-  }
-
   /** 최소 예산을 반환한다. */
   public Long getBudgetMin() {
     return budgetRange.getBudgetMin();
@@ -124,6 +113,25 @@ public class Onboarding extends BaseEntity {
   /** 최대 예산을 반환한다. */
   public Long getBudgetMax() {
     return budgetRange.getBudgetMax();
+  }
+
+  /** 수정 요청된 태그 정보가 현재 온보딩의 태그와 동일한지 확인한다. */
+  public boolean hasSameTags(Category industry, ServiceType serviceType,
+      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
+      BudgetRange budgetRange, CampaignPeriod period) {
+    return this.industry == industry
+        && this.serviceType == serviceType
+        && this.campaignObjective == campaignObjective
+        && this.period == period
+        && Objects.equals(this.budgetRange, budgetRange)
+        && isSameTargetAgeBands(targetAgeBands);
+  }
+
+  private boolean isSameTargetAgeBands(List<AgeBand> otherTargetAgeBands) {
+    if (this.targetAgeBands == null || otherTargetAgeBands == null) {
+      return this.targetAgeBands == otherTargetAgeBands;
+    }
+    return Objects.equals(Set.copyOf(this.targetAgeBands), Set.copyOf(otherTargetAgeBands));
   }
 
   /** 온보딩 태그 속성들의 도메인 규칙을 일괄 검증한다. */

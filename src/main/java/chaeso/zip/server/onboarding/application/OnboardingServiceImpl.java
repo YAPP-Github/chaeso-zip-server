@@ -21,7 +21,6 @@ import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
-import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -51,7 +50,6 @@ public class OnboardingServiceImpl implements OnboardingService {
   private final AdPerformanceRepository adPerformanceRepository;
   private final OnboardingAdHistorySnapshotRepository onboardingAdHistorySnapshotRepository;
   private final ChannelRepository channelRepository;
-  private final ChannelRecommendationRepository channelRecommendationRepository;
   private final PerformanceFileStorage performanceFileStorage;
   private final PlatformTransactionManager transactionManager;
 
@@ -204,7 +202,7 @@ public class OnboardingServiceImpl implements OnboardingService {
     if (userId == null) {
       return MyOnboardingTagResponse.empty();
     }
-    return onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+    return onboardingRepository.findActiveByUserId(userId)
         .map(MyOnboardingTagResponse::from)
         .orElseGet(MyOnboardingTagResponse::empty);
   }
@@ -217,46 +215,36 @@ public class OnboardingServiceImpl implements OnboardingService {
       throw new OnboardingNotFoundException(null);
     }
     Onboarding latestOnboarding = onboardingRepository
-        .findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+        .findActiveByUserIdForUpdate(userId)
         .orElseThrow(() -> new OnboardingNotFoundException(userId));
 
-    boolean hasSavedRecommendation = channelRecommendationRepository
-        .existsByOnboardingId(latestOnboarding.getId());
-
-    Onboarding resultOnboarding;
-    if (!hasSavedRecommendation) {
-      // Case A: 저장된 추천 결과가 없는 경우 -> 최신 온보딩 덮어쓰기
-      latestOnboarding.updateTags(
-          command.industry(),
-          command.serviceType(),
-          command.targetAgeBands(),
-          command.campaignObjective(),
-          command.budgetRange(),
-          command.period()
-      );
-      resultOnboarding = latestOnboarding;
-    } else {
-      // Case B: 이미 추천 결과를 저장한 경우 -> 기존 비활성화 + 신규 온보딩 생성
-      latestOnboarding.deactivate();
-      onboardingRepository.flush();
-
-      Onboarding newOnboarding = Onboarding.createBuilder()
-          .userId(userId)
-          .serviceName(latestOnboarding.getServiceName())
-          .industry(command.industry())
-          .serviceType(command.serviceType())
-          .targetAgeBands(command.targetAgeBands())
-          .campaignObjective(command.campaignObjective())
-          .budgetRange(command.budgetRange())
-          .period(command.period())
-          .adExperience(latestOnboarding.getAdExperience())
-          .rawFileUrls(latestOnboarding.getRawFileUrls())
-          .build();
-
-      resultOnboarding = saveAndFlushOnboarding(newOnboarding);
+    if (latestOnboarding.hasSameTags(
+        command.industry(),
+        command.serviceType(),
+        command.targetAgeBands(),
+        command.campaignObjective(),
+        command.budgetRange(),
+        command.period())) {
+      return MyOnboardingTagResponse.from(latestOnboarding);
     }
 
-    return MyOnboardingTagResponse.from(resultOnboarding);
+    latestOnboarding.deactivate();
+    onboardingRepository.flush();
+
+    Onboarding newOnboarding = Onboarding.createBuilder()
+        .userId(userId)
+        .serviceName(latestOnboarding.getServiceName())
+        .industry(command.industry())
+        .serviceType(command.serviceType())
+        .targetAgeBands(command.targetAgeBands())
+        .campaignObjective(command.campaignObjective())
+        .budgetRange(command.budgetRange())
+        .period(command.period())
+        .adExperience(latestOnboarding.getAdExperience())
+        .rawFileUrls(latestOnboarding.getRawFileUrls())
+        .build();
+
+    return MyOnboardingTagResponse.from(saveAndFlushOnboarding(newOnboarding));
   }
 
   private String verifyPerformanceFile(String rawFileKey) {
