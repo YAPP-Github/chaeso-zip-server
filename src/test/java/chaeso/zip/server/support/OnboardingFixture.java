@@ -110,8 +110,13 @@ public final class OnboardingFixture {
 
   /** WEB/TRAFFIC/300만~1000만원/NONE, 20·30대 대상, 집행 내역 없음.*/
   public static SubmitOnboardingRequest submitRequest() {
+    return submitRequest(3_000_000L, 10_000_000L);
+  }
+
+  /** 최소·최대 예산을 직접 지정하는 온보딩 제출 요청. */
+  public static SubmitOnboardingRequest submitRequest(Long budgetMin, Long budgetMax) {
     return new SubmitOnboardingRequest(SERVICE_NAME, INDUSTRY, ServiceType.WEB,
         List.of(AgeBand.AGE_20S, AgeBand.AGE_30S), CampaignObjective.TRAFFIC,
-        3_000_000L, 10_000_000L, CampaignPeriod.M2_3, AdExperience.NONE, List.of(), List.of());
+        budgetMin, budgetMax, CampaignPeriod.M2_3, AdExperience.NONE, List.of(), List.of());
   }
 }

@@ -117,6 +117,11 @@ class SecurityConfigIntegrationTest {
     String saveRecommendationProbe() {
       return "ok";
     }
+
+    @GetMapping("/api/v1/channel-comparisons")
+    String getChannelComparisonsProbe() {
+      return "ok";
+    }
   }
 
   @Nested
@@ -165,6 +170,13 @@ class SecurityConfigIntegrationTest {
       mockMvc.perform(post("/api/v1/recommendations"))
           .andExpect(status().isUnauthorized())
           .andExpect(jsonPath("$.error.code").value("C-004"));
+    }
+
+    @Test
+    @DisplayName("채널 비교 조회는 토큰 없이 접근할 수 있다")
+    void getChannelComparisons_isPublic() throws Exception {
+      mockMvc.perform(get("/api/v1/channel-comparisons"))
+          .andExpect(status().isOk());
     }
   }
 
