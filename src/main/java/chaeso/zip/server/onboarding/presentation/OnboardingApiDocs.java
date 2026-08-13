@@ -224,7 +224,7 @@ public interface OnboardingApiDocs {
         "success": true,
         "data": {
           "hasOnboarding": true,
-          "onboardingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "onboardingId": "9b2f4e0d-61f5-4ed1-9c73-2d5a6b7c8e90",
           "serviceName": "채소집",
           "industry": "FOOD_BEVERAGE",
           "serviceType": "MOBILE_APP",
@@ -308,7 +308,7 @@ public interface OnboardingApiDocs {
   @Operation(operationId = "updateMyOnboardingTag", summary = "내 최신 집행 온보딩 태그 수정",
       description = """
               로그인한 유저의 최신 집행 온보딩 태그 정보를 수정한다. \
-              기존 저장된 추천 결과 유무에 따라 최신 온보딩 덮어쓰기 또는 신규 온보딩 생성.""")
+              태그가 변경되면 기존 온보딩을 비활성화하고 신규 온보딩을 생성하며, 동일한 태그면 기존 온보딩을 유지한다.""")
   @SecurityRequirement(name = "bearerAuth")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공",
           useReturnTypeSchema = true,
