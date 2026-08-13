@@ -100,17 +100,62 @@ public class Onboarding extends BaseEntity {
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
       Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
       List<String> rawFileUrls) {
+    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetMin, budgetMax);
+    return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
+        campaignObjective, budgetMin, budgetMax, period, adExperience, rawFileUrls);
+  }
+
+  /** 최신 온보딩 태그 수정을 위한 메서드 */
+  public void updateTags(Category industry, ServiceType serviceType,
+      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
+      Long budgetMin, Long budgetMax, CampaignPeriod period) {
+    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetMin, budgetMax);
+    this.industry = industry;
+    this.serviceType = serviceType;
+    this.targetAgeBands = targetAgeBands;
+    this.campaignObjective = campaignObjective;
+    this.budgetMin = budgetMin;
+    this.budgetMax = budgetMax;
+    this.period = period;
+  }
+
+  /** 온보딩 태그 속성들의 도메인 규칙을 일괄 검증한다. */
+  private static void validateTagRules(ServiceType serviceType, CampaignObjective campaignObjective,
+      List<AgeBand> targetAgeBands, CampaignPeriod period, Long budgetMin, Long budgetMax) {
+    validateObjectivePolicy(serviceType, campaignObjective);
+    validateTargetAgeBands(targetAgeBands);
+    validatePeriod(period);
+    validateBudgetRange(budgetMin, budgetMax);
+  }
+
+  /** 예산 범위 존재 여부를 검증한다. */
+  private static void validateBudgetRange(Long budgetMin, Long budgetMax) {
     if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
+  }
+
+  /** 집행 기간 필수 여부를 검증한다. */
+  private static void validatePeriod(CampaignPeriod period) {
     if (period == null) {
       throw new OnboardingBusinessException(OnboardingErrorCode.PERIOD_REQUIRED);
     }
+  }
+
+  /** 서비스 형태별 허용되는 광고 목표 정책을 검증한다. */
+  private static void validateObjectivePolicy(ServiceType serviceType,
+      CampaignObjective campaignObjective) {
     if (!ObjectivePolicy.allows(serviceType, campaignObjective)) {
       throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);
     }
-    return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, period, adExperience, rawFileUrls);
+  }
+
+  /** 타깃 연령대 선택 정책을 검증한다 ('잘 모르겠어요'는 단독 선택만 허용). */
+  private static void validateTargetAgeBands(List<AgeBand> targetAgeBands) {
+    if (targetAgeBands != null && targetAgeBands.contains(AgeBand.UNDECIDED)
+        && targetAgeBands.size() > 1) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
+    }
   }
 
   /** 새 온보딩이 제출되면 이전 응답을 비활성으로 내린다. */

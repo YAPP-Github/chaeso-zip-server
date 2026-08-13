@@ -2,15 +2,18 @@ package chaeso.zip.server.onboarding.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
 import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
 import chaeso.zip.server.onboarding.presentation.dto.PresignPerformanceFilesRequest;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
+import chaeso.zip.server.onboarding.presentation.dto.UpdateOnboardingTagRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -174,6 +177,69 @@ public interface OnboardingApiDocs {
       }
       """;
 
+  String GET_TAGS_SUCCESS_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "hasOnboarding": true,
+          "onboardingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "serviceName": "채소집",
+          "industry": "SHOPPING_COMMERCE",
+          "serviceType": "WEB",
+          "targetAgeBands": ["TWENTIES", "THIRTIES"],
+          "campaignObjective": "CONVERSION",
+          "budgetMin": 1000000,
+          "budgetMax": 5000000,
+          "period": "M1",
+          "adExperience": "EXPERIENCED"
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
+  String GET_TAGS_EMPTY_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "hasOnboarding": false,
+          "onboardingId": null,
+          "serviceName": null,
+          "industry": null,
+          "serviceType": null,
+          "targetAgeBands": null,
+          "campaignObjective": null,
+          "budgetMin": null,
+          "budgetMax": null,
+          "period": null,
+          "adExperience": null
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
+  String UPDATE_TAGS_SUCCESS_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "hasOnboarding": true,
+          "onboardingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "serviceName": "채소집",
+          "industry": "FOOD_BEVERAGE",
+          "serviceType": "MOBILE_APP",
+          "targetAgeBands": ["TWENTIES"],
+          "campaignObjective": "CONVERSION",
+          "budgetMin": 2000000,
+          "budgetMax": 10000000,
+          "period": "M2_3",
+          "adExperience": "EXPERIENCED"
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
   @Operation(operationId = "submitOnboarding", summary = "온보딩 제출",
       description = """
           로그인 여부와 관계없이 제출할 수 있다. \
@@ -204,7 +270,7 @@ public interface OnboardingApiDocs {
       description = "동시 제출 충돌(ONB-006)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "CONCURRENT_SUBMISSION", value = CONCURRENT_SUBMISSION_EXAMPLE)))
-  ApiResponse<OnboardingSubmitResponse> submit(
+  ApiResponse<OnboardingSubmitResponse> submitOnboarding(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SubmitOnboardingRequest request);
 
@@ -220,6 +286,32 @@ public interface OnboardingApiDocs {
       description = "파일 개수(최대 5) 또는 확장자(xlsx/csv)나 크기(10MB) 위반(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
-  ApiResponse<List<PresignedFileUploadResult>> presignPerformanceFiles(
+  ApiResponse<List<PresignedFileUploadResult>> presignOnboardingPerformanceFiles(
       @Valid @RequestBody PresignPerformanceFilesRequest request);
+
+  @Operation(operationId = "getMyOnboardingTag", summary = "내 최신 집행 온보딩 태그 조회",
+      description = """
+  로그인한 유저의 가장 최근 활성 온보딩 태그 정보를 조회한다. \
+  온보딩 기록이 없는 경우 hasOnboarding = false""")
+  @SecurityRequirement(name = "bearerAuth")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+          useReturnTypeSchema = true,
+      content = @Content(examples = {
+          @ExampleObject(name = "ONBOARDING_EXISTS", value = GET_TAGS_SUCCESS_EXAMPLE),
+          @ExampleObject(name = "ONBOARDING_EMPTY", value = GET_TAGS_EMPTY_EXAMPLE)
+      }))
+  ApiResponse<MyOnboardingTagResponse> getMyOnboardingTag(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+  @Operation(operationId = "updateMyOnboardingTag", summary = "내 최신 집행 온보딩 태그 수정",
+      description = """
+              로그인한 유저의 최신 집행 온보딩 태그 정보를 수정한다. \
+              기존 저장된 추천 결과 유무에 따라 최신 온보딩 덮어쓰기 또는 신규 온보딩 생성.""")
+  @SecurityRequirement(name = "bearerAuth")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공",
+          useReturnTypeSchema = true,
+          content = @Content(examples = @ExampleObject(name = "UPDATE_SUCCESS", value = UPDATE_TAGS_SUCCESS_EXAMPLE)))
+  ApiResponse<MyOnboardingTagResponse> updateMyOnboardingTag(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @Valid @RequestBody UpdateOnboardingTagRequest request);
 }

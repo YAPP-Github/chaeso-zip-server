@@ -5,12 +5,15 @@ import chaeso.zip.server.channel.domain.entity.Channel;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
+import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
 import chaeso.zip.server.onboarding.application.dto.PresignPerformanceFileCommand;
 import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
+import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
+import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.entity.OnboardingAdHistorySnapshot;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingAdHistorySnapshotRepository;
@@ -19,6 +22,7 @@ import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.performance.domain.entity.AdPerformance;
 import chaeso.zip.server.performance.domain.repository.AdPerformanceRepository;
 import chaeso.zip.server.performance.domain.vo.PerfSource;
+import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -48,6 +52,7 @@ public class OnboardingServiceImpl implements OnboardingService {
   private final AdPerformanceRepository adPerformanceRepository;
   private final OnboardingAdHistorySnapshotRepository onboardingAdHistorySnapshotRepository;
   private final ChannelRepository channelRepository;
+  private final ChannelRecommendationRepository channelRecommendationRepository;
   private final PerformanceFileStorage performanceFileStorage;
   private final PlatformTransactionManager transactionManager;
 
@@ -69,7 +74,7 @@ public class OnboardingServiceImpl implements OnboardingService {
 
   private OnboardingSubmitResponse saveOnboarding(UUID userId, SubmitOnboardingCommand command,
       List<String> confirmedFileUrls) {
-    Onboarding response = Onboarding.createBuilder()
+    Onboarding newOnboarding = Onboarding.createBuilder()
         .userId(userId)
         .serviceName(command.serviceName())
         .industry(command.industry())
@@ -83,13 +88,9 @@ public class OnboardingServiceImpl implements OnboardingService {
         .rawFileUrls(confirmedFileUrls)
         .build();
 
-    if (userId != null) {
-      onboardingRepository.findByUserIdAndIsActiveTrue(userId)
-          .forEach(Onboarding::deactivate);
-      onboardingRepository.flush();
-    }
+    deactivateActiveOnboardings(userId);
 
-    Onboarding saved = saveResponse(response);
+    Onboarding saved = saveAndFlushOnboarding(newOnboarding);
 
     adPerformanceRepository.saveAll(command.adHistory().stream()
         .map(row -> AdPerformance.builder()
@@ -129,11 +130,30 @@ public class OnboardingServiceImpl implements OnboardingService {
     return performanceFileStorage.presign(files);
   }
 
-  private Onboarding saveResponse(Onboarding response) {
+  /**
+   * 온보딩 엔티티를 저장하고 플러시한다.
+   *
+   * @param onboarding 저장할 온보딩 엔티티
+   * @return 영속화된 온보딩 엔티티
+   */
+  private Onboarding saveAndFlushOnboarding(Onboarding onboarding) {
     try {
-      return onboardingRepository.saveAndFlush(response);
+      return onboardingRepository.saveAndFlush(onboarding);
     } catch (DataIntegrityViolationException e) {
       throw new OnboardingBusinessException(OnboardingErrorCode.CONCURRENT_SUBMISSION);
+    }
+  }
+
+  /**
+   * 해당 유저의 기존 활성화된 온보딩 응답들을 비활성화 처리한다.
+   *
+   * @param userId 회원 식별자 (비로그인 제출 시 null)
+   */
+  private void deactivateActiveOnboardings(UUID userId) {
+    if (userId != null) {
+      onboardingRepository.findByUserIdAndIsActiveTrue(userId)
+          .forEach(Onboarding::deactivate);
+      onboardingRepository.flush();
     }
   }
 
@@ -142,9 +162,6 @@ public class OnboardingServiceImpl implements OnboardingService {
    */
   private void validateSubmission(List<AgeBand> targetAgeBands, AdExperience adExperience,
       List<AdHistoryCommand> adHistory, List<String> rawFileKeys) {
-    if (targetAgeBands.contains(AgeBand.UNDECIDED) && targetAgeBands.size() > 1) {
-      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
-    }
     boolean experienced = adExperience == AdExperience.EXPERIENCED;
     boolean hasAnyHistory = !adHistory.isEmpty() || !rawFileKeys.isEmpty();
     if (experienced != hasAnyHistory) {
@@ -182,6 +199,67 @@ public class OnboardingServiceImpl implements OnboardingService {
    */
   private List<String> verifyPerformanceFiles(List<String> rawFileKeys) {
     return rawFileKeys.stream().map(this::verifyPerformanceFile).toList();
+  }
+
+  @Override
+  public MyOnboardingTagResponse getMyOnboardingTag(UUID userId) {
+    if (userId == null) {
+      return MyOnboardingTagResponse.empty();
+    }
+    return onboardingRepository.findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+        .map(MyOnboardingTagResponse::from)
+        .orElseGet(MyOnboardingTagResponse::empty);
+  }
+
+  @Override
+  @Transactional
+  public MyOnboardingTagResponse updateMyOnboardingTag(UUID userId,
+      UpdateOnboardingTagCommand command) {
+    if (userId == null) {
+      throw new OnboardingNotFoundException(null);
+    }
+    Onboarding latestOnboarding = onboardingRepository
+        .findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId)
+        .orElseThrow(() -> new OnboardingNotFoundException(userId));
+
+    boolean hasSavedRecommendation = channelRecommendationRepository
+        .existsByOnboardingId(latestOnboarding.getId());
+
+    Onboarding resultOnboarding;
+    if (!hasSavedRecommendation) {
+      // Case A: 저장된 추천 결과가 없는 경우 -> 최신 온보딩 덮어쓰기
+      latestOnboarding.updateTags(
+          command.industry(),
+          command.serviceType(),
+          command.targetAgeBands(),
+          command.campaignObjective(),
+          command.budgetMin(),
+          command.budgetMax(),
+          command.period()
+      );
+      resultOnboarding = latestOnboarding;
+    } else {
+      // Case B: 이미 추천 결과를 저장한 경우 -> 기존 비활성화 + 신규 온보딩 생성
+      latestOnboarding.deactivate();
+
+      Onboarding newOnboarding = Onboarding.createBuilder()
+          .userId(userId)
+          .serviceName(latestOnboarding.getServiceName())
+          .industry(command.industry())
+          .serviceType(command.serviceType())
+          .targetAgeBands(command.targetAgeBands())
+          .campaignObjective(command.campaignObjective())
+          .budgetMin(command.budgetMin())
+          .budgetMax(command.budgetMax())
+          .period(command.period())
+          .adExperience(latestOnboarding.getAdExperience())
+          .rawFileUrls(latestOnboarding.getRawFileUrls())
+          .build();
+
+      resultOnboarding = saveAndFlushOnboarding(newOnboarding);
+    }
+
+    return MyOnboardingTagResponse.from(resultOnboarding);
   }
 
   private String verifyPerformanceFile(String rawFileKey) {

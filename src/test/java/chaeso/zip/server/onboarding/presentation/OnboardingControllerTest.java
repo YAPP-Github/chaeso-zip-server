@@ -5,19 +5,25 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
+import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.onboarding.application.OnboardingService;
+import chaeso.zip.server.onboarding.application.dto.MyOnboardingTagResponse;
 import chaeso.zip.server.onboarding.application.dto.OnboardingSubmitResponse;
 import chaeso.zip.server.onboarding.application.dto.PresignedFileUploadResult;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
+import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
+import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
@@ -25,6 +31,7 @@ import chaeso.zip.server.onboarding.presentation.dto.AdHistoryRequest;
 import chaeso.zip.server.onboarding.presentation.dto.PerformanceFileMeta;
 import chaeso.zip.server.onboarding.presentation.dto.PresignPerformanceFilesRequest;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
+import chaeso.zip.server.onboarding.presentation.dto.UpdateOnboardingTagRequest;
 import chaeso.zip.server.support.OnboardingFixture;
 import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,9 +49,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
-
-import chaeso.zip.server.common.ratelimit.RateLimiter;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(OnboardingController.class)
@@ -243,6 +249,92 @@ class OnboardingControllerTest {
               .content(objectMapper.writeValueAsString(request)))
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.error.code").value("C-001"));
+    }
+  }
+
+  @Nested
+  @DisplayName("최신 집행 온보딩 태그를 조회한다")
+  class GetMyOnboardingTag {
+
+    @Test
+    @DisplayName("온보딩이 존재하면 200 OK와 태그 정보를 반환한다")
+    void returnsOnboardingTagWhenExists() throws Exception {
+      UUID onboardingId = UUID.randomUUID();
+      Onboarding onboarding = OnboardingFixture.onboarding(USER_ID);
+      ReflectionTestUtils.setField(onboarding, "id", onboardingId);
+      given(onboardingService.getMyOnboardingTag(eq(USER_ID)))
+          .willReturn(MyOnboardingTagResponse.from(onboarding));
+
+      mockMvc.perform(get("/api/v1/onboarding/me/tags"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.success").value(true))
+          .andExpect(jsonPath("$.data.hasOnboarding").value(true))
+          .andExpect(jsonPath("$.data.onboardingId").value(onboardingId.toString()))
+          .andExpect(jsonPath("$.data.industry").value("SHOPPING_COMMERCE"));
+    }
+
+    @Test
+    @DisplayName("온보딩이 존재하지 않으면 200 OK와 hasOnboarding = false를 반환한다")
+    void returnsHasOnboardingFalseWhenEmpty() throws Exception {
+      given(onboardingService.getMyOnboardingTag(eq(USER_ID)))
+          .willReturn(MyOnboardingTagResponse.empty());
+
+      mockMvc.perform(get("/api/v1/onboarding/me/tags"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.success").value(true))
+          .andExpect(jsonPath("$.data.hasOnboarding").value(false))
+          .andExpect(jsonPath("$.data.onboardingId").isEmpty());
+    }
+  }
+
+  @Nested
+  @DisplayName("최신 집행 온보딩 태그를 수정한다")
+  class UpdateMyOnboardingTag {
+
+    @Test
+    @DisplayName("유효한 태그 정보로 수정 시 200 OK와 수정된 태그 정보를 반환한다")
+    void updateTagReturnsOk() throws Exception {
+      UpdateOnboardingTagRequest request = new UpdateOnboardingTagRequest(
+          Category.FOOD_BEVERAGE,
+          ServiceType.MOBILE_APP,
+          List.of(AgeBand.AGE_20S),
+          CampaignObjective.CONVERSION,
+          2_000_000L,
+          10_000_000L,
+          CampaignPeriod.M2_3
+      );
+
+      Onboarding onboarding = OnboardingFixture.onboarding(USER_ID);
+      given(onboardingService.updateMyOnboardingTag(eq(USER_ID), any(UpdateOnboardingTagCommand.class)))
+          .willReturn(MyOnboardingTagResponse.from(onboarding));
+
+      mockMvc.perform(put("/api/v1/onboarding/me/tags")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(request)))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.success").value(true))
+          .andExpect(jsonPath("$.data.hasOnboarding").value(true));
+    }
+
+    @Test
+    @DisplayName("필수 항목이 누락되면 400 C-001을 반환한다")
+    void rejectsInvalidRequest() throws Exception {
+      UpdateOnboardingTagRequest request = new UpdateOnboardingTagRequest(
+          null,
+          ServiceType.MOBILE_APP,
+          List.of(AgeBand.AGE_20S),
+          CampaignObjective.CONVERSION,
+          2_000_000L,
+          10_000_000L,
+          CampaignPeriod.M2_3
+      );
+
+      mockMvc.perform(put("/api/v1/onboarding/me/tags")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(objectMapper.writeValueAsString(request)))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.error.code").value("C-001"))
+          .andExpect(jsonPath("$.error.fieldErrors[0].field").value("industry"));
     }
   }
 }

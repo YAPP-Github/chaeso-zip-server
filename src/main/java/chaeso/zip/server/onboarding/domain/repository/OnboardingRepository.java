@@ -17,6 +17,8 @@ public interface OnboardingRepository extends JpaRepository<Onboarding, UUID> {
 
   List<Onboarding> findByUserIdAndIsActiveTrue(UUID userId);
 
+  Optional<Onboarding> findFirstByUserIdAndIsActiveTrueOrderByCreatedAtDesc(UUID userId);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select o from Onboarding o where o.id = :onboardingId")
   Optional<Onboarding> findByIdForUpdate(@Param("onboardingId") UUID onboardingId);
