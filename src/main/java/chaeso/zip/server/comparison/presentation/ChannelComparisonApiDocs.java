@@ -142,7 +142,7 @@ public interface ChannelComparisonApiDocs {
               @ExampleObject(name = "CHANNEL_NOT_FOUND", value = CHANNEL_NOT_FOUND_EXAMPLE),
               @ExampleObject(name = "ONBOARDING_NOT_FOUND", value = ONBOARDING_NOT_FOUND_EXAMPLE)
           }))
-  ApiResponse<ChannelComparisonResponse> getComparison(
+  ApiResponse<ChannelComparisonResponse> getChannelComparison(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @ParameterObject ChannelComparisonRequest request);
 }
