@@ -35,7 +35,7 @@ public record SubmitOnboardingRequest(
 
     @Schema(description = "주요 연령대. 1개 이상. 잘 모르겠어요는 UNDECIDED 단독 선택",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotEmpty List<AgeBand> targetAgeBands,
+    @NotEmpty List<@NotNull AgeBand> targetAgeBands,
 
     @Schema(description = "광고 목표(단일 선택). 앱이면 APP_INSTALL/IN_APP_ACTION도 가능",
         requiredMode = Schema.RequiredMode.REQUIRED)
