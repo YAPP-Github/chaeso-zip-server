@@ -90,7 +90,16 @@ class ChannelComparisonControllerTest {
   }
 
   @Test
-  @DisplayName("채널을 2개나 3개 고르면 로그인 없이 비교할 수 있다")
+  @DisplayName("비교할 채널에 빈 값이 있으면 400 으로 거부한다")
+  void rejectsNullChannelId() throws Exception {
+    mockMvc.perform(get("/api/v1/channel-comparisons")
+            .param("channelIds", UUID.randomUUID().toString(), ""))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"));
+  }
+
+  @Test
+  @DisplayName("채널을 2개 고르면 로그인 없이 비교할 수 있다")
   void allowsAnonymousComparison() throws Exception {
     UUID first = UUID.randomUUID();
     UUID second = UUID.randomUUID();
@@ -101,6 +110,23 @@ class ChannelComparisonControllerTest {
             .param("channelIds", first + "," + second))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true));
+  }
+
+  @Test
+  @DisplayName("채널을 3개 고르면 로그인 없이 비교할 수 있다")
+  void allowsThreeChannelsForAnonymousComparison() throws Exception {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    UUID third = UUID.randomUUID();
+    given(channelComparisonService.compare(any(), any(), any()))
+        .willReturn(ChannelComparisonResponse.of(List.of()));
+
+    mockMvc.perform(get("/api/v1/channel-comparisons")
+            .param("channelIds", first + "," + second + "," + third))
+        .andExpect(status().isOk());
+
+    verify(channelComparisonService)
+        .compare(eq(List.of(first, second, third)), isNull(), isNull());
   }
 
   @Test

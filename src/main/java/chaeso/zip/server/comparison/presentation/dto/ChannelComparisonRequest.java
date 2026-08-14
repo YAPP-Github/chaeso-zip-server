@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Objects;
@@ -20,7 +21,7 @@ public record ChannelComparisonRequest(
         requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "비교할 채널을 2개 이상 선택해 주세요")
     @Size(min = 2, max = 3, message = "비교할 채널은 2개 이상 3개 이하로 선택해 주세요")
-    List<UUID> channelIds,
+    List<@NotNull UUID> channelIds,
 
     @Schema(description = "온보딩 기반 비교에 사용할 온보딩 응답 식별자. 생략하면 일반 채널 비교로 조회한다",
         example = "550e8400-e29b-41d4-a716-446655440000")
