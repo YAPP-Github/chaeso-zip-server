@@ -218,6 +218,30 @@ class ChannelComparisonServiceImplTest {
     }
 
     @Test
+    @DisplayName("클릭당 과금 매체는 단가를 환산 없이 클릭당 비용으로 준다")
+    void usesCpcPriceAsIs() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpcPricing = pricing(product.getId(), PricingModel.CPC, "500");
+      givenCatalog(new CatalogEntry(channel, product, cpcPricing));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(userId)));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), onboardingId, userId)
+          .items().getFirst();
+
+      assertThat(item.cpcWon()).isEqualByComparingTo("500");
+      assertThat(item.cpmWon()).isNull();
+      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
+
+    @Test
     @DisplayName("온보딩 예산이 대표 단가보다 적으면 예상 노출·클릭 수와 환산 CPC를 비우고 고정 CPM은 유지한다")
     void leavesEstimatesEmptyWhenBudgetIsBelowRepresentativePrice() {
       Channel channel = matchedChannel();
@@ -237,6 +261,31 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.matchRate()).isEqualTo(100);
       assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
       assertThat(item.cpmWon()).isEqualByComparingTo("5000000");
+      assertThat(item.cpcWon()).isNull();
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
+
+    @Test
+    @DisplayName("온보딩 예산이 0이면 예상 노출/클릭을 계산하지 않고 고정 단가만 반환한다")
+    void leavesEstimatesEmptyWhenBudgetIsZero() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "3000");
+      givenCatalog(new CatalogEntry(channel, product, cpmPricing));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId)).willReturn(Optional.of(
+          OnboardingFixture.onboarding(userId, MATCHED_INDUSTRY, MATCHED_OBJECTIVE,
+              List.of(MATCHED_AGE_BAND), 0L, 0L, CampaignPeriod.M1)));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), onboardingId, userId)
+          .items().getFirst();
+
+      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNull();
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
