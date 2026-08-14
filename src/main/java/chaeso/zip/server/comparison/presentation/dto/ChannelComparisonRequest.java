@@ -15,11 +15,11 @@ import java.util.UUID;
  */
 @Schema(description = "채널 비교 조회 요청")
 public record ChannelComparisonRequest(
-    @Schema(description = "비교할 채널 식별자 목록. 1개 이상 3개 이하이며, 전달한 순서대로 결과를 반환한다",
+    @Schema(description = "비교할 채널 식별자 목록. 2개 이상 3개 이하. 로그인+온보딩: 적합도순, 그외 전달순",
         example = "[\"550e8400-e29b-41d4-a716-446655440000\", \"9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e\"]",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotEmpty(message = "비교할 채널을 1개 이상 선택해 주세요")
-    @Size(max = 3, message = "비교할 채널은 최대 3개까지 선택할 수 있습니다")
+    @NotEmpty(message = "비교할 채널을 2개 이상 선택해 주세요")
+    @Size(min = 2, max = 3, message = "비교할 채널은 2개 이상 3개 이하로 선택해 주세요")
     List<UUID> channelIds,
 
     @Schema(description = "온보딩 기반 비교에 사용할 온보딩 응답 식별자. 생략하면 일반 채널 비교로 조회한다",

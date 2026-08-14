@@ -44,14 +44,14 @@ public record ChannelComparisonItemResponse(
     @Schema(description = "1,000회 노출당 단가(원). 대표 단가가 CPM일 때만 채워진다",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpmWon,
-    @Schema(description = "온보딩 조건과의 적합도(%). 온보딩이 없으면 null",
+    @Schema(description = "온보딩 조건과의 적합도(%). 로그인 뒤 온보딩이 있을 때만 반환",
         example = "78",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer matchRate,
-    @Schema(description = "예상 노출 수 범위. 온보딩이 없거나 예산 부족 또는 추정 불가 시 null",
+    @Schema(description = "예상 노출 수 범위. 로그인 뒤 온보딩이 있어도 예산 부족 또는 추정 불가 시 null",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estImpressions,
-    @Schema(description = "예상 클릭 수 범위. 온보딩이 없거나 예산 부족 또는 추정 불가 시 null",
+    @Schema(description = "예상 클릭 수 범위. 로그인 뒤 온보딩이 있어도 예산 부족 또는 추정 불가 시 null",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks) {
 
@@ -74,9 +74,9 @@ public record ChannelComparisonItemResponse(
         null);
   }
 
-  /** 온보딩 조건을 적용해 적합도와 예상 노출·클릭을 계산한 항목. */
+  /** 온보딩 조건으로 태그, 단가, 적합도, 추정을 채운 항목. */
   public static ChannelComparisonItemResponse from(Channel channel, List<String> tags,
-      int matchRate, BigDecimal cpcWon, BigDecimal cpmWon, ImpressionRange impressions,
+      Integer matchRate, BigDecimal cpcWon, BigDecimal cpmWon, ImpressionRange impressions,
       ClickRange clicks) {
     return new ChannelComparisonItemResponse(
         channel.getId(),
@@ -92,6 +92,24 @@ public record ChannelComparisonItemResponse(
         matchRate,
         CountRangeResponse.from(impressions),
         CountRangeResponse.from(clicks));
+  }
+
+  /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */
+  public ChannelComparisonItemResponse hideCatalogDetails() {
+    return new ChannelComparisonItemResponse(
+        channelId,
+        channelName,
+        null,
+        List.of(),
+        List.of(),
+        minBudgetWon,
+        advantages,
+        tags,
+        cpcWon,
+        cpmWon,
+        null,
+        null,
+        null);
   }
 
   /** 목록은 값이 없어도 null 대신 빈 배열로 반환한다. */

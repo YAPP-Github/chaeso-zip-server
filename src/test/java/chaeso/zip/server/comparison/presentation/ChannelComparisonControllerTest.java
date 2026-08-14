@@ -49,7 +49,18 @@ class ChannelComparisonControllerTest {
         .andExpect(jsonPath("$.error.code").value("C-001"))
         .andExpect(jsonPath("$.error.fieldErrors[0].field").value("channelIds"))
         .andExpect(jsonPath("$.error.fieldErrors[0].reason")
-            .value("비교할 채널을 1개 이상 선택해 주세요"));
+            .value("비교할 채널을 2개 이상 선택해 주세요"));
+  }
+
+  @Test
+  @DisplayName("채널을 1개만 선택하면 400 으로 거부한다")
+  void rejectsSingleChannel() throws Exception {
+    mockMvc.perform(get("/api/v1/channel-comparisons")
+            .param("channelIds", UUID.randomUUID().toString()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].reason")
+            .value("비교할 채널은 2개 이상 3개 이하로 선택해 주세요"));
   }
 
   @Test
@@ -62,7 +73,7 @@ class ChannelComparisonControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("C-001"))
         .andExpect(jsonPath("$.error.fieldErrors[0].reason")
-            .value("비교할 채널은 최대 3개까지 선택할 수 있습니다"));
+            .value("비교할 채널은 2개 이상 3개 이하로 선택해 주세요"));
   }
 
   @Test
@@ -79,14 +90,15 @@ class ChannelComparisonControllerTest {
   }
 
   @Test
-  @DisplayName("채널을 1개부터 3개까지 선택하면 로그인 없이 비교할 수 있다")
+  @DisplayName("채널을 2개나 3개 고르면 로그인 없이 비교할 수 있다")
   void allowsAnonymousComparison() throws Exception {
-    UUID channelId = UUID.randomUUID();
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
     given(channelComparisonService.compare(any(), any(), any()))
         .willReturn(ChannelComparisonResponse.of(List.of()));
 
     mockMvc.perform(get("/api/v1/channel-comparisons")
-            .param("channelIds", channelId.toString()))
+            .param("channelIds", first + "," + second))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true));
   }
@@ -94,26 +106,27 @@ class ChannelComparisonControllerTest {
   @Test
   @DisplayName("비로그인 비교는 요청자 정보 없이 처리한다")
   void passesNoRequesterForAnonymousComparison() throws Exception {
-    UUID channelId = UUID.randomUUID();
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
     given(channelComparisonService.compare(any(), any(), any()))
         .willReturn(ChannelComparisonResponse.of(List.of()));
 
     mockMvc.perform(get("/api/v1/channel-comparisons")
-            .param("channelIds", channelId.toString()))
+            .param("channelIds", first + "," + second))
         .andExpect(status().isOk());
 
     ArgumentCaptor<List<UUID>> channelIdsCaptor = ArgumentCaptor.captor();
     verify(channelComparisonService)
         .compare(channelIdsCaptor.capture(), isNull(), isNull());
-    assertThat(channelIdsCaptor.getValue()).containsExactly(channelId);
+    assertThat(channelIdsCaptor.getValue()).containsExactly(first, second);
   }
 
   @Test
   @WithUserPrincipal
   @DisplayName("로그인 비교는 사용자와 온보딩 식별자를 맞춤 비교에 전달한다")
   void passesUserAndOnboardingForAuthenticatedComparison() throws Exception {
-    UUID channelId1 = UUID.randomUUID();
-    UUID channelId2 = UUID.randomUUID();
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
     UUID onboardingId = UUID.randomUUID();
     ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
         chaeso.zip.server.support.ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
@@ -122,7 +135,7 @@ class ChannelComparisonControllerTest {
         .willReturn(ChannelComparisonResponse.of(List.of(item)));
 
     mockMvc.perform(get("/api/v1/channel-comparisons")
-            .param("channelIds", channelId1 + "," + channelId2)
+            .param("channelIds", first + "," + second)
             .param("onboardingId", onboardingId.toString()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.items[0].channelId").value(item.channelId().toString()))
@@ -134,6 +147,6 @@ class ChannelComparisonControllerTest {
     ArgumentCaptor<List<UUID>> channelIdsCaptor = ArgumentCaptor.captor();
     verify(channelComparisonService)
         .compare(channelIdsCaptor.capture(), eq(onboardingId), eq(USER_ID));
-    assertThat(channelIdsCaptor.getValue()).containsExactly(channelId1, channelId2);
+    assertThat(channelIdsCaptor.getValue()).containsExactly(first, second);
   }
 }
