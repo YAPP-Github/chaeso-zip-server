@@ -7,15 +7,19 @@ import chaeso.zip.server.common.entity.BaseEntity;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
 import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ObjectivePolicy;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -51,11 +55,8 @@ public class Onboarding extends BaseEntity {
   @Column(name = "campaign_objective", length = 20)
   private CampaignObjective campaignObjective;
 
-  @Column(name = "budget_min", nullable = false)
-  private Long budgetMin;
-
-  @Column(name = "budget_max", nullable = false)
-  private Long budgetMax;
+  @Embedded
+  private BudgetRange budgetRange;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "period", nullable = false, length = 20)
@@ -79,7 +80,7 @@ public class Onboarding extends BaseEntity {
 
   private Onboarding(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      BudgetRange budgetRange, CampaignPeriod period, AdExperience adExperience,
       List<String> rawFileUrls) {
     this.userId = userId;
     this.serviceName = serviceName;
@@ -87,8 +88,7 @@ public class Onboarding extends BaseEntity {
     this.serviceType = serviceType;
     this.targetAgeBands = targetAgeBands;
     this.campaignObjective = campaignObjective;
-    this.budgetMin = budgetMin;
-    this.budgetMax = budgetMax;
+    this.budgetRange = budgetRange;
     this.period = period;
     this.adExperience = adExperience;
     this.rawFileUrls = rawFileUrls;
@@ -98,19 +98,79 @@ public class Onboarding extends BaseEntity {
   @Builder(builderMethodName = "createBuilder")
   public static Onboarding create(UUID userId, String serviceName, Category industry,
       ServiceType serviceType, List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
-      Long budgetMin, Long budgetMax, CampaignPeriod period, AdExperience adExperience,
+      BudgetRange budgetRange, CampaignPeriod period, AdExperience adExperience,
       List<String> rawFileUrls) {
-    if (budgetMin == null || budgetMax == null || budgetMin > budgetMax) {
+    validateTagRules(serviceType, campaignObjective, targetAgeBands, period, budgetRange);
+    return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
+        campaignObjective, budgetRange, period, adExperience, rawFileUrls);
+  }
+
+  /** 최소 예산을 반환한다. */
+  public Long getBudgetMin() {
+    return budgetRange.getBudgetMin();
+  }
+
+  /** 최대 예산을 반환한다. */
+  public Long getBudgetMax() {
+    return budgetRange.getBudgetMax();
+  }
+
+  /** 수정 요청된 태그 정보가 현재 온보딩의 태그와 동일한지 확인한다. */
+  public boolean hasSameTags(Category industry, ServiceType serviceType,
+      List<AgeBand> targetAgeBands, CampaignObjective campaignObjective,
+      BudgetRange budgetRange, CampaignPeriod period) {
+    return this.industry == industry
+        && this.serviceType == serviceType
+        && this.campaignObjective == campaignObjective
+        && this.period == period
+        && Objects.equals(this.budgetRange, budgetRange)
+        && isSameTargetAgeBands(targetAgeBands);
+  }
+
+  private boolean isSameTargetAgeBands(List<AgeBand> otherTargetAgeBands) {
+    if (this.targetAgeBands == null || otherTargetAgeBands == null) {
+      return this.targetAgeBands == otherTargetAgeBands;
+    }
+    return Objects.equals(Set.copyOf(this.targetAgeBands), Set.copyOf(otherTargetAgeBands));
+  }
+
+  /** 온보딩 태그 속성들의 도메인 규칙을 일괄 검증한다. */
+  private static void validateTagRules(ServiceType serviceType, CampaignObjective campaignObjective,
+      List<AgeBand> targetAgeBands, CampaignPeriod period, BudgetRange budgetRange) {
+    validateObjectivePolicy(serviceType, campaignObjective);
+    validateTargetAgeBands(targetAgeBands);
+    validatePeriod(period);
+    validateBudgetRange(budgetRange);
+  }
+
+  /** 예산 범위 존재 여부를 검증한다. */
+  private static void validateBudgetRange(BudgetRange budgetRange) {
+    if (budgetRange == null) {
       throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_BUDGET_RANGE);
     }
+  }
+
+  /** 집행 기간 필수 여부를 검증한다. */
+  private static void validatePeriod(CampaignPeriod period) {
     if (period == null) {
       throw new OnboardingBusinessException(OnboardingErrorCode.PERIOD_REQUIRED);
     }
+  }
+
+  /** 서비스 형태별 허용되는 광고 목표 정책을 검증한다. */
+  private static void validateObjectivePolicy(ServiceType serviceType,
+      CampaignObjective campaignObjective) {
     if (!ObjectivePolicy.allows(serviceType, campaignObjective)) {
       throw new OnboardingBusinessException(OnboardingErrorCode.OBJECTIVE_NOT_ALLOWED);
     }
-    return new Onboarding(userId, serviceName, industry, serviceType, targetAgeBands,
-        campaignObjective, budgetMin, budgetMax, period, adExperience, rawFileUrls);
+  }
+
+  /** 타깃 연령대 선택 정책을 검증한다 ('잘 모르겠어요'는 단독 선택만 허용). */
+  private static void validateTargetAgeBands(List<AgeBand> targetAgeBands) {
+    if (targetAgeBands != null && targetAgeBands.contains(AgeBand.UNDECIDED)
+        && targetAgeBands.size() > 1) {
+      throw new OnboardingBusinessException(OnboardingErrorCode.INVALID_AGE_BAND_SELECTION);
+    }
   }
 
   /** 새 온보딩이 제출되면 이전 응답을 비활성으로 내린다. */

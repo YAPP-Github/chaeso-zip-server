@@ -5,8 +5,10 @@ import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.AdHistoryCommand;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
+import chaeso.zip.server.onboarding.application.dto.UpdateOnboardingTagCommand;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import chaeso.zip.server.onboarding.presentation.dto.SubmitOnboardingRequest;
@@ -31,8 +33,7 @@ public final class OnboardingFixture {
         .serviceType(ServiceType.MOBILE_APP)
         .targetAgeBands(List.of(AgeBand.AGE_20S, AgeBand.AGE_30S))
         .campaignObjective(CampaignObjective.IN_APP_ACTION)
-        .budgetMin(3_000_000L)
-        .budgetMax(10_000_000L)
+        .budgetRange(BudgetRange.of(3_000_000L, 10_000_000L))
         .period(CampaignPeriod.M2_3)
         .adExperience(AdExperience.EXPERIENCED)
         .rawFileUrls(List.of())
@@ -60,12 +61,28 @@ public final class OnboardingFixture {
         .serviceType(ServiceType.MOBILE_APP)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(period)
         .adExperience(AdExperience.NONE)
         .rawFileUrls(List.of())
         .build();
+  }
+
+  /** FOOD_BEVERAGE/MOBILE_APP/CONVERSION/200만~1000만원, 20대 대상 태그 수정. */
+  public static UpdateOnboardingTagCommand updateTagCommand() {
+    return updateTagCommand(List.of(AgeBand.AGE_20S));
+  }
+
+  /** 대상 연령대를 직접 지정하는 태그 수정 커맨드. */
+  public static UpdateOnboardingTagCommand updateTagCommand(List<AgeBand> targetAgeBands) {
+    return new UpdateOnboardingTagCommand(
+        Category.FOOD_BEVERAGE,
+        ServiceType.MOBILE_APP,
+        targetAgeBands,
+        CampaignObjective.CONVERSION,
+        BudgetRange.of(2_000_000L, 10_000_000L),
+        CampaignPeriod.M2_3
+    );
   }
 
   /** WEB/TRAFFIC/100만~500만원/NONE, 집행 내역 없음. */
@@ -99,8 +116,7 @@ public final class OnboardingFixture {
         .serviceType(serviceType)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(CampaignPeriod.M1)
         .adExperience(adExperience)
         .adHistory(adHistory)
