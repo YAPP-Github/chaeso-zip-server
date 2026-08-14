@@ -6,9 +6,13 @@ import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static chaeso.zip.server.support.ChannelCatalogFixture.withObjectives;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockStatic;
 
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
@@ -26,6 +30,7 @@ import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemRespons
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
+import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
@@ -42,6 +47,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -317,6 +323,61 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.cpcWon()).isNull();
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
+    }
+
+    @Test
+    @DisplayName("온보딩 예산이 0이면 클릭당 과금 매체의 고정 CPC만 남기고 예상 노출·클릭은 비운다")
+    void keepsFixedCpcWhenBudgetIsZero() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpcPricing = pricing(product.getId(), PricingModel.CPC, "500");
+      givenCatalog(new CatalogEntry(channel, product, cpcPricing));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId)).willReturn(Optional.of(
+          OnboardingFixture.onboarding(userId, MATCHED_INDUSTRY, MATCHED_OBJECTIVE,
+              List.of(MATCHED_AGE_BAND), 0L, 0L, CampaignPeriod.M1)));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), onboardingId, userId)
+          .items().getFirst();
+
+      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.cpcWon()).isEqualByComparingTo("500");
+      assertThat(item.cpmWon()).isNull();
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
+
+    @Test
+    @DisplayName("추정을 계산할 수 없으면 예상 노출·클릭을 비우고 고정 단가만 반환한다")
+    void leavesEstimatesEmptyWhenEstimateIsUnavailable() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "3000");
+      givenCatalog(new CatalogEntry(channel, product, cpmPricing));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(userId)));
+
+      try (MockedStatic<EstimationService> estimation =
+          mockStatic(EstimationService.class, CALLS_REAL_METHODS)) {
+        estimation.when(() -> EstimationService.estimate(any(), anyLong(), anyInt()))
+            .thenReturn(null);
+
+        ChannelComparisonItemResponse item = comparisonService
+            .compare(List.of(channel.getId()), onboardingId, userId)
+            .items().getFirst();
+
+        assertThat(item.matchRate()).isEqualTo(100);
+        assertThat(item.cpmWon()).isEqualByComparingTo("3000");
+        assertThat(item.cpcWon()).isNull();
+        assertThat(item.estImpressions()).isNull();
+        assertThat(item.estClicks()).isNull();
+      }
     }
 
     @Test
