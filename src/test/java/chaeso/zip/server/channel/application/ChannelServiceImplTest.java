@@ -242,6 +242,21 @@ class ChannelServiceImplTest {
           .containsExactly(tuple(CHEAP_PRODUCT_ID, true), tuple(PRICEY_PRODUCT_ID, null));
     }
 
+    @Test
+    @DisplayName("예산이 0 원이면 판정 불가가 아니라 전부 집행 불가로 확정한다")
+    void judgesEverythingUnexecutableOnZeroBudget() {
+      givenPricedProducts();
+      given(onboardingRepository.findById(ONBOARDING_ID))
+          .willReturn(Optional.of(onboarding(OWNER_ID, 0L, 0L)));
+
+      List<ProductResponse> products =
+          channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID).products();
+
+      // 값이 있는 단가는 모두 0 보다 크므로 0 원 예산으로는 어느 상품도 집행할 수 없다
+      assertThat(products).extracting(ProductResponse::isExecutable)
+          .containsOnly(false);
+    }
+
     private void givenPricedProducts() {
       givenPricings(pricing(CHEAP_PRODUCT_ID, PricingModel.CPM, "1000000"),
           pricing(PRICEY_PRODUCT_ID, PricingModel.CPM, "5000000"));
@@ -258,8 +273,12 @@ class ChannelServiceImplTest {
     }
 
     private Onboarding onboarding(UUID userId) {
+      return onboarding(userId, 1_000_000L, 3_000_000L);
+    }
+
+    private Onboarding onboarding(UUID userId, long budgetMin, long budgetMax) {
       return OnboardingFixture.onboarding(userId, Category.MEDICAL_HEALTHCARE,
-          CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S), 1_000_000L, 3_000_000L,
+          CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S), budgetMin, budgetMax,
           CampaignPeriod.M1);
     }
   }

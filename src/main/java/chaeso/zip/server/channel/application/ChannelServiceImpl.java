@@ -125,11 +125,7 @@ public class ChannelServiceImpl implements ChannelService {
    * 집행 가능 판정의 기준이 되는 예산(원)
    */
   private static Long executabilityBudgetWon(Onboarding onboarding) {
-    if (onboarding == null) {
-      return null;
-    }
-    Long budgetWon = onboarding.getBudgetMax();
-    return budgetWon != null && budgetWon > 0 ? budgetWon : null;
+    return onboarding == null ? null : onboarding.getBudgetMax();
   }
 
   /**
