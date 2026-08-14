@@ -14,7 +14,7 @@ public record ChannelSearchRequest(
     @Schema(description = "채널명 검색어", example = "11번가")
     String name,
 
-    @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE")
+    @Schema(description = "대표 업종 코드값", example = "[\"SHOPPING_COMMERCE\"]")
     List<Category> primaryCategory,
 
     @Schema(description = "페이지 번호(0-base)", example = "0")
