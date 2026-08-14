@@ -25,6 +25,7 @@ import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
+import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
@@ -215,6 +216,33 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNotNull();
       assertThat(item.minBudgetWon()).isEqualTo(1_000_000);
+    }
+
+    @Test
+    @DisplayName("로그인 맞춤 비교는 집행 가능한 예산을 기준으로 예상 노출·클릭과 환산 클릭당 비용을 채운다")
+    void fillsEstimatesWhenExecutable() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "3000");
+      givenCatalog(new CatalogEntry(channel, product, cpmPricing));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(userId)));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), onboardingId, userId)
+          .items().getFirst();
+
+      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.cpmWon()).isEqualByComparingTo("3000");
+      // 3,000,000 / 3,000 * 1000 = 1,000,000 노출, ±15%
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(850_000, 1_150_000));
+      // 상품에 CTR 이 없어 카탈로그 평균 2.5% 적용
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(21_250, 28_750));
+      // 3,000,000 / 25,000 클릭(중앙값) = 120 원
+      assertThat(item.cpcWon()).isEqualByComparingTo("120");
     }
 
     @Test
