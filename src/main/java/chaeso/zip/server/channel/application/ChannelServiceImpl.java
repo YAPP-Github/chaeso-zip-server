@@ -19,6 +19,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
+import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import java.util.List;
@@ -58,12 +59,14 @@ public class ChannelServiceImpl implements ChannelService {
     Channel channel = channelRepository.findByIdAndActiveTrue(id)
         .orElseThrow(() -> new ChannelNotFoundException(id));
 
+    Onboarding onboarding = ownedOnboarding(onboardingId, requesterId);
+
     List<ChannelProduct> channelProducts = channelProductRepository.findByChannelId(id);
-    Map<UUID, List<PricingResponse>> pricingByProductId = pricingByProductId(channelProducts);
+    Map<UUID, List<ChannelPricing>> pricingsByProductId = pricingsByProductId(channelProducts);
+    Long budgetWon = executabilityBudgetWon(onboarding);
     List<ProductResponse> products = channelProducts.stream()
-        .map(product -> ProductResponse.from(product,
-            pricingByProductId.getOrDefault(product.getId(), List.of()),
-            expectedClicks(product)))
+        .map(product -> productResponse(product,
+            pricingsByProductId.getOrDefault(product.getId(), List.of()), budgetWon))
         .toList();
 
     List<AudienceMetricResponse> audienceMetrics =
@@ -77,26 +80,56 @@ public class ChannelServiceImpl implements ChannelService {
         .toList();
 
     return ChannelDetailResponse.from(channel, products, audienceMetrics, references,
-        recommendationBasis(id, onboardingId, requesterId));
+        recommendationBasis(id, onboardingId, onboarding));
+  }
+
+  private Onboarding ownedOnboarding(UUID onboardingId, UUID requesterId) {
+    if (onboardingId == null || requesterId == null) {
+      return null;
+    }
+    return onboardingRepository.findById(onboardingId)
+        .filter(onboarding -> requesterId.equals(onboarding.getUserId()))
+        .orElse(null);
   }
 
   /**
    * 추천 근거가 된 온보딩 선택지
    */
   private RecommendationBasisResponse recommendationBasis(UUID channelId, UUID onboardingId,
-      UUID requesterId) {
-    if (onboardingId == null || requesterId == null) {
+      Onboarding onboarding) {
+    if (onboarding == null) {
       return null;
     }
     boolean recommended = channelRecommendationRepository
         .existsByOnboardingIdAndChannelId(onboardingId, channelId);
-    if (!recommended) {
+    return recommended ? RecommendationBasisResponse.from(onboarding) : null;
+  }
+
+  private static ProductResponse productResponse(ChannelProduct product,
+      List<ChannelPricing> pricings, Long budgetWon) {
+    return ProductResponse.from(product,
+        pricings.stream().map(PricingResponse::from).toList(),
+        expectedClicks(product),
+        isExecutable(product, pricings, budgetWon));
+  }
+
+  private static Boolean isExecutable(ChannelProduct product, List<ChannelPricing> pricings,
+      Long budgetWon) {
+    if (budgetWon == null) {
       return null;
     }
-    return onboardingRepository.findById(onboardingId)
-        .filter(onboarding -> requesterId.equals(onboarding.getUserId()))
-        .map(RecommendationBasisResponse::from)
-        .orElse(null);
+    return EstimationService.isExecutable(EstimationProduct.from(product, pricings), budgetWon);
+  }
+
+  /**
+   * 집행 가능 판정의 기준이 되는 예산(원)
+   */
+  private static Long executabilityBudgetWon(Onboarding onboarding) {
+    if (onboarding == null) {
+      return null;
+    }
+    Long budgetWon = onboarding.getBudgetMax();
+    return budgetWon != null && budgetWon > 0 ? budgetWon : null;
   }
 
   /**
@@ -108,14 +141,12 @@ public class ChannelServiceImpl implements ChannelService {
         EstimationProduct.ctrPercentOf(product, null));
   }
 
-  private Map<UUID, List<PricingResponse>> pricingByProductId(List<ChannelProduct> products) {
+  private Map<UUID, List<ChannelPricing>> pricingsByProductId(List<ChannelProduct> products) {
     if (products.isEmpty()) {
       return Map.of();
     }
     List<UUID> productIds = products.stream().map(ChannelProduct::getId).toList();
     return channelPricingRepository.findByChannelProductIdIn(productIds).stream()
-        .collect(Collectors.groupingBy(
-            ChannelPricing::getChannelProductId,
-            Collectors.mapping(PricingResponse::from, Collectors.toList())));
+        .collect(Collectors.groupingBy(ChannelPricing::getChannelProductId));
   }
 }
