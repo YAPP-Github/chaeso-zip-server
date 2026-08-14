@@ -17,6 +17,33 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 @Tag(name = "ChannelComparison", description = "채널 비교 API")
 public interface ChannelComparisonApiDocs {
 
+  String COMPARISON_GUEST_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "items": [
+            {
+              "channelId": "550e8400-e29b-41d4-a716-446655440000",
+              "channelName": "11번가 광고",
+              "audienceSummary": null,
+              "adFormats": [],
+              "targetingMethods": [],
+              "minBudgetWon": 3000000,
+              "advantages": ["빠른 노출", "다양한 타기팅"],
+              "tags": ["커머스 특화", "구매 전환"],
+              "cpcWon": null,
+              "cpmWon": 3000,
+              "matchRate": null,
+              "estImpressions": null,
+              "estClicks": null
+            }
+          ]
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
   String COMPARISON_STATIC_EXAMPLE = """
       {
         "success": true,
@@ -120,7 +147,7 @@ public interface ChannelComparisonApiDocs {
       description = """
           채널을 2~3개까지 비교한다. \
           비로그인 \
-          매체명, CPC/CPM, 태그, 장점을 요청순 반환. 오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 비움 \
+          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환. 오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 비움 \
           
           로그인 \
           온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 맞춤 태그, 장점을 적합도순 반환 \
@@ -133,8 +160,12 @@ public interface ChannelComparisonApiDocs {
       useReturnTypeSchema = true,
       content = @Content(
           examples = {
-              @ExampleObject(name = "STATIC_COMPARISON", summary = "일반 비교(onboardingId 없음)", value = COMPARISON_STATIC_EXAMPLE),
-              @ExampleObject(name = "PERSONALIZED_COMPARISON", summary = "온보딩 기반 비교(onboardingId 있음)", value = COMPARISON_PERSONALIZED_EXAMPLE)
+              @ExampleObject(name = "GUEST_COMPARISON", summary = "비로그인 비교",
+                  value = COMPARISON_GUEST_EXAMPLE),
+              @ExampleObject(name = "STATIC_COMPARISON", summary = "로그인 비교(온보딩 없음)",
+                  value = COMPARISON_STATIC_EXAMPLE),
+              @ExampleObject(name = "PERSONALIZED_COMPARISON", summary = "로그인 비교(온보딩 있음)",
+                  value = COMPARISON_PERSONALIZED_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
       description = "입력값 검증 실패(C-001). 채널을 2개 이상 3개 이하로 중복 없이 선택",
