@@ -33,6 +33,12 @@ public final class ChannelCatalogFixture {
     return channel;
   }
 
+  public static Channel channelWithDefaultTags(UUID id, String name, List<String> defaultTags) {
+    Channel channel = channel(id, name);
+    set(channel, "defaultTags", defaultTags);
+    return channel;
+  }
+
   /** 추천 매칭 축(적합 업종·연령대)과 주요 타깃까지 채운 채널. */
   public static Channel channel(UUID id, String name, List<Category> suitableCategories,
       List<AgeBand> ageBandCodes, String primaryAgeBand, Gender primaryGender) {
