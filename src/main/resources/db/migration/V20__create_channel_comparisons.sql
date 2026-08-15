@@ -3,7 +3,10 @@ create table channel_comparisons (
     user_id        uuid        not null references users (id),
     onboarding_id  uuid        references onboarding_responses (id),
     service_name   varchar(255),                  -- onboarding_id 없을 때만 채움
-    created_at     timestamp   not null default now()
+    created_at     timestamp   not null default now(),
+    constraint ck_channel_comparisons_source
+        check ((onboarding_id is not null and service_name is null)
+            or (onboarding_id is null and nullif(btrim(service_name), '') is not null))
 );
 
 create index idx_channel_comparison_user_created
