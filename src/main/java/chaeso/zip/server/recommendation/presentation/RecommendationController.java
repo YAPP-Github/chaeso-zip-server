@@ -40,7 +40,7 @@ public class RecommendationController implements RecommendationApiDocs {
   public ApiResponse<SavedRecommendationResponse> saveRecommendation(
       @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SaveRecommendationRequest request) {
-    return ApiResponse.success(
-        recommendationService.save(principal.userId(), request.onboardingId()));
+    return ApiResponse.success(recommendationService.save(
+        principal.userId(), request.onboardingId(), request.serviceName()));
   }
 }

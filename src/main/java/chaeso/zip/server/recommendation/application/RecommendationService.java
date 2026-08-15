@@ -17,6 +17,7 @@ public interface RecommendationService {
    *
    * @param userId       저장하는 사용자
    * @param onboardingId 추천의 근거가 된 온보딩. 저장된 추천 1건을 가리키는 키가 된다
+   * @param serviceName  저장 요청시 입력받은 서비스명
    */
-  SavedRecommendationResponse save(UUID userId, UUID onboardingId);
+  SavedRecommendationResponse save(UUID userId, UUID onboardingId, String serviceName);
 }
