@@ -208,6 +208,24 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
     }
+
+    @Test
+    @DisplayName("로그인 + 온보딩 없음은 등록된 상품이 없으면 단가와 예상 노출/클릭을 노출하지 않는다")
+    void leavesEverythingEmptyWithoutProductWhenLoggedInWithoutOnboarding() {
+      Channel channel = matchedChannel();
+      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
+          .willReturn(Optional.of(channel));
+      given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), null, UUID.randomUUID())
+          .items().getFirst();
+
+      assertThat(item.cpcWon()).isNull();
+      assertThat(item.cpmWon()).isNull();
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
   }
 
   @Nested
