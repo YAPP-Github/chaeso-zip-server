@@ -17,6 +17,33 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 @Tag(name = "ChannelComparison", description = "채널 비교 API")
 public interface ChannelComparisonApiDocs {
 
+  String COMPARISON_GUEST_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "items": [
+            {
+              "channelId": "550e8400-e29b-41d4-a716-446655440000",
+              "channelName": "11번가 광고",
+              "audienceSummary": null,
+              "adFormats": [],
+              "targetingMethods": [],
+              "minBudgetWon": 3000000,
+              "advantages": ["빠른 노출", "다양한 타기팅"],
+              "tags": ["커머스 특화", "구매 전환"],
+              "cpcWon": null,
+              "cpmWon": 3000,
+              "matchRate": null,
+              "estImpressions": null,
+              "estClicks": null
+            }
+          ]
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
   String COMPARISON_STATIC_EXAMPLE = """
       {
         "success": true,
@@ -82,7 +109,7 @@ public interface ChannelComparisonApiDocs {
             {
               "field": "channelIds",
               "value": "",
-              "reason": "비교할 채널을 1개 이상 선택해 주세요"
+              "reason": "비교할 채널을 2개 이상 선택해 주세요"
             }
           ]
         },
@@ -118,21 +145,30 @@ public interface ChannelComparisonApiDocs {
 
   @Operation(operationId = "getChannelComparison", summary = "채널 비교 조회",
       description = """
-          채널을 1~3개까지 비교한다. \
-          onboardingId 가 있으면 온보딩 조건으로 적합도, 태그(최대 2개), 예상 노출·클릭 수를 계산한다. \
-          onboardingId 가 없으면 기본 태그 전체를 반환하고 적합도와 예상 노출·클릭 수는 null이다. \
-          예산이 부족하면 예상 노출·클릭 수는 null이며, 등록된 CPC·CPM 단가를 반환한다. \
+          채널을 2~3개까지 비교한다. \
+          비로그인 \
+          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환. 오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 비움 \
+          
+          로그인 \
+          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 맞춤 태그, 장점을 적합도순 반환 \
+          온보딩X: 매체명, 채널 상세, CPC/CPM, 기본 태그, 장점을 요청순 반환 \
+          
+          예산이 부족하면 예상 노출·클릭은 null. \
           회원이 만든 온보딩은 해당 회원만 사용할 수 있다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "조회 성공",
       useReturnTypeSchema = true,
       content = @Content(
           examples = {
-              @ExampleObject(name = "STATIC_COMPARISON", summary = "일반 비교(onboardingId 없음)", value = COMPARISON_STATIC_EXAMPLE),
-              @ExampleObject(name = "PERSONALIZED_COMPARISON", summary = "온보딩 기반 비교(onboardingId 있음)", value = COMPARISON_PERSONALIZED_EXAMPLE)
+              @ExampleObject(name = "GUEST_COMPARISON", summary = "비로그인 비교",
+                  value = COMPARISON_GUEST_EXAMPLE),
+              @ExampleObject(name = "STATIC_COMPARISON", summary = "로그인 비교(온보딩 없음)",
+                  value = COMPARISON_STATIC_EXAMPLE),
+              @ExampleObject(name = "PERSONALIZED_COMPARISON", summary = "로그인 비교(온보딩 있음)",
+                  value = COMPARISON_PERSONALIZED_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
-      description = "입력값 검증 실패(C-001). 채널을 1개 이상 3개 이하로 중복 없이 선택한다",
+      description = "입력값 검증 실패(C-001). 채널을 2개 이상 3개 이하로 중복 없이 선택",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
