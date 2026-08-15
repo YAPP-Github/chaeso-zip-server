@@ -1,9 +1,7 @@
 package chaeso.zip.server.comparison.application.dto;
 
-import chaeso.zip.server.channel.domain.entity.Channel;
+import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
-import chaeso.zip.server.estimation.domain.vo.ClickRange;
-import chaeso.zip.server.estimation.domain.vo.ImpressionRange;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,6 +14,9 @@ public record ChannelComparisonItemResponse(
     UUID channelId,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String channelName,
+    @Schema(description = "채널 로고 미리보기 URL",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    String previewImageUrl,
     @Schema(description = "채널의 주요 오디언스. 등록된 정보가 없으면 null",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceSummary,
@@ -55,43 +56,23 @@ public record ChannelComparisonItemResponse(
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks) {
 
-  /** 온보딩 없이 채널 정보와 대표 단가만 비교한 항목. */
-  public static ChannelComparisonItemResponse from(Channel channel, BigDecimal cpcWon,
-      BigDecimal cpmWon) {
+  /** 비교 스냅샷을 응답 항목으로 변환한다. */
+  public static ChannelComparisonItemResponse from(ChannelComparisonSnapshot snapshot) {
     return new ChannelComparisonItemResponse(
-        channel.getId(),
-        channel.getName(),
-        channel.getAudienceSummary(),
-        emptyIfNull(channel.getAdFormats()),
-        emptyIfNull(channel.getTargetingMethods()),
-        channel.getMinBudgetWon(),
-        emptyIfNull(channel.getAdvantages()),
-        emptyIfNull(channel.getDefaultTags()),
-        cpcWon,
-        cpmWon,
-        null,
-        null,
-        null);
-  }
-
-  /** 온보딩 조건으로 태그, 단가, 적합도, 추정을 채운 항목. */
-  public static ChannelComparisonItemResponse from(Channel channel, List<String> tags,
-      Integer matchRate, BigDecimal cpcWon, BigDecimal cpmWon, ImpressionRange impressions,
-      ClickRange clicks) {
-    return new ChannelComparisonItemResponse(
-        channel.getId(),
-        channel.getName(),
-        channel.getAudienceSummary(),
-        emptyIfNull(channel.getAdFormats()),
-        emptyIfNull(channel.getTargetingMethods()),
-        channel.getMinBudgetWon(),
-        emptyIfNull(channel.getAdvantages()),
-        emptyIfNull(tags),
-        cpcWon,
-        cpmWon,
-        matchRate,
-        CountRangeResponse.from(impressions),
-        CountRangeResponse.from(clicks));
+        snapshot.channelId(),
+        snapshot.channelName(),
+        snapshot.previewImageUrl(),
+        snapshot.audienceSummary(),
+        emptyIfNull(snapshot.adFormats()),
+        emptyIfNull(snapshot.targetingMethods()),
+        snapshot.minBudgetWon(),
+        emptyIfNull(snapshot.advantages()),
+        emptyIfNull(snapshot.tags()),
+        snapshot.cpcWon(),
+        snapshot.cpmWon(),
+        snapshot.matchRate(),
+        CountRangeResponse.from(snapshot.impressions()),
+        CountRangeResponse.from(snapshot.clicks()));
   }
 
   /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */
@@ -99,6 +80,7 @@ public record ChannelComparisonItemResponse(
     return new ChannelComparisonItemResponse(
         channelId,
         channelName,
+        previewImageUrl,
         null,
         List.of(),
         List.of(),

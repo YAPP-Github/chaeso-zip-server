@@ -1,6 +1,7 @@
 package chaeso.zip.server.comparison.application;
 
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,4 +22,15 @@ public interface ChannelComparisonService {
    * @return 채널 비교 결과
    */
   ChannelComparisonResponse compare(List<UUID> channelIds, UUID onboardingId, UUID requesterId);
+
+  /**
+   * 비교 결과를 비교 시점 값 그대로 저장한다. 저장 횟수는 제한이 없다.
+   *
+   * @param userId       저장하는 사용자
+   * @param channelIds   비교할 채널 식별자 목록 (2~3개)
+   * @param onboardingId 비교 근거가 된 온보딩 (선택). 없으면 서비스명 추가 입력
+   * @param serviceName  onboardingId가 없을 때만 쓰는 서비스명
+   * @return 저장된 채널 비교 결과
+   */
+  SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds, UUID onboardingId, String serviceName);
 }
