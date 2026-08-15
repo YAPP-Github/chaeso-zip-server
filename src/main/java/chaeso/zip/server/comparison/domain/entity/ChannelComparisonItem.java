@@ -51,7 +51,7 @@ public class ChannelComparisonItem {
   @Column(name = "channel_name", nullable = false)
   private String channelName;
 
-  @Column(name = "preview_image_url_snap")
+  @Column(name = "preview_image_url_snap", length = 500)
   private String previewImageUrlSnap;
 
   @JdbcTypeCode(SqlTypes.ARRAY)
