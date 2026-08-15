@@ -475,6 +475,53 @@ class EstimationServiceTest {
     }
   }
 
+  @Nested
+  @DisplayName("예산만으로 하는 집행 가능 판정")
+  class ExecutabilityOnly {
+
+    @Test
+    @DisplayName("예산이 기준 단가 이상이면 집행할 수 있다. 같은 금액도 집행 가능이다")
+    void executableWhenBudgetCoversPrice() {
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "1000000", null, null));
+
+      assertThat(EstimationService.isExecutable(product, 1_000_001L)).isTrue();
+      assertThat(EstimationService.isExecutable(product, 1_000_000L)).isTrue();
+      assertThat(EstimationService.isExecutable(product, 999_999L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("기간을 보는 estimate 와 같은 판정을 낸다")
+    void agreesWithEstimate() {
+      EstimationProduct product = product(new BigDecimal("3"), 100_000L, "1개월",
+          pricing(PricingModel.SLOT, PriceType.LIST, "3000000", null, "30"));
+
+      assertThat(EstimationService.isExecutable(product, 5_000_000L))
+          .isEqualTo(EstimationService.estimate(product, 5_000_000L, 30).isExecutable());
+      assertThat(EstimationService.isExecutable(product, 1_000_000L))
+          .isEqualTo(EstimationService.estimate(product, 1_000_000L, 30).isExecutable());
+    }
+
+    @Test
+    @DisplayName("판매가가 있으면 더 싼 공시가가 있어도 판매가를 기준으로 삼는다")
+    void judgesBySalePriceEvenWhenListPriceIsCheaper() {
+      EstimationProduct product = product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, "1000000", null, null),
+          pricing(PricingModel.CPM, PriceType.SALE, "5000000", null, null));
+
+      assertThat(EstimationService.isExecutable(product, 3_000_000L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("값이 있는 단가가 하나도 없으면 판정할 수 없다")
+    void cannotJudgeWithoutUsablePricing() {
+      assertThat(EstimationService.isExecutable(product(null, null, null,
+          pricing(PricingModel.CPM, PriceType.LIST, null, null, null)), 1_000_000L)).isNull();
+      assertThat(EstimationService.isExecutable(
+          new EstimationProduct(null, null, null, List.of()), 1_000_000L)).isNull();
+    }
+  }
+
   private static EstimationProduct product(BigDecimal ctr, Long expectedImpressions,
       String expectedPeriod, EstimationPricing... pricings) {
     return new EstimationProduct(ctr, expectedImpressions, expectedPeriod, List.of(pricings));

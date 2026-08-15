@@ -92,7 +92,8 @@ public interface ChannelApiDocs {
                   "currency": "KRW",
                   "validPeriod": "2025-01-01 ~ 2025-12-31"
                 }
-              ]
+              ],
+              "isExecutable": true
             }
           ],
           "audienceMetrics": [

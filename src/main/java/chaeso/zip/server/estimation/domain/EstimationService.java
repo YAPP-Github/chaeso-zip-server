@@ -84,7 +84,7 @@ public final class EstimationService {
     }
 
     BigDecimal budget = BigDecimal.valueOf(budgetWon);
-    boolean executable = budget.compareTo(pricing.value()) >= 0;
+    boolean executable = isExecutable(pricing, budget);
 
     Bounds bounds = impressionBounds(product, pricing, budget, periodDays);
     if (bounds == null) {
@@ -93,6 +93,25 @@ public final class EstimationService {
 
     return new EstimationResult(executable, impressionRange(bounds),
         clickRange(bounds, product.ctr()));
+  }
+
+  /**
+   * 예산만으로 상품의 집행 가능 여부를 판정한다.
+   *
+   * @param product   상품 정보(단가 목록 포함)
+   * @param budgetWon 예산(원)
+   * @return 집행 가능 여부. 값이 있는 단가가 하나도 없어 기준 단가를 정할 수 없으면 {@code null}
+   */
+  public static Boolean isExecutable(EstimationProduct product, long budgetWon) {
+    EstimationPricing pricing = representativePricing(product);
+    if (pricing == null) {
+      return null;
+    }
+    return isExecutable(pricing, BigDecimal.valueOf(budgetWon));
+  }
+
+  private static boolean isExecutable(EstimationPricing pricing, BigDecimal budget) {
+    return budget.compareTo(pricing.value()) >= 0;
   }
 
   /**

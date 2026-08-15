@@ -44,7 +44,7 @@ class ChannelResponseMappingTest {
   void mapsMissingProductObjectivesToEmpty() {
     ChannelProduct channelProduct = product(UUID.randomUUID(), UUID.randomUUID());
 
-    ProductResponse product = ProductResponse.from(channelProduct, List.of(), null);
+    ProductResponse product = ProductResponse.from(channelProduct, List.of(), null, null);
 
     assertThat(product.supportedObjectives()).isEmpty();
   }
