@@ -6,6 +6,7 @@ import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.simulation.application.SimulationService;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
+import chaeso.zip.server.simulation.presentation.dto.SaveSimulationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationPageRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import jakarta.validation.Valid;
@@ -42,7 +43,7 @@ public class SimulationController implements SimulationApiDocs {
   @ResponseStatus(HttpStatus.CREATED)
   public ApiResponse<SimulationResponse> saveSimulation(
       @AuthenticationPrincipal UserPrincipal principal,
-      @Valid @RequestBody SimulationRequest request) {
+      @Valid @RequestBody SaveSimulationRequest request) {
     return ApiResponse.success(
         simulationService.save(principal.userId(), request.toCommand()));
   }

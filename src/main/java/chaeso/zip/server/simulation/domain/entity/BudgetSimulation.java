@@ -33,6 +33,9 @@ public class BudgetSimulation {
   @Column(name = "user_id", nullable = false)
   private UUID userId;
 
+  @Column(name = "service_name")
+  private String serviceName;
+
   @Column(name = "total_budget_won", nullable = false)
   private long totalBudgetWon;
 
@@ -55,8 +58,8 @@ public class BudgetSimulation {
   private LocalDateTime createdAt;
 
   @Builder
-  private BudgetSimulation(UUID userId, long totalBudgetWon, CampaignPeriod period,
-      long totalEstImpressions, long totalEstClicks) {
+  private BudgetSimulation(UUID userId, String serviceName, long totalBudgetWon,
+      CampaignPeriod period, long totalEstImpressions, long totalEstClicks) {
     if (userId == null) {
       throw new IllegalArgumentException("BudgetSimulation requires a userId.");
     }
@@ -64,6 +67,7 @@ public class BudgetSimulation {
       throw new IllegalArgumentException("BudgetSimulation requires a period.");
     }
     this.userId = userId;
+    this.serviceName = serviceName;
     this.totalBudgetWon = totalBudgetWon;
     this.budgetBasis = BudgetBasis.TOTAL;
     this.period = period;

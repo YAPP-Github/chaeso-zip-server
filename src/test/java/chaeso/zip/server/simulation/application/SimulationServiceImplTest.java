@@ -62,6 +62,7 @@ class SimulationServiceImplTest {
   private static final UUID CHANNEL_ID = UUID.randomUUID();
   private static final UUID PRODUCT_ID = UUID.randomUUID();
   private static final String CHANNEL_NAME = "11번가 광고";
+  private static final String SERVICE_NAME = "채소집";
 
   /** 카탈로그 평균 CTR. 상품에 CTR 이 없을 때 이 값이 쓰이는지로 주입을 확인한다. */
   private static final BigDecimal AVERAGE_CTR = new BigDecimal("2.5");
@@ -396,7 +397,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "3000"),
           pricing(otherProductId, PricingModel.CPM, "9000000")));   // 배분 예산으로 집행 불가
 
-      SimulationResponse response = simulationService.estimate(new SimulationCommand(
+      SimulationResponse response = simulationService.estimate(new SimulationCommand(SERVICE_NAME,
           4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")),
               new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")))));
@@ -442,6 +443,7 @@ class SimulationServiceImplTest {
       ArgumentCaptor<BudgetSimulation> header = ArgumentCaptor.forClass(BudgetSimulation.class);
       verify(budgetSimulationRepository).save(header.capture());
       assertThat(header.getValue().getUserId()).isEqualTo(USER_ID);
+      assertThat(header.getValue().getServiceName()).isEqualTo(SERVICE_NAME);
       assertThat(header.getValue().getPeriod()).isEqualTo(CampaignPeriod.M1);
       assertThat(header.getValue().getTotalBudgetWon()).isEqualTo(3_000_000);
       assertThat(header.getValue().getTotalEstImpressions()).isEqualTo(1_000_000);
@@ -478,7 +480,7 @@ class SimulationServiceImplTest {
       given(budgetSimulationRepository.save(any(BudgetSimulation.class)))
           .willAnswer(invocation -> withId(invocation.getArgument(0), UUID.randomUUID()));
 
-      simulationService.save(USER_ID, new SimulationCommand(4_000_000, CampaignPeriod.M1,
+      simulationService.save(USER_ID, new SimulationCommand(SERVICE_NAME, 4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")),
               new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")))));
 
@@ -773,7 +775,7 @@ class SimulationServiceImplTest {
 
   private static SimulationCommand command(int totalBudgetWon, CampaignPeriod period,
       AllocationCommand... allocations) {
-    return new SimulationCommand(totalBudgetWon, period, List.of(allocations));
+    return new SimulationCommand(SERVICE_NAME, totalBudgetWon, period, List.of(allocations));
   }
 
   private static AllocationCommand allocation(int budgetWon, String allocationPct) {
