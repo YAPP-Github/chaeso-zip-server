@@ -67,6 +67,13 @@ public final class ChannelCatalogFixture {
     return product;
   }
 
+  /** 최소 집행 금액이 등록된 상품 */
+  public static ChannelProduct productWithMinBudget(UUID id, UUID channelId, int minBudgetWon) {
+    ChannelProduct product = product(id, channelId);
+    set(product, "minBudgetWon", minBudgetWon);
+    return product;
+  }
+
   /** 단일 CTR 없이 구간(min/max)만 가진 상품. */
   public static ChannelProduct productWithCtrRange(UUID id, UUID channelId, String ctrMin,
       String ctrMax) {
