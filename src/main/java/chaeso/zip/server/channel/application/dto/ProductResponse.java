@@ -30,10 +30,13 @@ public record ProductResponse(
     @Schema(description = "예상 집행 기간", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String expectedPeriod,
     @Schema(description = "상품 단가 목록", requiredMode = Schema.RequiredMode.REQUIRED)
-    List<PricingResponse> pricing) {
+    List<PricingResponse> pricing,
+    @Schema(description = "집행 가능 여부",
+        example = "true", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    Boolean isExecutable) {
 
   public static ProductResponse from(ChannelProduct product, List<PricingResponse> pricing,
-      Long expectedClicks) {
+      Long expectedClicks, Boolean isExecutable) {
     return new ProductResponse(
         product.getId(),
         product.getProductName(),
@@ -44,7 +47,8 @@ public record ProductResponse(
         product.getExpectedImpressions(),
         expectedClicks,
         product.getExpectedPeriod(),
-        pricing);
+        pricing,
+        isExecutable);
   }
 
   /** 목록은 값이 없어도 null 대신 빈 배열로 준다. */

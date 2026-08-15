@@ -5,6 +5,7 @@ import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.onboarding.application.dto.SubmitOnboardingCommand;
 import chaeso.zip.server.onboarding.domain.vo.AdExperience;
+import chaeso.zip.server.onboarding.domain.vo.BudgetRange;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.onboarding.domain.vo.ServiceType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -34,7 +35,7 @@ public record SubmitOnboardingRequest(
 
     @Schema(description = "주요 연령대. 1개 이상. 잘 모르겠어요는 UNDECIDED 단독 선택",
         requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotEmpty List<AgeBand> targetAgeBands,
+    @NotEmpty List<@NotNull AgeBand> targetAgeBands,
 
     @Schema(description = "광고 목표(단일 선택). 앱이면 APP_INSTALL/IN_APP_ACTION도 가능",
         requiredMode = Schema.RequiredMode.REQUIRED)
@@ -69,8 +70,7 @@ public record SubmitOnboardingRequest(
         .serviceType(serviceType)
         .targetAgeBands(targetAgeBands)
         .campaignObjective(campaignObjective)
-        .budgetMin(budgetMin)
-        .budgetMax(budgetMax)
+        .budgetRange(BudgetRange.of(budgetMin, budgetMax))
         .period(period)
         .adExperience(adExperience)
         .adHistory(adHistory.stream().map(AdHistoryRequest::toCommand).toList())

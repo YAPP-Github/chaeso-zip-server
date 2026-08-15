@@ -17,6 +17,13 @@ public interface OnboardingRepository extends JpaRepository<Onboarding, UUID> {
 
   List<Onboarding> findByUserIdAndIsActiveTrue(UUID userId);
 
+  @Query("select o from Onboarding o where o.userId = :userId and o.isActive = true")
+  Optional<Onboarding> findActiveByUserId(@Param("userId") UUID userId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select o from Onboarding o where o.userId = :userId and o.isActive = true")
+  Optional<Onboarding> findActiveByUserIdForUpdate(@Param("userId") UUID userId);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select o from Onboarding o where o.id = :onboardingId")
   Optional<Onboarding> findByIdForUpdate(@Param("onboardingId") UUID onboardingId);

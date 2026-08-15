@@ -25,7 +25,7 @@ public class ChannelComparisonController implements ChannelComparisonApiDocs {
 
   @Override
   @GetMapping
-  public ApiResponse<ChannelComparisonResponse> getComparison(
+  public ApiResponse<ChannelComparisonResponse> getChannelComparison(
       @AuthenticationPrincipal UserPrincipal principal,
       @Valid @ModelAttribute ChannelComparisonRequest request) {
     return ApiResponse.success(channelComparisonService.compare(

@@ -207,7 +207,7 @@ class ChannelControllerTest {
         PriceType.LIST, Vat.EXCLUDED, CurrencyType.KRW, null);
     ProductResponse product = new ProductResponse(
         productId, "메인 배너", "DISPLAY", List.of(), 1_000_000, 5_000_000,
-        1_500_000L, 5_250L, null, List.of(pricing));
+        1_500_000L, 5_250L, null, List.of(pricing), true);
     ChannelDetailResponse detail = new ChannelDetailResponse(
         channelId, "11번가 광고", "월 방문자 수 상위 오픈마켓", null, "요약",
         Category.SHOPPING_COMMERCE, "DISPLAY",
@@ -228,6 +228,7 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.executionType").value("SELF"))
         .andExpect(jsonPath("$.data.products[0].id").value(productId.toString()))
         .andExpect(jsonPath("$.data.products[0].expectedClicks").value(5250))
+        .andExpect(jsonPath("$.data.products[0].isExecutable").value(true))
         .andExpect(jsonPath("$.data.products[0].ctr").doesNotExist())
         .andExpect(jsonPath("$.data.logoUrl").value(nullValue()))
         .andExpect(jsonPath("$.data.products[0].pricing[0].valueMax").value(nullValue()))

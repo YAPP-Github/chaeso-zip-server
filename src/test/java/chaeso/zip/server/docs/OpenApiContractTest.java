@@ -328,6 +328,7 @@ class OpenApiContractTest {
 
       assertNullableProperties(spec, "PricingResponse",
           "value", "valueMax", "unitPeriod", "unitDays", "segment", "validPeriod");
+      assertNullableProperties(spec, "ProductResponse", "isExecutable");
       assertNullableProperties(spec, "AudienceMetricResponse",
           "valueNumeric", "valueText", "unit", "period");
       assertNullableProperties(spec, "ApiResponse", "data", "code");
@@ -342,6 +343,11 @@ class OpenApiContractTest {
       assertThat(requiredFields(schema))
           .as("nullable 필드는 값이 null 이어도 키가 실리므로 required 여야 합니다")
           .contains("value", "valueMax", "unitPeriod", "unitDays", "segment", "validPeriod");
+
+      JsonNode product = spec.path("components").path("schemas").path("ProductResponse");
+      assertThat(requiredFields(product))
+          .as("판정 기준이 없어 null 이어도 isExecutable 키는 항상 실린다")
+          .contains("isExecutable");
     }
 
     @Test
