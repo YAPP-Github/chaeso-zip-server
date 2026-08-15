@@ -67,14 +67,19 @@ public record ChannelDetailResponse(
     List<String> references,
     @Schema(description = "추천 근거",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-    RecommendationBasisResponse recommendationBasis) {
+    RecommendationBasisResponse recommendationBasis,
+    @Schema(description = "채널 고유의 매체 키워드 목록(최대 2개, 없으면 빈 배열)",
+        example = "[\"커머스 특화\", \"구매의도 타겟\"]",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    List<String> tags) {
 
   public static ChannelDetailResponse from(
       Channel channel,
       List<ProductResponse> products,
       List<AudienceMetricResponse> audienceMetrics,
       List<String> references,
-      RecommendationBasisResponse recommendationBasis) {
+      RecommendationBasisResponse recommendationBasis,
+      List<String> tags) {
     return new ChannelDetailResponse(
         channel.getId(),
         channel.getName(),
@@ -98,7 +103,8 @@ public record ChannelDetailResponse(
         products,
         audienceMetrics,
         references,
-        recommendationBasis);
+        recommendationBasis,
+        emptyIfNull(tags));
   }
 
   /** 목록은 값이 없어도 null 대신 빈 배열로 준다. */

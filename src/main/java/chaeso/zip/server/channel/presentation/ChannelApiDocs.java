@@ -111,7 +111,8 @@ public interface ChannelApiDocs {
             "category": "SHOPPING_COMMERCE",
             "budgetMin": 3000000,
             "budgetMax": 10000000
-          }
+          },
+          "tags": ["커머스 특화", "구매의도 타겟"]
         },
         "error": null,
         "code": null
@@ -156,7 +157,10 @@ public interface ChannelApiDocs {
           상품이 없는 채널은 products 를 빈 배열로 반환한다.
 
           추천 목록에서 들어온 경우 그 추천의 onboardingId 를 함께 넘기면, 추천 근거가 된 \
-          온보딩 선택지(광고 목표·업종·예산)를 recommendationBasis 로 반환한다.""")
+          온보딩 선택지(광고 목표·업종·예산)를 recommendationBasis 로 반환한다.
+
+          매체 키워드(tags)는 채널 고유의 키워드라 맞춤 여부와 무관하게 누구에게나 같은 값을 \
+          최대 2개까지 준다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,
       content = @Content(

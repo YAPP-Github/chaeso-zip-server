@@ -1,6 +1,7 @@
 package chaeso.zip.server.channel.application;
 
 import static chaeso.zip.server.support.ChannelCatalogFixture.channel;
+import static chaeso.zip.server.support.ChannelCatalogFixture.channelWithDefaultTags;
 import static chaeso.zip.server.support.ChannelCatalogFixture.pricing;
 import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -280,6 +281,68 @@ class ChannelServiceImplTest {
       return OnboardingFixture.onboarding(userId, Category.MEDICAL_HEALTHCARE,
           CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S), budgetMin, budgetMax,
           CampaignPeriod.M1);
+    }
+  }
+
+  @Nested
+  @DisplayName("매체 키워드")
+  class Tags {
+
+    private static final List<String> DEFAULT_TAGS = List.of("KPI 최적", "입문자 추천");
+
+    @BeforeEach
+    void givenChannelProducts() {
+      given(channelProductRepository.findByChannelId(CHANNEL_ID)).willReturn(List.of());
+      given(channelAudienceMetricRepository.findByChannelId(CHANNEL_ID)).willReturn(List.of());
+      given(channelReferenceRepository.findByChannelId(CHANNEL_ID)).willReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("전체 채널 비교로 열면 채널 고유의 키워드를 준다")
+    void usesChannelTagsWithoutOnboardingId() {
+      givenChannelTags(DEFAULT_TAGS);
+
+      assertThat(tagsOf(null, OWNER_ID)).isEqualTo(DEFAULT_TAGS);
+      verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("맞춤 채널로 열어도 채널 고유의 키워드를 그대로 준다")
+    void usesSameChannelTagsForRecommendedChannel() {
+      givenChannelTags(DEFAULT_TAGS);
+      given(onboardingRepository.findById(ONBOARDING_ID))
+          .willReturn(Optional.of(OnboardingFixture.onboarding(OWNER_ID,
+              Category.MEDICAL_HEALTHCARE, CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S),
+              1_000_000L, 3_000_000L, CampaignPeriod.M1)));
+      given(channelRecommendationRepository
+          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
+
+      assertThat(tagsOf(ONBOARDING_ID, OWNER_ID)).isEqualTo(DEFAULT_TAGS);
+    }
+
+    @Test
+    @DisplayName("키워드가 셋 이상이어도 화면이 담는 두 개까지만 준다")
+    void limitsTagsToTwo() {
+      givenChannelTags(List.of("KPI 최적", "입문자 추천", "커머스 특화"));
+
+      assertThat(tagsOf(null, OWNER_ID)).containsExactly("KPI 최적", "입문자 추천");
+    }
+
+    @Test
+    @DisplayName("키워드가 없으면 null 이 아니라 빈 배열을 준다")
+    void givesEmptyListWhenChannelHasNoTags() {
+      givenChannelTags(null);
+
+      assertThat(tagsOf(null, OWNER_ID)).isEmpty();
+    }
+
+    private void givenChannelTags(List<String> defaultTags) {
+      given(channelRepository.findByIdAndActiveTrue(CHANNEL_ID))
+          .willReturn(Optional.of(channelWithDefaultTags(CHANNEL_ID, "11번가 광고", defaultTags)));
+    }
+
+    private List<String> tagsOf(UUID onboardingId, UUID requesterId) {
+      return channelService.getChannel(CHANNEL_ID, onboardingId, requesterId).tags();
     }
   }
 

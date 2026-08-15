@@ -37,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ChannelServiceImpl implements ChannelService {
 
+  private static final int MAX_TAGS = 2;
+
   private final ChannelRepository channelRepository;
   private final ChannelProductRepository channelProductRepository;
   private final ChannelPricingRepository channelPricingRepository;
@@ -80,7 +82,7 @@ public class ChannelServiceImpl implements ChannelService {
         .toList();
 
     return ChannelDetailResponse.from(channel, products, audienceMetrics, references,
-        recommendationBasis(id, onboardingId, onboarding));
+        recommendationBasis(id, onboardingId, onboarding), tags(channel));
   }
 
   private Onboarding ownedOnboarding(UUID onboardingId, UUID requesterId) {
@@ -103,6 +105,18 @@ public class ChannelServiceImpl implements ChannelService {
     boolean recommended = channelRecommendationRepository
         .existsByOnboardingIdAndChannelId(onboardingId, channelId);
     return recommended ? RecommendationBasisResponse.from(onboarding) : null;
+  }
+
+  /**
+   * "이런 점이 좋아요" 매체 키워드. 채널 고유의 키워드이므로 맞춤 여부와 무관하게 누구에게나 같은 값을
+   * 주고, 화면이 두 개까지만 담으므로 앞의 두 개로 자른다.
+   */
+  private static List<String> tags(Channel channel) {
+    List<String> defaultTags = channel.getDefaultTags();
+    if (defaultTags == null || defaultTags.size() <= MAX_TAGS) {
+      return defaultTags;
+    }
+    return List.copyOf(defaultTags.subList(0, MAX_TAGS));
   }
 
   private static ProductResponse productResponse(ChannelProduct product,
