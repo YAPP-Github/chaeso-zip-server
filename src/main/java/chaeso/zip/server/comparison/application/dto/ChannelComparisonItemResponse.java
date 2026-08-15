@@ -48,10 +48,14 @@ public record ChannelComparisonItemResponse(
         example = "78",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer matchRate,
-    @Schema(description = "예상 노출 수 범위. 로그인 뒤 온보딩이 있어도 예산 부족 또는 추정 불가 시 null",
+    @Schema(description = """
+        예상 노출 수 범위. 온보딩이 없으면 기본 값(100만원, 1개월)로 추정 \
+        예산 부족 또는 추정 불가 시 null""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estImpressions,
-    @Schema(description = "예상 클릭 수 범위. 로그인 뒤 온보딩이 있어도 예산 부족 또는 추정 불가 시 null",
+    @Schema(description = """
+        예상 클릭 수 범위. 온보딩이 없으면 기본 값(100만원, 1개월)로 추정 \
+        예산 부족 또는 추정 불가 시 null""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks) {
 

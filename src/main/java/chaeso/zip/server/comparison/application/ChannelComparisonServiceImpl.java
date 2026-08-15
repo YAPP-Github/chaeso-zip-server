@@ -40,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출·클릭을 노출하지 않는다
  * 로그인한 뒤 온보딩이 있으면 고른 채널만 적합도순 정렬
+ *
+ * <p>로그인했지만 온보딩이 없으면 예상 노출/클릭은 기본값(1개월, 100만원)으로 계산
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +49,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChannelComparisonServiceImpl implements ChannelComparisonService {
 
   private static final int INSIGHT_TAG_LIMIT = 2;
+
+  /** 온보딩 없이 로그인만 한 경우 예상 노출/클릭 추정에 쓰는 기본 예산(원). */
+  private static final long DEFAULT_ESTIMATION_BUDGET_WON = 1_000_000L;
 
   /** 추천과 같은 비교 순서. 고른 채널에만 적용한다. */
   private static final Comparator<ScoredItem> BEST_FIRST = Comparator
@@ -83,10 +88,13 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
 
     if (onboardingId == null) {
       return ChannelComparisonResponse.of(channels.stream()
-          .map(channel -> staticItem(channel,
-              productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-              defaultCtrPercent))
-          .map(item -> loggedIn ? item : item.hideCatalogDetails())
+          .map(channel -> loggedIn
+              ? estimatedStaticItem(channel,
+                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+                  defaultCtrPercent)
+              : staticItem(channel,
+                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+                  defaultCtrPercent).hideCatalogDetails())
           .toList());
     }
 
@@ -119,16 +127,37 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
    */
   private ChannelComparisonItemResponse staticItem(Channel channel, List<ChannelProduct> products,
       Map<UUID, List<ChannelPricing>> pricingsByProduct, BigDecimal defaultCtrPercent) {
-    RepresentativeProduct representative = RepresentativeProduct
-        .select(products, pricingsByProduct, defaultCtrPercent)
-        .orElse(null);
-    if (representative == null) {
+    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
+    if (catalogPrice == null) {
       return ChannelComparisonItemResponse.from(channel, null, null);
     }
-    EstimationPricing pricing = representative.pricing();
-    BigDecimal cpcWon = pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
-    BigDecimal cpmWon = pricing.pricingModel() == PricingModel.CPM ? pricing.value() : null;
-    return ChannelComparisonItemResponse.from(channel, cpcWon, cpmWon);
+    return ChannelComparisonItemResponse.from(channel, catalogPrice.cpcWon(),
+        catalogPrice.cpmWon());
+  }
+
+  /**
+   * 온보딩이 없는 로그인 요청에 보여 줄 비교 항목
+   * ({@link #DEFAULT_ESTIMATION_BUDGET_WON}, {@link PeriodDaysPolicy#M1_DAYS})로 고정
+   */
+  private ChannelComparisonItemResponse estimatedStaticItem(Channel channel,
+      List<ChannelProduct> products, Map<UUID, List<ChannelPricing>> pricingsByProduct,
+      BigDecimal defaultCtrPercent) {
+    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
+    if (catalogPrice == null) {
+      return ChannelComparisonItemResponse.from(channel, null, null);
+    }
+
+    EstimationResult result = EstimationService.estimate(catalogPrice.representative().product(),
+        DEFAULT_ESTIMATION_BUDGET_WON, PeriodDaysPolicy.M1_DAYS);
+    if (result == null || !result.isExecutable()) {
+      return ChannelComparisonItemResponse.from(channel, catalogPrice.cpcWon(),
+          catalogPrice.cpmWon());
+    }
+    ClickRange estimatedClicks = result.clicks();
+    BigDecimal cpcWon = ClickCostPolicy.cpcWon(catalogPrice.representative().pricing(),
+        DEFAULT_ESTIMATION_BUDGET_WON, midpoint(estimatedClicks));
+    return ChannelComparisonItemResponse.from(channel, channel.getDefaultTags(), null, cpcWon,
+        catalogPrice.cpmWon(), result.impressions(), estimatedClicks);
   }
 
   /**
@@ -143,36 +172,52 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
         .map(MatchAxis::name)
         .toList();
 
-    BigDecimal cpcWon = null;
-    BigDecimal cpmWon = null;
+    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
+    BigDecimal cpcWon = catalogPrice == null ? null : catalogPrice.cpcWon();
+    BigDecimal cpmWon = catalogPrice == null ? null : catalogPrice.cpmWon();
     ImpressionRange impressions = null;
     ClickRange clicks = null;
     boolean executable = false;
 
-    RepresentativeProduct representative = RepresentativeProduct
-        .select(products, pricingsByProduct, defaultCtrPercent)
-        .orElse(null);
-    if (representative != null) {
-      EstimationPricing pricing = representative.pricing();
-      cpcWon = pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
-      cpmWon = pricing.pricingModel() == PricingModel.CPM ? pricing.value() : null;
-      if (budgetWon > 0) {
-        EstimationResult result =
-            EstimationService.estimate(representative.product(), budgetWon, periodDays);
-        // 최소 단가보다 예산이 적으면 실행 불가능한 예상 노출·클릭 수를 비교 화면에 노출하지 않는다.
-        if (result != null && result.isExecutable()) {
-          ClickRange estimatedClicks = result.clicks();
-          // 비교 화면에서는 과금 방식이 달라도 같은 기준으로 볼 수 있도록 클릭당 비용을 환산한다
-          cpcWon = ClickCostPolicy.cpcWon(pricing, budgetWon, midpoint(estimatedClicks));
-          impressions = result.impressions();
-          clicks = estimatedClicks;
-          executable = true;
-        }
+    if (catalogPrice != null && budgetWon > 0) {
+      EstimationResult result = EstimationService
+          .estimate(catalogPrice.representative().product(), budgetWon, periodDays);
+      // 최소 단가보다 예산이 적으면 실행 불가능한 예상 노출·클릭 수를 비교 화면에 노출하지 않는다.
+      if (result != null && result.isExecutable()) {
+        ClickRange estimatedClicks = result.clicks();
+        // 비교 화면에서는 과금 방식이 달라도 같은 기준으로 볼 수 있도록 클릭당 비용을 환산한다
+        cpcWon = ClickCostPolicy.cpcWon(catalogPrice.representative().pricing(), budgetWon,
+            midpoint(estimatedClicks));
+        impressions = result.impressions();
+        clicks = estimatedClicks;
+        executable = true;
       }
     }
 
     return new ScoredItem(ChannelComparisonItemResponse.from(channel, tags, score.matchRate(),
         cpcWon, cpmWon, impressions, clicks), score.score(), executable);
+  }
+
+  /**
+   * 매체의 대표 상품과 그 카탈로그 단가(CPC/CPM)를 고른다. 대표 상품을 정할 수 없으면 {@code null}.
+   */
+  private CatalogPrice selectCatalogPrice(List<ChannelProduct> products,
+      Map<UUID, List<ChannelPricing>> pricingsByProduct, BigDecimal defaultCtrPercent) {
+    RepresentativeProduct representative = RepresentativeProduct
+        .select(products, pricingsByProduct, defaultCtrPercent)
+        .orElse(null);
+    if (representative == null) {
+      return null;
+    }
+    EstimationPricing pricing = representative.pricing();
+    BigDecimal cpcWon = pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
+    BigDecimal cpmWon = pricing.pricingModel() == PricingModel.CPM ? pricing.value() : null;
+    return new CatalogPrice(representative, cpcWon, cpmWon);
+  }
+
+  /** 대표 상품과 그 카탈로그 단가(CPC/CPM). */
+  private record CatalogPrice(RepresentativeProduct representative, BigDecimal cpcWon,
+                               BigDecimal cpmWon) {
   }
 
   /**
