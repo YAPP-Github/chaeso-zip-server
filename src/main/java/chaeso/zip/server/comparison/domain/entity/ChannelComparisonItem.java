@@ -1,5 +1,6 @@
 package chaeso.zip.server.comparison.domain.entity;
 
+import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -140,5 +141,33 @@ public class ChannelComparisonItem {
     this.estImpressionsMax = estImpressionsMax;
     this.estClicksMin = estClicksMin;
     this.estClicksMax = estClicksMax;
+  }
+
+  /** 비교 스냅샷을 저장용 항목으로 변환한다. */
+  public static ChannelComparisonItem from(UUID comparisonId, int sortOrder,
+      ChannelComparisonSnapshot snapshot) {
+    return ChannelComparisonItem.builder()
+        .comparisonId(comparisonId)
+        .channelId(snapshot.channelId())
+        .sortOrder(sortOrder)
+        .matchRate(snapshot.matchRate())
+        .tagsSnap(snapshot.tags())
+        .channelName(snapshot.channelName())
+        .previewImageUrlSnap(snapshot.previewImageUrl())
+        .displayPlatformsSnap(snapshot.displayPlatforms())
+        .advantagesSnap(snapshot.advantages())
+        .audienceSummarySnap(snapshot.audienceSummary())
+        .adFormatsSnap(snapshot.adFormats())
+        .targetingMethodsSnap(snapshot.targetingMethods())
+        .executionTypeSnap(snapshot.executionType())
+        .pricingModelsAll(snapshot.pricingModelsAll())
+        .cpcWon(snapshot.cpcWon())
+        .cpmWon(snapshot.cpmWon())
+        .minBudgetWonSnap(snapshot.minBudgetWon())
+        .estImpressionsMin(snapshot.impressions() == null ? null : snapshot.impressions().min())
+        .estImpressionsMax(snapshot.impressions() == null ? null : snapshot.impressions().max())
+        .estClicksMin(snapshot.clicks() == null ? null : snapshot.clicks().min())
+        .estClicksMax(snapshot.clicks() == null ? null : snapshot.clicks().max())
+        .build();
   }
 }
