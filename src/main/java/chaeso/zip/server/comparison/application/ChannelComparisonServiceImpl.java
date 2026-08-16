@@ -7,30 +7,27 @@ import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
-import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
+import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshotFactory;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
+import chaeso.zip.server.comparison.domain.repository.ChannelComparisonItemRepository;
+import chaeso.zip.server.comparison.domain.repository.ChannelComparisonRepository;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
-import chaeso.zip.server.estimation.domain.ClickCostPolicy;
-import chaeso.zip.server.estimation.domain.EstimationService;
-import chaeso.zip.server.estimation.domain.RepresentativeProduct;
-import chaeso.zip.server.estimation.domain.vo.ClickRange;
-import chaeso.zip.server.estimation.domain.vo.EstimationPricing;
-import chaeso.zip.server.estimation.domain.vo.EstimationResult;
-import chaeso.zip.server.estimation.domain.vo.ImpressionRange;
 import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
-import chaeso.zip.server.recommendation.domain.ChannelMatcher;
-import chaeso.zip.server.recommendation.domain.MatchAxis;
-import chaeso.zip.server.recommendation.domain.MatchScore;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,31 +35,32 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 선택한 채널의 카탈로그 정보와 온보딩 맞춤 지표를 계산한다.
  *
- * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출·클릭을 노출하지 않는다
- * 로그인한 뒤 온보딩이 있으면 고른 채널만 적합도순 정렬
+ * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출, 클릭을 노출하지 않는다. 로그인한 뒤 온보딩이 있으면
+ * 고른 채널만 적합도순으로 정렬한다.
  *
- * <p>로그인했지만 온보딩이 없으면 예상 노출/클릭은 기본값(1개월, 100만원)으로 계산
+ * <p>로그인했지만 온보딩이 없으면 예상 노출, 클릭은 기본값(100만원, 1개월)으로 계산한다. 저장도 같은
+ * 기준을 쓴다.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ChannelComparisonServiceImpl implements ChannelComparisonService {
 
-  private static final int INSIGHT_TAG_LIMIT = 2;
-
-  /** 온보딩 없이 로그인만 한 경우 예상 노출/클릭 추정에 쓰는 기본 예산(원). */
-  private static final long DEFAULT_ESTIMATION_BUDGET_WON = 1_000_000L;
+  /** 저장된 비교의 순서 시작 번호 */
+  private static final int FIRST_SORT_ORDER = 1;
 
   /** 추천과 같은 비교 순서. 고른 채널에만 적용한다. */
-  private static final Comparator<ScoredItem> BEST_FIRST = Comparator
-      .comparingInt(ScoredItem::score).reversed()
-      .thenComparing(ScoredItem::executable, Comparator.reverseOrder())
-      .thenComparing(item -> item.item().channelName());
+  private static final Comparator<ChannelComparisonSnapshot> BEST_FIRST = Comparator
+      .comparingInt(ChannelComparisonSnapshot::score).reversed()
+      .thenComparing(ChannelComparisonSnapshot::executable, Comparator.reverseOrder())
+      .thenComparing(ChannelComparisonSnapshot::channelName);
 
   private final ChannelRepository channelRepository;
   private final ChannelProductRepository channelProductRepository;
   private final ChannelPricingRepository channelPricingRepository;
   private final OnboardingRepository onboardingRepository;
+  private final ChannelComparisonRepository channelComparisonRepository;
+  private final ChannelComparisonItemRepository channelComparisonItemRepository;
   private final DefaultCtrProvider defaultCtrProvider;
 
   /**
@@ -76,11 +74,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   @Override
   public ChannelComparisonResponse compare(List<UUID> channelIds, UUID onboardingId,
       UUID requesterId) {
-    List<Channel> channels = channelIds.stream()
-        .map(id -> channelRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ChannelNotFoundException(id)))
-        .toList();
-
+    List<Channel> channels = findChannels(channelIds);
     Map<UUID, List<ChannelProduct>> productsByChannel = productsByChannel(channels);
     Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(productsByChannel);
     BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
@@ -89,135 +83,107 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     if (onboardingId == null) {
       return ChannelComparisonResponse.of(channels.stream()
           .map(channel -> loggedIn
-              ? estimatedStaticItem(channel,
+              ? ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
                   defaultCtrPercent)
-              : staticItem(channel,
+              : ChannelComparisonSnapshotFactory.staticSnapshot(channel,
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-                  defaultCtrPercent).hideCatalogDetails())
+                  defaultCtrPercent))
+          .map(ChannelComparisonItemResponse::from)
+          .map(item -> loggedIn ? item : item.hideCatalogDetails())
           .toList());
     }
 
+    Onboarding onboarding = findAccessibleOnboarding(onboardingId, requesterId);
+    int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
+    long budgetWon = onboarding.getBudgetMax();
+
+    List<ChannelComparisonSnapshot> snapshots = channels.stream()
+        .map(channel -> ChannelComparisonSnapshotFactory.personalizedSnapshot(onboarding, channel,
+            productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+            budgetWon, periodDays, defaultCtrPercent))
+        .toList();
+    if (loggedIn) {
+      return ChannelComparisonResponse.of(snapshots.stream()
+          .sorted(BEST_FIRST)
+          .map(ChannelComparisonItemResponse::from)
+          .toList());
+    }
+    return ChannelComparisonResponse.of(snapshots.stream()
+        .map(ChannelComparisonItemResponse::from)
+        .map(ChannelComparisonItemResponse::hideCatalogDetails)
+        .toList());
+  }
+
+  /**
+   * 비교 결과를 그대로 저장한다. 비교 횟수는 제한 X.
+   * 온보딩이 없어도 기본값 기준 추정치 계산
+   *
+   * @param userId       저장하는 사용자
+   * @param channelIds   비교할 채널 식별자 목록 (2~3개)
+   * @param onboardingId 비교 근거가 된 온보딩 (선택)
+   * @param serviceName  onboardingId가 없을 때만 쓰는 서비스명
+   * @return 저장된 채널 비교 응답 DTO
+   */
+  @Override
+  @Transactional
+  public SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds,
+      UUID onboardingId, String serviceName) {
+    List<Channel> channels = findChannels(channelIds);
+    Map<UUID, List<ChannelProduct>> productsByChannel = productsByChannel(channels);
+    Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(productsByChannel);
+    BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
+
+    List<ChannelComparisonSnapshot> snapshots;
+    if (onboardingId == null) {
+      snapshots = channels.stream()
+          .map(channel -> ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
+              productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+              defaultCtrPercent))
+          .toList();
+    } else {
+      Onboarding onboarding = findAccessibleOnboarding(onboardingId, userId);
+      int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
+      long budgetWon = onboarding.getBudgetMax();
+      snapshots = channels.stream()
+          .map(channel -> ChannelComparisonSnapshotFactory.personalizedSnapshot(onboarding,
+              channel, productsByChannel.getOrDefault(channel.getId(), List.of()),
+              pricingsByProduct, budgetWon, periodDays, defaultCtrPercent))
+          .sorted(BEST_FIRST)
+          .toList();
+    }
+
+    ChannelComparison comparison = channelComparisonRepository.save(ChannelComparison.builder()
+        .userId(userId)
+        .onboardingId(onboardingId)
+        .serviceName(onboardingId == null ? serviceName : null)
+        .build());
+
+    channelComparisonItemRepository.saveAll(IntStream.range(0, snapshots.size())
+        .mapToObj(index -> ChannelComparisonItem.from(comparison.getId(),
+            FIRST_SORT_ORDER + index, snapshots.get(index)))
+        .toList());
+
+    return SavedChannelComparisonResponse.of(comparison.getId(), snapshots);
+  }
+
+  private List<Channel> findChannels(List<UUID> channelIds) {
+    return channelIds.stream()
+        .map(id -> channelRepository.findByIdAndActiveTrue(id)
+            .orElseThrow(() -> new ChannelNotFoundException(id)))
+        .toList();
+  }
+
+  /**
+   * 회원이 만든 온보딩이면 본인인지 확인한다. 익명 온보딩은 누구나 쓸 수 있다.
+   */
+  private Onboarding findAccessibleOnboarding(UUID onboardingId, UUID requesterId) {
     Onboarding onboarding = onboardingRepository.findById(onboardingId)
         .orElseThrow(() -> new OnboardingNotFoundException(onboardingId));
     if (onboarding.getUserId() != null && !onboarding.getUserId().equals(requesterId)) {
       throw new OnboardingNotFoundException(onboardingId);
     }
-    int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
-    long budgetWon = onboarding.getBudgetMax();
-
-    List<ScoredItem> scored = channels.stream()
-        .map(channel -> personalizedItem(onboarding, channel,
-            productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-            budgetWon, periodDays, defaultCtrPercent))
-        .toList();
-    if (loggedIn) {
-      return ChannelComparisonResponse.of(scored.stream()
-          .sorted(BEST_FIRST)
-          .map(ScoredItem::item)
-          .toList());
-    }
-    return ChannelComparisonResponse.of(scored.stream()
-        .map(candidate -> candidate.item().hideCatalogDetails())
-        .toList());
-  }
-
-  /**
-   * 온보딩이 없을 때 보여 줄 채널 카탈로그 비교 항목을 만든다.
-   */
-  private ChannelComparisonItemResponse staticItem(Channel channel, List<ChannelProduct> products,
-      Map<UUID, List<ChannelPricing>> pricingsByProduct, BigDecimal defaultCtrPercent) {
-    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
-    if (catalogPrice == null) {
-      return ChannelComparisonItemResponse.from(channel, null, null);
-    }
-    return ChannelComparisonItemResponse.from(channel, catalogPrice.cpcWon(),
-        catalogPrice.cpmWon());
-  }
-
-  /**
-   * 온보딩이 없는 로그인 요청에 보여 줄 비교 항목
-   * ({@link #DEFAULT_ESTIMATION_BUDGET_WON}, {@link PeriodDaysPolicy#M1_DAYS})로 고정
-   */
-  private ChannelComparisonItemResponse estimatedStaticItem(Channel channel,
-      List<ChannelProduct> products, Map<UUID, List<ChannelPricing>> pricingsByProduct,
-      BigDecimal defaultCtrPercent) {
-    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
-    if (catalogPrice == null) {
-      return ChannelComparisonItemResponse.from(channel, null, null);
-    }
-
-    EstimationResult result = EstimationService.estimate(catalogPrice.representative().product(),
-        DEFAULT_ESTIMATION_BUDGET_WON, PeriodDaysPolicy.M1_DAYS);
-    if (result == null || !result.isExecutable()) {
-      return ChannelComparisonItemResponse.from(channel, catalogPrice.cpcWon(),
-          catalogPrice.cpmWon());
-    }
-    ClickRange estimatedClicks = result.clicks();
-    BigDecimal cpcWon = ClickCostPolicy.cpcWon(catalogPrice.representative().pricing(),
-        DEFAULT_ESTIMATION_BUDGET_WON, midpoint(estimatedClicks));
-    return ChannelComparisonItemResponse.from(channel, channel.getDefaultTags(), null, cpcWon,
-        catalogPrice.cpmWon(), result.impressions(), estimatedClicks);
-  }
-
-  /**
-   * 온보딩 예산과 캠페인 조건으로 맞춤 태그, 단가, 적합도, 예상 노출·클릭을 계산한다.
-   */
-  private ScoredItem personalizedItem(Onboarding onboarding, Channel channel,
-      List<ChannelProduct> products, Map<UUID, List<ChannelPricing>> pricingsByProduct,
-      long budgetWon, int periodDays, BigDecimal defaultCtrPercent) {
-    MatchScore score = ChannelMatcher.match(onboarding, channel, products);
-    List<String> tags = score.matchedAxes().stream()
-        .limit(INSIGHT_TAG_LIMIT)
-        .map(MatchAxis::name)
-        .toList();
-
-    CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
-    BigDecimal cpcWon = catalogPrice == null ? null : catalogPrice.cpcWon();
-    BigDecimal cpmWon = catalogPrice == null ? null : catalogPrice.cpmWon();
-    ImpressionRange impressions = null;
-    ClickRange clicks = null;
-    boolean executable = false;
-
-    if (catalogPrice != null && budgetWon > 0) {
-      EstimationResult result = EstimationService
-          .estimate(catalogPrice.representative().product(), budgetWon, periodDays);
-      // 최소 단가보다 예산이 적으면 실행 불가능한 예상 노출·클릭 수를 비교 화면에 노출하지 않는다.
-      if (result != null && result.isExecutable()) {
-        ClickRange estimatedClicks = result.clicks();
-        // 비교 화면에서는 과금 방식이 달라도 같은 기준으로 볼 수 있도록 클릭당 비용을 환산한다
-        cpcWon = ClickCostPolicy.cpcWon(catalogPrice.representative().pricing(), budgetWon,
-            midpoint(estimatedClicks));
-        impressions = result.impressions();
-        clicks = estimatedClicks;
-        executable = true;
-      }
-    }
-
-    return new ScoredItem(ChannelComparisonItemResponse.from(channel, tags, score.matchRate(),
-        cpcWon, cpmWon, impressions, clicks), score.score(), executable);
-  }
-
-  /**
-   * 매체의 대표 상품과 그 카탈로그 단가(CPC/CPM)를 고른다. 대표 상품을 정할 수 없으면 {@code null}.
-   */
-  private CatalogPrice selectCatalogPrice(List<ChannelProduct> products,
-      Map<UUID, List<ChannelPricing>> pricingsByProduct, BigDecimal defaultCtrPercent) {
-    RepresentativeProduct representative = RepresentativeProduct
-        .select(products, pricingsByProduct, defaultCtrPercent)
-        .orElse(null);
-    if (representative == null) {
-      return null;
-    }
-    EstimationPricing pricing = representative.pricing();
-    BigDecimal cpcWon = pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
-    BigDecimal cpmWon = pricing.pricingModel() == PricingModel.CPM ? pricing.value() : null;
-    return new CatalogPrice(representative, cpcWon, cpmWon);
-  }
-
-  /** 대표 상품과 그 카탈로그 단가(CPC/CPM). */
-  private record CatalogPrice(RepresentativeProduct representative, BigDecimal cpcWon,
-                               BigDecimal cpmWon) {
+    return onboarding;
   }
 
   /**
@@ -233,7 +199,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   }
 
   /**
-   * 대표 상품과 예상 노출·클릭 수 계산에 필요한 단가를 일괄 조회한다.
+   * 대표 상품과 예상 노출, 클릭 수 계산에 필요한 단가를 일괄 조회한다.
    */
   private Map<UUID, List<ChannelPricing>> pricingsByProduct(
       Map<UUID, List<ChannelProduct>> productsByChannel) {
@@ -246,16 +212,5 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     }
     return channelPricingRepository.findByChannelProductIdIn(productIds).stream()
         .collect(Collectors.groupingBy(ChannelPricing::getChannelProductId));
-  }
-
-  /**
-   * 예상 클릭 범위의 중앙값을 클릭당 비용 환산 기준으로 사용.
-   */
-  private static Long midpoint(ClickRange clicks) {
-    return clicks == null ? null : Math.round((clicks.min() + clicks.max()) / 2.0);
-  }
-
-  /** 정렬에만 쓰는 배점·집행 가능 여부. */
-  private record ScoredItem(ChannelComparisonItemResponse item, int score, boolean executable) {
   }
 }

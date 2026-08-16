@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
@@ -28,6 +29,11 @@ import chaeso.zip.server.channel.domain.vo.Gender;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
+import chaeso.zip.server.comparison.domain.repository.ChannelComparisonItemRepository;
+import chaeso.zip.server.comparison.domain.repository.ChannelComparisonRepository;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.estimation.domain.EstimationService;
@@ -46,6 +52,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -71,6 +78,10 @@ class ChannelComparisonServiceImplTest {
   @Mock
   private OnboardingRepository onboardingRepository;
   @Mock
+  private ChannelComparisonRepository channelComparisonRepository;
+  @Mock
+  private ChannelComparisonItemRepository channelComparisonItemRepository;
+  @Mock
   private DefaultCtrProvider defaultCtrProvider;
 
   private ChannelComparisonServiceImpl comparisonService;
@@ -79,7 +90,7 @@ class ChannelComparisonServiceImplTest {
   void setUp() {
     comparisonService = new ChannelComparisonServiceImpl(channelRepository,
         channelProductRepository, channelPricingRepository, onboardingRepository,
-        defaultCtrProvider);
+        channelComparisonRepository, channelComparisonItemRepository, defaultCtrProvider);
     lenient().when(defaultCtrProvider.averageCtrPercent()).thenReturn(AVERAGE_CTR);
   }
 
@@ -603,6 +614,128 @@ class ChannelComparisonServiceImplTest {
 
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("다매체", "가매체", "나매체");
+    }
+  }
+
+  @Nested
+  @DisplayName("비교 결과 저장")
+  class Save {
+
+    private static final UUID COMPARISON_ID = UUID.randomUUID();
+
+    @BeforeEach
+    void stubComparisonSave() {
+      lenient().when(channelComparisonRepository.save(any())).thenAnswer(invocation -> {
+        ChannelComparison comparison = invocation.getArgument(0);
+        ReflectionTestUtils.setField(comparison, "id", COMPARISON_ID);
+        return comparison;
+      });
+    }
+
+    @Test
+    @DisplayName("온보딩 없이 저장하면 서비스명을 담고 요청 순서 그대로 저장한다")
+    void savesWithServiceNameInRequestOrder() {
+      Channel first = channel(UUID.randomUUID(), "가매체");
+      Channel second = channel(UUID.randomUUID(), "나매체");
+      ReflectionTestUtils.setField(first, "previewImageUrl", "https://cdn/first.png");
+
+      given(channelRepository.findByIdAndActiveTrue(first.getId()))
+          .willReturn(Optional.of(first));
+      given(channelRepository.findByIdAndActiveTrue(second.getId()))
+          .willReturn(Optional.of(second));
+      given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
+
+      UUID userId = UUID.randomUUID();
+      SavedChannelComparisonResponse response = comparisonService.save(userId,
+          List.of(second.getId(), first.getId()), null, "채소집");
+
+      assertThat(response.comparisonId()).isEqualTo(COMPARISON_ID);
+      assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
+          .containsExactly("나매체", "가매체");
+
+      ArgumentCaptor<ChannelComparison> comparisonCaptor =
+          ArgumentCaptor.forClass(ChannelComparison.class);
+      verify(channelComparisonRepository).save(comparisonCaptor.capture());
+      assertThat(comparisonCaptor.getValue().getUserId()).isEqualTo(userId);
+      assertThat(comparisonCaptor.getValue().getOnboardingId()).isNull();
+      assertThat(comparisonCaptor.getValue().getServiceName()).isEqualTo("채소집");
+
+      ArgumentCaptor<List<ChannelComparisonItem>> itemsCaptor = ArgumentCaptor.captor();
+      verify(channelComparisonItemRepository).saveAll(itemsCaptor.capture());
+      assertThat(itemsCaptor.getValue()).extracting(ChannelComparisonItem::getSortOrder)
+          .containsExactly(1, 2);
+      ChannelComparisonItem savedFirst = itemsCaptor.getValue().get(1);
+      assertThat(savedFirst.getChannelId()).isEqualTo(first.getId());
+      assertThat(savedFirst.getChannelName()).isEqualTo("가매체");
+      assertThat(savedFirst.getPreviewImageUrlSnap()).isEqualTo("https://cdn/first.png");
+      assertThat(savedFirst.getMatchRate()).isNull();
+      assertThat(savedFirst.getComparisonId()).isEqualTo(COMPARISON_ID);
+    }
+
+    @Test
+    @DisplayName("온보딩으로 저장하면 서비스명은 무시하고 적합도순으로 정렬해 저장한다")
+    void savesWithOnboardingOrderedByMatchRate() {
+      Channel fullMatch = matchingChannel("세 축 채널", List.of(MATCHED_AGE_BAND), "20대");
+      Channel twoAxes = matchingChannel("두 축 채널", List.of(OTHER_AGE_BAND), "50대");
+      givenCatalog(
+          entry(fullMatch, MATCHED_OBJECTIVE, "3000"),
+          entry(twoAxes, MATCHED_OBJECTIVE, "3000"));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(userId)));
+
+      SavedChannelComparisonResponse response = comparisonService.save(userId,
+          List.of(twoAxes.getId(), fullMatch.getId()), onboardingId, "무시될 서비스명");
+
+      assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
+          .containsExactly("세 축 채널", "두 축 채널");
+
+      ArgumentCaptor<ChannelComparison> comparisonCaptor =
+          ArgumentCaptor.forClass(ChannelComparison.class);
+      verify(channelComparisonRepository).save(comparisonCaptor.capture());
+      assertThat(comparisonCaptor.getValue().getOnboardingId()).isEqualTo(onboardingId);
+      assertThat(comparisonCaptor.getValue().getServiceName()).isNull();
+
+      ArgumentCaptor<List<ChannelComparisonItem>> itemsCaptor = ArgumentCaptor.captor();
+      verify(channelComparisonItemRepository).saveAll(itemsCaptor.capture());
+      assertThat(itemsCaptor.getValue()).extracting(ChannelComparisonItem::getSortOrder)
+          .containsExactly(1, 2);
+      assertThat(itemsCaptor.getValue()).extracting(ChannelComparisonItem::getMatchRate)
+          .containsExactly(100, 78);
+    }
+
+    @Test
+    @DisplayName("존재하지 않거나 비활성인 채널이 포함되면 404 로 거부한다")
+    void rejectsMissingChannel() {
+      UUID missingId = UUID.randomUUID();
+      given(channelRepository.findByIdAndActiveTrue(missingId)).willReturn(Optional.empty());
+      UUID userId = UUID.randomUUID();
+      List<UUID> channelIds = List.of(missingId);
+
+      assertThatThrownBy(() -> comparisonService.save(userId, channelIds, null, "서비스명"))
+          .isInstanceOf(ChannelNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 제출한 온보딩으로는 저장할 수 없다")
+    void rejectsOtherUsersOnboarding() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing pricing = pricing(product.getId(), PricingModel.CPM, "3000");
+      givenCatalog(new CatalogEntry(channel, product, pricing));
+
+      UUID ownerId = UUID.randomUUID();
+      UUID strangerId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(ownerId)));
+      List<UUID> channelIds = List.of(channel.getId());
+
+      assertThatThrownBy(
+          () -> comparisonService.save(strangerId, channelIds, onboardingId, null))
+          .isInstanceOf(OnboardingNotFoundException.class);
     }
   }
 
