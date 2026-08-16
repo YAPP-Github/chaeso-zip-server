@@ -17,13 +17,13 @@ public record ChannelComparisonItemResponse(
     @Schema(description = "채널 로고 미리보기 URL",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String previewImageUrl,
-    @Schema(description = "채널의 주요 오디언스. 등록된 정보가 없으면 null",
+    @Schema(description = "채널의 주요 오디언스. 등록된 정보가 없으면 null, 비로그인이면 MOCK 값",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceSummary,
-    @Schema(description = "지원 광고 형태. 등록된 정보가 없으면 빈 배열",
+    @Schema(description = "지원 광고 형태. 등록된 정보가 없으면 빈 배열, 비로그인이면 MOCK 값",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> adFormats,
-    @Schema(description = "지원 타기팅 방식. 등록된 정보가 없으면 빈 배열",
+    @Schema(description = "지원 타기팅 방식. 등록된 정보가 없으면 빈 배열, 비로그인이면 MOCK 값",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> targetingMethods,
     @Schema(description = "최소 광고비(원). 등록된 정보가 없으면 null",
@@ -45,18 +45,20 @@ public record ChannelComparisonItemResponse(
     @Schema(description = "1,000회 노출당 단가(원). 대표 단가가 CPM일 때만 채워진다",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpmWon,
-    @Schema(description = "온보딩 조건과의 적합도(%). 로그인 뒤 온보딩이 있을 때만 반환",
+    @Schema(description = "온보딩 조건과의 적합도(%). 로그인 뒤 온보딩이 있을 때만 계산값, 비로그인이면 MOCK 값",
         example = "78",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Integer matchRate,
     @Schema(description = """
-        예상 노출 수 범위. 로그인했고 온보딩이 없으면 기본 값(100만원, 1개월)로 온보딩 고정 \
-        예산 부족 또는 추정 불가 시 null""",
+        예상 노출 수 범위. 로그인했고 온보딩이 없으면 기본 값(100만원, 1개월) 기준, \
+        예산 부족 또는 추정 불가 시 null. \
+        비로그인이면 MOCK 값""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estImpressions,
     @Schema(description = """
-        예상 클릭 수 범위. 로그인했고 온보딩이 없으면 기본 값(100만원, 1개월)로 온보딩 고정 \
-        예산 부족 또는 추정 불가 시 null""",
+        예상 클릭 수 범위. 로그인했고 온보딩이 없으면 기본 값(100만원, 1개월) 기준,
+        예산 부족 또는 추정 불가 시 null. \
+        비로그인이면 MOCK 값""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     CountRangeResponse estClicks) {
 
@@ -77,25 +79,6 @@ public record ChannelComparisonItemResponse(
         snapshot.matchRate(),
         CountRangeResponse.from(snapshot.impressions()),
         CountRangeResponse.from(snapshot.clicks()));
-  }
-
-  /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */
-  public ChannelComparisonItemResponse hideCatalogDetails() {
-    return new ChannelComparisonItemResponse(
-        channelId,
-        channelName,
-        previewImageUrl,
-        null,
-        List.of(),
-        List.of(),
-        minBudgetWon,
-        advantages,
-        tags,
-        cpcWon,
-        cpmWon,
-        null,
-        null,
-        null);
   }
 
   /** 목록은 값이 없어도 null 대신 빈 배열로 반환한다. */
