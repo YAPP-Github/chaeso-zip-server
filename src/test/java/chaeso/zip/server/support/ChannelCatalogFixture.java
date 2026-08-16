@@ -30,6 +30,7 @@ public final class ChannelCatalogFixture {
     Channel channel = BeanUtils.instantiateClass(Channel.class);
     set(channel, "id", id);
     set(channel, "name", name);
+    set(channel, "active", true);
     return channel;
   }
 
