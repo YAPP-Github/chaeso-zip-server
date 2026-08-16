@@ -1,6 +1,7 @@
 package chaeso.zip.server.channel.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -215,7 +216,7 @@ class ChannelControllerTest {
         ExecutionType.SELF, List.of(), List.of(),
         List.of(product),
         List.of(new AudienceMetricResponse("MAU", new BigDecimal("1000000"), null, "명", "월")),
-        List.of("전환율 개선 사례"), null);
+        List.of("전환율 개선 사례"), null, List.of("커머스 특화", "구매의도 타겟"));
 
     given(channelService.getChannel(channelId, null, null)).willReturn(detail);
 
@@ -224,6 +225,7 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.id").value(channelId.toString()))
         .andExpect(jsonPath("$.data.tagline").value("월 방문자 수 상위 오픈마켓"))
+        .andExpect(jsonPath("$.data.tags").value(contains("커머스 특화", "구매의도 타겟")))
         .andExpect(jsonPath("$.data.primaryCategory").value("SHOPPING_COMMERCE"))
         .andExpect(jsonPath("$.data.executionType").value("SELF"))
         .andExpect(jsonPath("$.data.products[0].id").value(productId.toString()))
@@ -290,7 +292,7 @@ class ChannelControllerTest {
         channelId, "상품없는 채널", null, null, null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
-        List.of(), List.of(), List.of(), null);
+        List.of(), List.of(), List.of(), null, List.of());
 
     given(channelService.getChannel(channelId, null, null)).willReturn(detail);
 
@@ -319,7 +321,7 @@ class ChannelControllerTest {
         channelId, "11번가 광고", null, null, null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
-        List.of(), List.of(), List.of(), basis);
+        List.of(), List.of(), List.of(), basis, List.of());
   }
 
   private ChannelListItemResponse channelListItem(String name) {

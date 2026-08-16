@@ -4,6 +4,7 @@ import static chaeso.zip.server.support.ChannelCatalogFixture.channel;
 import static chaeso.zip.server.support.ChannelCatalogFixture.pricing;
 import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static chaeso.zip.server.support.ChannelCatalogFixture.productWithCtrRange;
+import static chaeso.zip.server.support.ChannelCatalogFixture.productWithMinBudget;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,6 +63,7 @@ class SimulationServiceImplTest {
   private static final UUID CHANNEL_ID = UUID.randomUUID();
   private static final UUID PRODUCT_ID = UUID.randomUUID();
   private static final String CHANNEL_NAME = "11번가 광고";
+  private static final String SERVICE_NAME = "채소집";
 
   /** 카탈로그 평균 CTR. 상품에 CTR 이 없을 때 이 값이 쓰이는지로 주입을 확인한다. */
   private static final BigDecimal AVERAGE_CTR = new BigDecimal("2.5");
@@ -282,9 +284,82 @@ class SimulationServiceImplTest {
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
       assertThat(item.shortfallWon()).isEqualTo(4_000_000);
-      assertThat(item.basisNote()).startsWith("배분 예산이 최소 단가보다 적어 집행 불가");
+      assertThat(item.basisNote()).startsWith("집행 예산 부족");
       assertThat(response.totalEstImpressions()).isZero();
       assertThat(response.totalEstClicks()).isZero();
+    }
+
+    @Test
+    @DisplayName("최소 집행 금액이 등록돼 있으면 단가가 아니라 그 금액으로 집행 가능 여부를 가른다")
+    void judgesAgainstMinBudgetInsteadOfPrice() {
+      givenCatalog(productWithMinBudget(PRODUCT_ID, CHANNEL_ID, 10_000),
+          pricing(PRODUCT_ID, PricingModel.CPC, "1"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(5_000, CampaignPeriod.M1, allocation(5_000, "100"))).items().getFirst();
+
+      assertThat(item.minBudgetWon()).isEqualTo(10_000);
+      assertThat(item.isExecutable()).isFalse();      // 단가 기준이면 true 로 잘못 나온다
+      assertThat(item.shortfallWon()).isEqualTo(5_000);
+      assertThat(item.basisNote()).startsWith("집행 예산 부족");
+    }
+
+    @Test
+    @DisplayName("최소 집행 금액을 채우면 집행 가능으로 보고 부족 금액을 비운다")
+    void judgesExecutableWhenBudgetMeetsMinBudget() {
+      givenCatalog(productWithMinBudget(PRODUCT_ID, CHANNEL_ID, 10_000),
+          pricing(PRODUCT_ID, PricingModel.CPC, "1"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(10_000, CampaignPeriod.M1, allocation(10_000, "100"))).items().getFirst();
+
+      assertThat(item.minBudgetWon()).isEqualTo(10_000);
+      assertThat(item.isExecutable()).isTrue();
+      assertThat(item.shortfallWon()).isNull();
+    }
+
+    @Test
+    @DisplayName("최소 집행 금액이 없는 상품은 기준 삼을 값이 없어 대표 단가로 판정하고 금액은 비운다")
+    void fallsBackToPriceWithoutMinBudget() {
+      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
+          pricing(PRODUCT_ID, PricingModel.CPM, "5000000"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
+
+      assertThat(item.minBudgetWon()).isNull();
+      assertThat(item.isExecutable()).isFalse();
+      assertThat(item.shortfallWon()).isEqualTo(4_000_000);   // 대표 단가 기준
+    }
+
+    @Test
+    @DisplayName("미집행 매체도 최소 집행 금액이 있으면 그 금액을 필요 금액으로 알려준다")
+    void reportsMinBudgetAsShortfallWhenNotAllocated() {
+      givenCatalog(productWithMinBudget(PRODUCT_ID, CHANNEL_ID, 10_000),
+          pricing(PRODUCT_ID, PricingModel.CPC, "1"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(1_000_000, CampaignPeriod.M1, allocation(0, "0"))).items().getFirst();
+
+      assertThat(item.minBudgetWon()).isEqualTo(10_000);
+      assertThat(item.shortfallWon()).isEqualTo(10_000);      // 단가 1 원이 아니다
+      assertThat(item.basisNote()).startsWith("미집행 (배분 예산 0원)");
+    }
+
+    @Test
+    @DisplayName("집행 불가로 갈린 매체는 합계에서 빠진다")
+    void excludesChannelBelowMinBudgetFromTotals() {
+      givenCatalog(productWithMinBudget(PRODUCT_ID, CHANNEL_ID, 10_000_000),
+          pricing(PRODUCT_ID, PricingModel.CPM, "3000"));
+
+      SimulationResponse response = simulationService.estimate(
+          command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100")));
+
+      // 단가(3,000원) 기준이면 집행 가능으로 잡혀 노출·클릭이 합계에 들어갔다
+      assertThat(response.items().getFirst().isExecutable()).isFalse();
+      assertThat(response.totalEstImpressions()).isZero();
+      assertThat(response.totalEstClicks()).isZero();
+      assertThat(response.executableChannelCount()).isZero();
     }
 
     @Test
@@ -396,7 +471,7 @@ class SimulationServiceImplTest {
           pricing(PRODUCT_ID, PricingModel.CPM, "3000"),
           pricing(otherProductId, PricingModel.CPM, "9000000")));   // 배분 예산으로 집행 불가
 
-      SimulationResponse response = simulationService.estimate(new SimulationCommand(
+      SimulationResponse response = simulationService.estimate(new SimulationCommand(SERVICE_NAME,
           4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")),
               new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")))));
@@ -429,7 +504,7 @@ class SimulationServiceImplTest {
     void savesSnapshotAndReturnsId() {
       UUID simulationId = UUID.randomUUID();
       given(defaultCtrProvider.averageCtrPercent()).willReturn(AVERAGE_CTR);
-      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
+      givenCatalog(productWithMinBudget(PRODUCT_ID, CHANNEL_ID, 1_000_000),
           pricing(PRODUCT_ID, PricingModel.CPM, "3000"));
       given(budgetSimulationRepository.save(any(BudgetSimulation.class)))
           .willAnswer(invocation -> withId(invocation.getArgument(0), simulationId));
@@ -442,6 +517,7 @@ class SimulationServiceImplTest {
       ArgumentCaptor<BudgetSimulation> header = ArgumentCaptor.forClass(BudgetSimulation.class);
       verify(budgetSimulationRepository).save(header.capture());
       assertThat(header.getValue().getUserId()).isEqualTo(USER_ID);
+      assertThat(header.getValue().getServiceName()).isEqualTo(SERVICE_NAME);
       assertThat(header.getValue().getPeriod()).isEqualTo(CampaignPeriod.M1);
       assertThat(header.getValue().getTotalBudgetWon()).isEqualTo(3_000_000);
       assertThat(header.getValue().getTotalEstImpressions()).isEqualTo(1_000_000);
@@ -457,6 +533,7 @@ class SimulationServiceImplTest {
       assertThat(saved.getEstClicksMax()).isEqualTo(28_750);
       assertThat(saved.getCpcWon()).isEqualByComparingTo("120");   // 환산값도 스냅샷에 남는다
       assertThat(saved.getCpmWon()).isEqualByComparingTo("3000");
+      assertThat(saved.getMinBudgetWon()).isEqualTo(1_000_000);
       assertThat(saved.isExecutable()).isTrue();
       assertThat(saved.getBasisNote()).isEqualTo(
           "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용");
@@ -478,7 +555,7 @@ class SimulationServiceImplTest {
       given(budgetSimulationRepository.save(any(BudgetSimulation.class)))
           .willAnswer(invocation -> withId(invocation.getArgument(0), UUID.randomUUID()));
 
-      simulationService.save(USER_ID, new SimulationCommand(4_000_000, CampaignPeriod.M1,
+      simulationService.save(USER_ID, new SimulationCommand(SERVICE_NAME, 4_000_000, CampaignPeriod.M1,
           List.of(new AllocationCommand(otherChannelId, 1_000_000, new BigDecimal("25")),
               new AllocationCommand(CHANNEL_ID, 3_000_000, new BigDecimal("75")))));
 
@@ -523,6 +600,7 @@ class SimulationServiceImplTest {
               .estClicksMax(28_750L)
               .cpcWon(new BigDecimal("120"))
               .cpmWon(new BigDecimal("3000"))
+              .minBudgetWon(1_000_000L)
               .executable(true)
               .basisNote("저장 당시 고지")
               .build()));
@@ -544,6 +622,7 @@ class SimulationServiceImplTest {
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(21_250, 28_750));
       assertThat(item.cpcWon()).isEqualByComparingTo("120");   // 저장 당시 환산값이 그대로
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
+      assertThat(item.minBudgetWon()).isEqualTo(1_000_000);    // 판정 기준도 그대로
       assertThat(item.basisNote()).isEqualTo("저장 당시 고지");
       assertThat(response.executableChannelCount()).isEqualTo(1);   // 항목에서 센다
 
@@ -773,7 +852,7 @@ class SimulationServiceImplTest {
 
   private static SimulationCommand command(int totalBudgetWon, CampaignPeriod period,
       AllocationCommand... allocations) {
-    return new SimulationCommand(totalBudgetWon, period, List.of(allocations));
+    return new SimulationCommand(SERVICE_NAME, totalBudgetWon, period, List.of(allocations));
   }
 
   private static AllocationCommand allocation(int budgetWon, String allocationPct) {

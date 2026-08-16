@@ -68,6 +68,9 @@ public class BudgetSimulationItem {
   @Column(name = "cpm_won")
   private BigDecimal cpmWon;
 
+  @Column(name = "min_budget_won")
+  private Long minBudgetWon;
+
   @Column(name = "is_executable", nullable = false)
   private boolean executable;
 
@@ -86,7 +89,8 @@ public class BudgetSimulationItem {
   private BudgetSimulationItem(UUID budgetSimulationId, UUID channelId, UUID channelProductId,
       int sortOrder, long allocatedBudgetWon, BigDecimal allocationPct, Long estImpressionsMin,
       Long estImpressionsMax, Long estClicksMin, Long estClicksMax, BigDecimal cpcWon,
-      BigDecimal cpmWon, boolean executable, Long shortfallWon, String basisNote) {
+      BigDecimal cpmWon, Long minBudgetWon, boolean executable, Long shortfallWon,
+      String basisNote) {
     if (budgetSimulationId == null) {
       throw new IllegalArgumentException("BudgetSimulationItem requires a budgetSimulationId.");
     }
@@ -105,6 +109,7 @@ public class BudgetSimulationItem {
     this.estClicksMax = estClicksMax;
     this.cpcWon = cpcWon;
     this.cpmWon = cpmWon;
+    this.minBudgetWon = minBudgetWon;
     this.executable = executable;
     this.shortfallWon = shortfallWon;
     this.basisNote = basisNote;
