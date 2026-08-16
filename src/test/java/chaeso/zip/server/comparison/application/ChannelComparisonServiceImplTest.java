@@ -167,6 +167,65 @@ class ChannelComparisonServiceImplTest {
       assertThat(cpcItem.cpcWon()).isEqualByComparingTo("150");
       assertThat(cpcItem.cpmWon()).isNull();
     }
+
+    @Test
+    @DisplayName("로그인 + 온보딩 없음은 기본 예산 100만원/기간 1개월 기준으로 예상 노출/클릭과 환산 클릭당 비용을 채운다")
+    void fillsEstimatesWithDefaultBudgetWhenLoggedInWithoutOnboarding() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "3000");
+      givenCatalog(new CatalogEntry(channel, product, cpmPricing));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), null, UUID.randomUUID())
+          .items().getFirst();
+
+      assertThat(item.matchRate()).isNull();
+      assertThat(item.cpmWon()).isEqualByComparingTo("3000");
+      // 1,000,000 / 3,000 * 1000 = 333,333 노출, ±15%
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(283_333, 383_333));
+      // 상품에 CTR 이 없어 카탈로그 평균 2.5% 적용
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(7_083, 9_583));
+      // 1,000,000 / 8,333 클릭(중앙값) = 120 원
+      assertThat(item.cpcWon()).isEqualByComparingTo("120");
+    }
+
+    @Test
+    @DisplayName("로그인 + 온보딩 없음은 기본 예산보다 대표 단가가 비싸면 예상 노출/클릭을 비우고 고정 단가만 반환한다")
+    void leavesEstimatesEmptyWhenDefaultBudgetIsBelowRepresentativePrice() {
+      Channel channel = matchedChannel();
+      ChannelProduct product = matchedProduct(channel);
+      ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "5000000");
+      givenCatalog(new CatalogEntry(channel, product, cpmPricing));
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), null, UUID.randomUUID())
+          .items().getFirst();
+
+      assertThat(item.matchRate()).isNull();
+      assertThat(item.cpmWon()).isEqualByComparingTo("5000000");
+      assertThat(item.cpcWon()).isNull();
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
+
+    @Test
+    @DisplayName("로그인 + 온보딩 없음은 등록된 상품이 없으면 단가와 예상 노출/클릭을 노출하지 않는다")
+    void leavesEverythingEmptyWithoutProductWhenLoggedInWithoutOnboarding() {
+      Channel channel = matchedChannel();
+      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
+          .willReturn(Optional.of(channel));
+      given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
+
+      ChannelComparisonItemResponse item = comparisonService
+          .compare(List.of(channel.getId()), null, UUID.randomUUID())
+          .items().getFirst();
+
+      assertThat(item.cpcWon()).isNull();
+      assertThat(item.cpmWon()).isNull();
+      assertThat(item.estImpressions()).isNull();
+      assertThat(item.estClicks()).isNull();
+    }
   }
 
   @Nested
