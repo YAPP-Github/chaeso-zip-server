@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,7 +15,12 @@ import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.comparison.application.ChannelComparisonService;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
+import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
+import chaeso.zip.server.support.ChannelCatalogFixture;
 import chaeso.zip.server.support.security.WithUserPrincipal;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -34,6 +41,9 @@ class ChannelComparisonControllerTest {
 
   @Autowired
   private MockMvc mockMvc;
+
+  @Autowired
+  private ObjectMapper objectMapper;
 
   @MockitoBean
   private ChannelComparisonService channelComparisonService;
@@ -155,8 +165,9 @@ class ChannelComparisonControllerTest {
     UUID second = UUID.randomUUID();
     UUID onboardingId = UUID.randomUUID();
     ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
-        chaeso.zip.server.support.ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
-        null, null);
+        ChannelComparisonSnapshot.catalogOnly(
+            ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
+            List.of(), null, null, List.of()));
     given(channelComparisonService.compare(any(), any(), any()))
         .willReturn(ChannelComparisonResponse.of(List.of(item)));
 
@@ -174,5 +185,82 @@ class ChannelComparisonControllerTest {
     verify(channelComparisonService)
         .compare(channelIdsCaptor.capture(), eq(onboardingId), eq(USER_ID));
     assertThat(channelIdsCaptor.getValue()).containsExactly(first, second);
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("로그인 사용자가 저장을 요청하면 201 로 저장된 비교를 반환한다")
+  void savesComparison() throws Exception {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    UUID comparisonId = UUID.randomUUID();
+    ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
+        ChannelComparisonSnapshot.catalogOnly(
+            ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
+            List.of(), null, null, List.of()));
+    given(channelComparisonService.save(any(), any(), any(), any()))
+        .willReturn(new SavedChannelComparisonResponse(comparisonId, List.of(item)));
+
+    mockMvc.perform(post("/api/v1/channel-comparisons")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new SaveChannelComparisonRequest(List.of(first, second), null, "채소집"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.comparisonId").value(comparisonId.toString()))
+        .andExpect(jsonPath("$.data.items[0].channelId").value(item.channelId().toString()));
+
+    verify(channelComparisonService)
+        .save(eq(USER_ID), eq(List.of(first, second)), isNull(), eq("채소집"));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("채널을 1개만 선택해 저장을 요청하면 400 으로 거부한다")
+  void rejectsSaveWithSingleChannel() throws Exception {
+    mockMvc.perform(post("/api/v1/channel-comparisons")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new SaveChannelComparisonRequest(List.of(UUID.randomUUID()), null, "채소집"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].reason")
+            .value("비교할 채널은 2개 이상 3개 이하로 선택해 주세요"));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("온보딩도 서비스명도 없이 저장을 요청하면 400 으로 거부한다")
+  void rejectsSaveWithoutServiceNameOrOnboarding() throws Exception {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+
+    mockMvc.perform(post("/api/v1/channel-comparisons")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new SaveChannelComparisonRequest(List.of(first, second), null, null))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].reason")
+            .value("온보딩이 없으면 서비스명을 입력해 주세요"));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("온보딩이 있으면 서비스명 없이도 저장을 요청할 수 있다")
+  void allowsSaveWithOnboardingWithoutServiceName() throws Exception {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    UUID onboardingId = UUID.randomUUID();
+    given(channelComparisonService.save(any(), any(), any(), any()))
+        .willReturn(new SavedChannelComparisonResponse(UUID.randomUUID(), List.of()));
+
+    mockMvc.perform(post("/api/v1/channel-comparisons")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new SaveChannelComparisonRequest(List.of(first, second), onboardingId, null))))
+        .andExpect(status().isCreated());
+
+    verify(channelComparisonService)
+        .save(eq(USER_ID), eq(List.of(first, second)), eq(onboardingId), isNull());
   }
 }
