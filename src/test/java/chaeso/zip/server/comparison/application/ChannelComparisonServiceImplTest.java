@@ -99,8 +99,8 @@ class ChannelComparisonServiceImplTest {
   class WithoutOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅을 노출하지 않는다")
-    void hidesAudienceForAnonymousRequest() {
+    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅, 적합도, 예상 노출/클릭을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousRequest() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags",
           List.of("정적태그1", "정적태그2", "정적태그3"));
@@ -114,16 +114,16 @@ class ChannelComparisonServiceImplTest {
 
       assertThat(item.channelId()).isEqualTo(channel.getId());
       assertThat(item.channelName()).isEqualTo(channel.getName());
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.minBudgetWon()).isEqualTo(channel.getMinBudgetWon());
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.tags()).containsExactly("정적태그1", "정적태그2", "정적태그3");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
     }
 
     @Test
@@ -244,8 +244,8 @@ class ChannelComparisonServiceImplTest {
   class WithOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭을 비우고 맞은 축 태그와 단가는 남긴다")
-    void leavesMatchRateEmptyForAnonymousOnboarding() {
+    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭·오디언스·광고형태·타기팅을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousOnboarding() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags", List.of("빠른매칭", "안정노출"));
       ChannelProduct product = matchedProduct(channel);
@@ -261,16 +261,41 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, null)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("비로그인 다건 비교는 채널별로 다른 MOCK 값을 매긴다")
+    void mocksDistinctProfilesByPositionForAnonymousMultiChannel() {
+      Channel first = matchingChannel("가매체", List.of(MATCHED_AGE_BAND), "20대");
+      Channel second = matchingChannel("나매체", List.of(OTHER_AGE_BAND), "50대");
+      Channel third = matchingChannel("다매체", List.of(OTHER_AGE_BAND), "50대");
+      givenCatalog(
+          entry(first, MATCHED_OBJECTIVE, "3000"),
+          entry(second, MATCHED_OBJECTIVE, "3000"),
+          entry(third, MATCHED_OBJECTIVE, "3000"));
+
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(null)));
+
+      List<ChannelComparisonItemResponse> items = comparisonService
+          .compare(List.of(first.getId(), second.getId(), third.getId()), onboardingId, null)
+          .items();
+
+      assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
+          .containsExactly(92, 81, 68);
+      assertThat(items).extracting(ChannelComparisonItemResponse::audienceSummary)
+          .containsExactly("20~30대", "30~40대", "전 연령");
     }
 
     @Test
