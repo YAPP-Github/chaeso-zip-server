@@ -47,6 +47,7 @@ public interface SimulationApiDocs {
               "estClicks": { "min": 11333, "max": 15333 },
               "cpcWon": 150,
               "cpmWon": 3000,
+              "minBudgetWon": 1000000,
               "isExecutable": true,
               "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
@@ -61,6 +62,7 @@ public interface SimulationApiDocs {
               "estClicks": null,
               "cpcWon": null,
               "cpmWon": null,
+              "minBudgetWon": null,
               "isExecutable": false,
               "shortfallWon": null,
               "basisNote": "견적 문의 필요 (등록된 단가 정보 없음) / 매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"
@@ -93,6 +95,7 @@ public interface SimulationApiDocs {
               "estClicks": { "min": 17000, "max": 23000 },
               "cpcWon": 150,
               "cpmWon": 3000,
+              "minBudgetWon": 1000000,
               "isExecutable": true,
               "shortfallWon": null,
               "basisNote": "매체 소개서 기반 / VAT 별도 가정 / CTR 미제공 시 전체 평균 CTR 적용"

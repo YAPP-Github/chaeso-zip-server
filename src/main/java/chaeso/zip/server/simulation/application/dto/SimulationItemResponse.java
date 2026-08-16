@@ -40,6 +40,12 @@ public record SimulationItemResponse(
         화면에는 쓰지 않고 어떤 단가로 추정했는지 남기는 값""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpmWon,
+    @Schema(description = """
+        대표 상품의 최소 집행 금액(원). \
+        null이면 대표 단가를 기준으로 판정한다""",
+        example = "1000000",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    Long minBudgetWon,
     @Schema(description = "배분 예산으로 집행 가능한지 여부", requiredMode = Schema.RequiredMode.REQUIRED)
     boolean isExecutable,
     @Schema(description = "집행에 부족한 금액(원). 집행 가능하면 null", example = "500000",
@@ -52,23 +58,22 @@ public record SimulationItemResponse(
   public static SimulationItemResponse quoteRequired(UUID channelId, String channelName,
       long allocatedBudgetWon, BigDecimal allocationPct) {
     return new SimulationItemResponse(channelId, channelName, null, allocatedBudgetWon,
-        allocationPct, null, null, null, null, false, null, BasisNote.quoteRequired());
+        allocationPct, null, null, null, null, null, false, null, BasisNote.quoteRequired());
   }
 
   /** 사용자가 예산을 배분하지 않은 매체. 집행에 필요한 금액만 알려준다. */
   public static SimulationItemResponse notAllocated(UUID channelId, String channelName,
       UUID channelProductId, BigDecimal allocationPct, EstimationPricing pricing,
-      Long shortfallWon) {
+      Long minBudgetWon, Long shortfallWon) {
     return new SimulationItemResponse(channelId, channelName, channelProductId, 0L, allocationPct,
-        null, null, cpcWon(pricing, 0L, null), cpmWon(pricing), false, shortfallWon,
+        null, null, cpcWon(pricing, 0L, null), cpmWon(pricing), minBudgetWon, false, shortfallWon,
         BasisNote.notAllocated());
   }
 
-  /** 추정을 마친 매체. 집행 불가면 노출·클릭 대신 부족 금액만 의미를 가진다. */
   public static SimulationItemResponse estimated(UUID channelId, String channelName,
       UUID channelProductId, long allocatedBudgetWon, BigDecimal allocationPct,
-      EstimationPricing pricing, EstimationResult result, Long shortfallWon) {
-    boolean executable = result.isExecutable();
+      EstimationPricing pricing, EstimationResult result, Long minBudgetWon, boolean executable,
+      Long shortfallWon) {
     boolean hasImpressionData = result.impressions() != null;
     CountRangeResponse impressions =
         executable ? CountRangeResponse.from(result.impressions()) : null;
@@ -83,12 +88,12 @@ public record SimulationItemResponse(
         clicks,
         cpcWon(pricing, allocatedBudgetWon, clicks),
         cpmWon(pricing),
+        minBudgetWon,
         executable,
         shortfallWon,
         basisNoteFor(executable, hasImpressionData));
   }
 
-  /** 저장된 스냅샷을 그대로 되살린다. 재계산하지 않는다. */
   public static SimulationItemResponse from(BudgetSimulationItem item, String channelName) {
     return new SimulationItemResponse(
         item.getChannelId(),
@@ -100,6 +105,7 @@ public record SimulationItemResponse(
         CountRangeResponse.of(item.getEstClicksMin(), item.getEstClicksMax()),
         item.getCpcWon(),
         item.getCpmWon(),
+        item.getMinBudgetWon(),
         item.isExecutable(),
         item.getShortfallWon(),
         item.getBasisNote());
