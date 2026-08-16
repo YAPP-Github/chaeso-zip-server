@@ -1,6 +1,7 @@
 package chaeso.zip.server.comparison.application.dto;
 
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -77,6 +78,25 @@ public record ChannelComparisonItemResponse(
         snapshot.matchRate(),
         CountRangeResponse.from(snapshot.impressions()),
         CountRangeResponse.from(snapshot.clicks()));
+  }
+
+  /** 저장된 비교 항목(스냅샷)을 응답으로 변환한다. */
+  public static ChannelComparisonItemResponse from(ChannelComparisonItem item) {
+    return new ChannelComparisonItemResponse(
+        item.getChannelId(),
+        item.getChannelName(),
+        item.getPreviewImageUrlSnap(),
+        item.getAudienceSummarySnap(),
+        emptyIfNull(item.getAdFormatsSnap()),
+        emptyIfNull(item.getTargetingMethodsSnap()),
+        item.getMinBudgetWonSnap(),
+        emptyIfNull(item.getAdvantagesSnap()),
+        emptyIfNull(item.getTagsSnap()),
+        item.getCpcWon(),
+        item.getCpmWon(),
+        item.getMatchRate(),
+        CountRangeResponse.of(item.getEstImpressionsMin(), item.getEstImpressionsMax()),
+        CountRangeResponse.of(item.getEstClicksMin(), item.getEstClicksMax()));
   }
 
   /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */

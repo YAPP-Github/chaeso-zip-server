@@ -10,6 +10,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshotFactory;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
@@ -26,6 +27,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
@@ -167,10 +169,33 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     return SavedChannelComparisonResponse.of(comparison.getId(), snapshots);
   }
 
+  /**
+   * 저장된 채널 비교를 조회한다.
+   *
+   * 남의 것을 조회했을 때도 404로 응답해, 그 id가 존재한다는 사실을 숨긴다.
+   */
+  @Override
+  public SavedChannelComparisonResponse findComparison(UUID userId, UUID comparisonId) {
+    ChannelComparison comparison = channelComparisonRepository.findById(comparisonId)
+        .filter(c -> c.getUserId().equals(userId))
+        .orElseThrow(() -> new ChannelComparisonNotFoundException(comparisonId));
+    List<ChannelComparisonItem> items = channelComparisonItemRepository
+        .findByComparisonIdOrderBySortOrderAsc(comparison.getId());
+    return SavedChannelComparisonResponse.ofItems(comparison.getId(), items);
+  }
+
   private List<Channel> findChannels(List<UUID> channelIds) {
+    Map<UUID, Channel> channels = channelRepository.findAllById(channelIds).stream()
+        .filter(Channel::isActive)
+        .collect(Collectors.toMap(Channel::getId, Function.identity()));
     return channelIds.stream()
-        .map(id -> channelRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ChannelNotFoundException(id)))
+        .map(id -> {
+          Channel channel = channels.get(id);
+          if (channel == null) {
+            throw new ChannelNotFoundException(id);
+          }
+          return channel;
+        })
         .toList();
   }
 

@@ -14,8 +14,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "ChannelComparison", description = "채널 비교 API")
@@ -134,6 +136,19 @@ public interface ChannelComparisonApiDocs {
       }
       """;
 
+  String COMPARISON_NOT_FOUND_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "CMP-001",
+          "message": "존재하지 않는 채널 비교입니다. id=3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
@@ -246,4 +261,24 @@ public interface ChannelComparisonApiDocs {
   ApiResponse<SavedChannelComparisonResponse> saveChannelComparison(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SaveChannelComparisonRequest request);
+
+  @Operation(operationId = "getSavedChannelComparison", summary = "저장된 채널 비교 상세",
+      description = """
+          저장된 채널 비교 하나를 저장 시점 스냅샷 그대로 반환한다.
+          
+          본인이 저장한 것만 조회할 수 있고, 
+          그외의 채널 비교 id는 일관적으로 404(CMP-001) 응답을 반환한다.""")
+  @SecurityRequirement(name = "bearerAuth")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      useReturnTypeSchema = true,
+      content = @Content(examples = @ExampleObject(name = "COMPARISON_SAVED",
+          value = COMPARISON_SAVED_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+      description = "존재하지 않거나 다른 사용자의 채널 비교(CMP-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "COMPARISON_NOT_FOUND",
+              value = COMPARISON_NOT_FOUND_EXAMPLE)))
+  ApiResponse<SavedChannelComparisonResponse> getSavedChannelComparison(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @Parameter(description = "저장된 채널 비교 id") @PathVariable UUID comparisonId);
 }

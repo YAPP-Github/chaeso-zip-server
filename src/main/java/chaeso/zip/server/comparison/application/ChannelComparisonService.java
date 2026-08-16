@@ -33,4 +33,13 @@ public interface ChannelComparisonService {
    * @return 저장된 채널 비교 결과
    */
   SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds, UUID onboardingId, String serviceName);
+
+  /**
+   * 저장된 채널 비교를 조회한다. 본인이 저장한 것이 아니면 존재하지 않는 것과 동일하게 404로 응답한다.
+   *
+   * @param userId        조회하는 사용자
+   * @param comparisonId  조회할 채널 비교 식별자
+   * @return 저장 시점 스냅샷 그대로의 채널 비교 결과
+   */
+  SavedChannelComparisonResponse findComparison(UUID userId, UUID comparisonId);
 }
