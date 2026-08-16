@@ -2,13 +2,17 @@ package chaeso.zip.server.comparison.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.comparison.application.ChannelComparisonService;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonPageRequest;
 import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonRequest;
 import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,5 +51,14 @@ public class ChannelComparisonController implements ChannelComparisonApiDocs {
       @Valid @RequestBody SaveChannelComparisonRequest request) {
     return ApiResponse.success(channelComparisonService.save(principal.userId(),
         request.channelIds(), request.onboardingId(), request.serviceName()));
+  }
+
+  @Override
+  @GetMapping("/my")
+  public ApiResponse<PageResponse<ChannelComparisonSummaryResponse>> getMyChannelComparisons(
+      @AuthenticationPrincipal UserPrincipal principal,
+      @ParameterObject ChannelComparisonPageRequest request) {
+    return ApiResponse.success(PageResponse.from(
+        channelComparisonService.findMyComparisons(principal.userId(), request.toPageable())));
   }
 }
