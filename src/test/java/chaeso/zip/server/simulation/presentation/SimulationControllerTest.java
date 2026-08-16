@@ -1,5 +1,6 @@
 package chaeso.zip.server.simulation.presentation;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,7 @@ import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
 import chaeso.zip.server.simulation.domain.BasisNote;
 import chaeso.zip.server.simulation.domain.SimulationNotFoundException;
 import chaeso.zip.server.simulation.presentation.dto.AllocationRequest;
+import chaeso.zip.server.simulation.presentation.dto.SaveSimulationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -54,6 +57,7 @@ class SimulationControllerTest {
   private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
   private static final UUID CHANNEL_ID = UUID.randomUUID();
   private static final UUID PRODUCT_ID = UUID.randomUUID();
+  private static final String SERVICE_NAME = "채소집";
 
   @Autowired
   private MockMvc mockMvc;
@@ -100,10 +104,62 @@ class SimulationControllerTest {
 
     mockMvc.perform(post("/api/v1/simulations")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request(3_000_000, CampaignPeriod.M1))))
+            .content(objectMapper.writeValueAsString(saveRequest(3_000_000))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.simulationId").value(simulationId.toString()));
+
+    ArgumentCaptor<SimulationCommand> command = ArgumentCaptor.forClass(SimulationCommand.class);
+    verify(simulationService).save(eq(USER_ID), command.capture());
+    assertThat(command.getValue().serviceName()).isEqualTo(SERVICE_NAME);
+  }
+
+  @Test
+  @DisplayName("저장은 서비스명이 없으면 400 C-001 과 필드 에러를 반환한다")
+  void saveRejectsMissingServiceName() throws Exception {
+    SaveSimulationRequest request = new SaveSimulationRequest(null, 3_000_000, CampaignPeriod.M1,
+        List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("100"))));
+
+    mockMvc.perform(post("/api/v1/simulations")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[0].field").value("serviceName"));
+  }
+
+  @Test
+  @DisplayName("저장도 계산과 같은 배분 규칙을 받는다")
+  void saveKeepsAllocationRules() throws Exception {
+    // 요청을 나누면서 규칙이 한쪽에만 남는 일이 없어야 한다
+    SaveSimulationRequest request = new SaveSimulationRequest(SERVICE_NAME, 1_000_000,
+        CampaignPeriod.M1,
+        List.of(new AllocationRequest(CHANNEL_ID, 2_000_000, new BigDecimal("100"))));
+
+    mockMvc.perform(post("/api/v1/simulations")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[*].field")
+            .value(hasItem("withinTotalBudget")));
+  }
+
+  @Test
+  @DisplayName("계산은 남길 곳이 없어 서비스명을 받지 않는다")
+  void estimateTakesNoServiceName() throws Exception {
+    // 비로그인도 부르는 공개 경로라, 저장에 필요한 값을 여기까지 요구하면 기존 호출이 깨진다
+    given(simulationService.estimate(any(SimulationCommand.class))).willReturn(response(null));
+
+    mockMvc.perform(post("/api/v1/simulations/estimate")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request(3_000_000, CampaignPeriod.M1))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+
+    ArgumentCaptor<SimulationCommand> command = ArgumentCaptor.forClass(SimulationCommand.class);
+    verify(simulationService).estimate(command.capture());
+    assertThat(command.getValue().serviceName()).isNull();
   }
 
   @Test
@@ -371,6 +427,11 @@ class SimulationControllerTest {
 
   private static SimulationRequest request(int totalBudgetWon, CampaignPeriod period) {
     return new SimulationRequest(totalBudgetWon, period,
+        List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("100"))));
+  }
+
+  private static SaveSimulationRequest saveRequest(int totalBudgetWon) {
+    return new SaveSimulationRequest(SERVICE_NAME, totalBudgetWon, CampaignPeriod.M1,
         List.of(new AllocationRequest(CHANNEL_ID, 3_000_000, new BigDecimal("100"))));
   }
 

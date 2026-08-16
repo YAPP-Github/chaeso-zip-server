@@ -44,6 +44,9 @@ public class ChannelRecommendation {
   @Column(name = "onboarding_id", nullable = false)
   private UUID onboardingId;
 
+  @Column(name = "service_name")
+  private String serviceName;
+
   @Column(name = "channel_id", nullable = false)
   private UUID channelId;
 
@@ -109,7 +112,8 @@ public class ChannelRecommendation {
   private LocalDateTime createdAt;
 
   @Builder
-  private ChannelRecommendation(UUID userId, UUID onboardingId, UUID channelId, int rank, int score,
+  private ChannelRecommendation(UUID userId, UUID onboardingId, String serviceName, UUID channelId,
+      int rank, int score,
       String reason, List<String> reasonTags, String channelName, PricingModel estPricingModel,
       BigDecimal estUnitPrice, Long estImpressionsMin, Long estImpressionsMax, Long estClicksMin,
       Long estClicksMax, BigDecimal cpcWon, List<String> pricingModelsAll, Long minBudgetWonSnap,
@@ -125,6 +129,7 @@ public class ChannelRecommendation {
     }
     this.userId = userId;
     this.onboardingId = onboardingId;
+    this.serviceName = serviceName;
     this.channelId = channelId;
     this.rank = rank;
     this.score = score;

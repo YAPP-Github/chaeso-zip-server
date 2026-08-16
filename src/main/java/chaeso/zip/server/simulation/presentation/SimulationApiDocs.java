@@ -6,6 +6,7 @@ import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationResponse;
 import chaeso.zip.server.simulation.application.dto.SimulationSummaryResponse;
 import chaeso.zip.server.simulation.presentation.dto.SimulationPageRequest;
+import chaeso.zip.server.simulation.presentation.dto.SaveSimulationRequest;
 import chaeso.zip.server.simulation.presentation.dto.SimulationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -232,7 +233,7 @@ public interface SimulationApiDocs {
           examples = @ExampleObject(name = "CHANNEL_NOT_FOUND", value = CHANNEL_NOT_FOUND_EXAMPLE)))
   ApiResponse<SimulationResponse> saveSimulation(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
-      @Valid @RequestBody SimulationRequest request);
+      @Valid @RequestBody SaveSimulationRequest request);
 
   @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getLatestSimulation", summary = "최신 시뮬레이션 결과 불러오기",

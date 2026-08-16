@@ -64,6 +64,7 @@ public class SimulationServiceImpl implements SimulationService {
 
     BudgetSimulation simulation = budgetSimulationRepository.save(BudgetSimulation.builder()
         .userId(userId)
+        .serviceName(command.serviceName())
         .totalBudgetWon(calculated.totalBudgetWon())
         .period(calculated.period())
         .totalEstImpressions(calculated.totalEstImpressions())
