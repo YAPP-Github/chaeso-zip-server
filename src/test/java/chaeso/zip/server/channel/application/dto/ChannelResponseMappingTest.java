@@ -20,7 +20,7 @@ class ChannelResponseMappingTest {
     Channel channel = channel(UUID.randomUUID(), "정보 없는 채널");
 
     ChannelDetailResponse detail =
-        ChannelDetailResponse.from(channel, List.of(), List.of(), List.of(), null);
+        ChannelDetailResponse.from(channel, List.of(), List.of(), List.of(), null, null);
 
     assertThat(detail.suitableCategories()).isEmpty();
     assertThat(detail.ageBandCodes()).isEmpty();
@@ -50,7 +50,7 @@ class ChannelResponseMappingTest {
   }
 
   private static ChannelDetailResponse detailOf(Channel channel) {
-    return ChannelDetailResponse.from(channel, List.of(), List.of(), List.of(), null);
+    return ChannelDetailResponse.from(channel, List.of(), List.of(), List.of(), null, null);
   }
 
   private static Channel taggedChannel(String tagline) {

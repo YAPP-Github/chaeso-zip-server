@@ -8,12 +8,20 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
-@Schema(description = "예산 시뮬레이션 계산 요청")
-public record SimulationRequest(
+@Schema(description = "예산 시뮬레이션 저장 요청")
+public record SaveSimulationRequest(
+    @Schema(description = "광고할 서비스명", example = "채소집", maxLength = 255,
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "서비스명은 필수입니다")
+    @Size(max = 255, message = "서비스명은 255자 이하로 입력해 주세요")
+    String serviceName,
+
     @Schema(description = "총 예산(원). 10만 이상 1,000만 이하", example = "3000000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull @Min(100_000) @Max(10_000_000) Integer totalBudgetWon,
@@ -41,7 +49,7 @@ public record SimulationRequest(
   }
 
   public SimulationCommand toCommand() {
-    return new SimulationCommand(null, totalBudgetWon, period,
+    return new SimulationCommand(serviceName, totalBudgetWon, period,
         allocations.stream().map(AllocationRequest::toCommand).toList());
   }
 }

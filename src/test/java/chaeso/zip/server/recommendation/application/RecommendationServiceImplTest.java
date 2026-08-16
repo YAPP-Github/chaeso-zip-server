@@ -62,6 +62,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 class RecommendationServiceImplTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final String SERVICE_NAME = "채소집";
   private static final UUID USER_ID = UUID.randomUUID();
 
   private static final Category INDUSTRY = Category.MEDICAL_HEALTHCARE;
@@ -380,6 +381,7 @@ class RecommendationServiceImplTest {
           .allSatisfy(row -> {
             assertThat(row.getUserId()).isEqualTo(USER_ID);
             assertThat(row.getOnboardingId()).isEqualTo(ONBOARDING_ID);
+            assertThat(row.getServiceName()).isEqualTo(SERVICE_NAME);
           });
     }
 
@@ -520,7 +522,7 @@ class RecommendationServiceImplTest {
     void rejectsUnknownOnboarding() {
       given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.empty());
 
-      assertThatThrownBy(() -> recommendationService.save(USER_ID, ONBOARDING_ID))
+      assertThatThrownBy(() -> recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
           .isInstanceOf(OnboardingNotFoundException.class);
 
       verifyNoInteractions(channelRecommendationRepository, channelRepository);
@@ -542,7 +544,7 @@ class RecommendationServiceImplTest {
 
     private SavedRecommendationResponse save(Onboarding onboarding) {
       given(onboardingRepository.findById(ONBOARDING_ID)).willReturn(Optional.of(onboarding));
-      return recommendationService.save(USER_ID, ONBOARDING_ID);
+      return recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME);
     }
 
     /** 저장하는 사용자가 직접 제출한 온보딩. */

@@ -10,7 +10,7 @@ public final class BasisNote {
   private static final String SEPARATOR = " / ";
   private static final String QUOTE_REQUIRED = "견적 문의 필요 (등록된 단가 정보 없음)";
   private static final String NO_IMPRESSION_DATA = "노출 정보 미제공 상품 (집행 가능 여부만 판단)";
-  private static final String BUDGET_SHORTFALL = "배분 예산이 최소 단가보다 적어 집행 불가";
+  private static final String BUDGET_SHORTFALL = "집행 예산 부족";
   private static final String NOT_ALLOCATED = "미집행 (배분 예산 0원)";
 
   private BasisNote() {
@@ -31,7 +31,10 @@ public final class BasisNote {
     return prefixed(NO_IMPRESSION_DATA);
   }
 
-  /** 배분 예산이 단가에 못 미쳐 집행할 수 없는 매체. */
+  /**
+   * 배분 예산이 최소 집행 금액(없으면 대표 단가)에 못 미쳐 집행할 수 없는 매체.
+   * 부족액은 문구에 넣지 않고 {@code shortfallWon} 으로 따로 준다.
+   */
   public static String budgetShortfall() {
     return prefixed(BUDGET_SHORTFALL);
   }

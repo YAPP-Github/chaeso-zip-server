@@ -74,7 +74,7 @@ public class RecommendationServiceImpl implements RecommendationService {
    */
   @Override
   @Transactional
-  public SavedRecommendationResponse save(UUID userId, UUID onboardingId) {
+  public SavedRecommendationResponse save(UUID userId, UUID onboardingId, String serviceName) {
     Onboarding onboarding = findOwnedOnboarding(userId, onboardingId);
     List<RecommendationSnapshot> snapshots = calculate(onboarding);
 
@@ -83,7 +83,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     channelRecommendationRepository.deleteByOnboardingId(onboardingId);
     try {
       channelRecommendationRepository.saveAll(IntStream.range(0, snapshots.size())
-          .mapToObj(index -> toEntity(userId, onboardingId, FIRST_RANK + index,
+          .mapToObj(index -> toEntity(userId, onboardingId, serviceName, FIRST_RANK + index,
               snapshots.get(index)))
           .toList());
       channelRecommendationRepository.flush();
@@ -107,11 +107,12 @@ public class RecommendationServiceImpl implements RecommendationService {
     return onboarding;
   }
 
-  private ChannelRecommendation toEntity(UUID userId, UUID onboardingId, int rank,
-      RecommendationSnapshot snapshot) {
+  private ChannelRecommendation toEntity(UUID userId, UUID onboardingId, String serviceName,
+      int rank, RecommendationSnapshot snapshot) {
     return ChannelRecommendation.builder()
         .userId(userId)
         .onboardingId(onboardingId)
+        .serviceName(serviceName)
         .channelId(snapshot.channelId())
         .rank(rank)
         .score(snapshot.matchRate())

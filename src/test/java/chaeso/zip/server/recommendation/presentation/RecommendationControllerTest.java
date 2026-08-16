@@ -1,5 +1,6 @@
 package chaeso.zip.server.recommendation.presentation;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,6 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class RecommendationControllerTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final String SERVICE_NAME = "채소집";
   private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
 
   @Autowired
@@ -118,13 +120,13 @@ class RecommendationControllerTest {
         "20~40대 여성", new BigDecimal("120"), PricingModel.CPM, 3_000L,
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         true, null);
-    given(recommendationService.save(USER_ID, ONBOARDING_ID))
+    given(recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
         .willReturn(new SavedRecommendationResponse(ONBOARDING_ID, 1, List.of(item)));
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(
-                new SaveRecommendationRequest(ONBOARDING_ID))))
+                new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.onboardingId").value(ONBOARDING_ID.toString()))
@@ -135,13 +137,13 @@ class RecommendationControllerTest {
   @Test
   @DisplayName("맞는 채널이 없으면 201 과 빈 배열을 반환한다")
   void saveRecommendation_savesNothing() throws Exception {
-    given(recommendationService.save(USER_ID, ONBOARDING_ID))
+    given(recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
         .willReturn(new SavedRecommendationResponse(ONBOARDING_ID, 0, List.of()));
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(
-                new SaveRecommendationRequest(ONBOARDING_ID))))
+                new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.channelCount").value(0))
         .andExpect(jsonPath("$.data.items").isEmpty());
@@ -155,19 +157,31 @@ class RecommendationControllerTest {
             .content("{}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("C-001"))
-        .andExpect(jsonPath("$.error.fieldErrors[0].field").value("onboardingId"));
+        .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("onboardingId")));
+  }
+
+  @Test
+  @DisplayName("서비스명 없이 저장하면 400 C-001 과 필드 에러를 반환한다")
+  void saveRecommendation_missingServiceName() throws Exception {
+    mockMvc.perform(post("/api/v1/recommendations")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                new SaveRecommendationRequest(ONBOARDING_ID, "  "))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"))
+        .andExpect(jsonPath("$.error.fieldErrors[*].field").value(hasItem("serviceName")));
   }
 
   @Test
   @DisplayName("없는 온보딩이나 남의 온보딩으로 저장하면 404 ONB-007 을 반환한다")
   void saveRecommendation_onboardingNotFound() throws Exception {
     BDDMockito.willThrow(new OnboardingNotFoundException(ONBOARDING_ID))
-        .given(recommendationService).save(USER_ID, ONBOARDING_ID);
+        .given(recommendationService).save(USER_ID, ONBOARDING_ID, SERVICE_NAME);
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(
-                new SaveRecommendationRequest(ONBOARDING_ID))))
+                new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("ONB-007"));
   }
@@ -177,12 +191,12 @@ class RecommendationControllerTest {
   void saveRecommendation_concurrent() throws Exception {
     BDDMockito.willThrow(new OnboardingBusinessException(
             OnboardingErrorCode.CONCURRENT_SUBMISSION))
-        .given(recommendationService).save(USER_ID, ONBOARDING_ID);
+        .given(recommendationService).save(USER_ID, ONBOARDING_ID, SERVICE_NAME);
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(
-                new SaveRecommendationRequest(ONBOARDING_ID))))
+                new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("ONB-006"));
   }

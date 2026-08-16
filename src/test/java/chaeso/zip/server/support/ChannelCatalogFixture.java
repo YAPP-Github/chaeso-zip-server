@@ -33,6 +33,12 @@ public final class ChannelCatalogFixture {
     return channel;
   }
 
+  public static Channel channelWithDefaultTags(UUID id, String name, List<String> defaultTags) {
+    Channel channel = channel(id, name);
+    set(channel, "defaultTags", defaultTags);
+    return channel;
+  }
+
   /** 추천 매칭 축(적합 업종·연령대)과 주요 타깃까지 채운 채널. */
   public static Channel channel(UUID id, String name, List<Category> suitableCategories,
       List<AgeBand> ageBandCodes, String primaryAgeBand, Gender primaryGender) {
@@ -64,6 +70,13 @@ public final class ChannelCatalogFixture {
     set(product, "ctr", ctr);
     set(product, "expectedImpressions", expectedImpressions);
     set(product, "expectedPeriod", expectedPeriod);
+    return product;
+  }
+
+  /** 최소 집행 금액이 등록된 상품 */
+  public static ChannelProduct productWithMinBudget(UUID id, UUID channelId, int minBudgetWon) {
+    ChannelProduct product = product(id, channelId);
+    set(product, "minBudgetWon", minBudgetWon);
     return product;
   }
 
