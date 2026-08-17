@@ -39,8 +39,9 @@ public record ChannelComparisonItemResponse(
         example = "[\"CATEGORY\", \"OBJECTIVE\"]", requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> tags,
     @Schema(description = """
-        클릭당 비용(원). 클릭당 과금 매체는 대표 단가 그대로, 그 외 매체는 \
-        온보딩 예산 / 예상 클릭 수(중앙값)로 환산한다. 환산할 수 없으면 null""",
+        클릭당 비용(원). 클릭당 과금 매체는 대표 단가, 그 외 매체는 예산(온보딩 있으면 온보딩 예산, \
+        없으면 기본 100만원/1개월) 기준 예상 클릭 수(중앙값)로 환산한다. \
+        환산 불가 시 null""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpcWon,
     @Schema(description = "1,000회 노출당 단가(원). 대표 단가가 CPM일 때만 채워진다",

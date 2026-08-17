@@ -54,11 +54,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -303,6 +307,30 @@ class ChannelComparisonServiceImplTest {
           .containsExactly(92, 81, 68);
       assertThat(items).extracting(ChannelComparisonItemResponse::audienceSummary)
           .containsExactly("20~30대", "30~40대", "전 연령");
+    }
+
+    @Test
+    @DisplayName("비로그인 + 익명 온보딩은 실제 적합도 순위와 무관하게 요청 순서를 유지한다")
+    void preservesRequestOrderForAnonymousOnboardingRegardlessOfActualMatchScore() {
+      Channel lowScore = matchingChannel("낮은적합도매체", List.of(OTHER_AGE_BAND), "50대");
+      Channel highScore = matchingChannel("높은적합도매체", List.of(MATCHED_AGE_BAND), "20대");
+      givenCatalog(
+          entry(lowScore, MATCHED_OBJECTIVE, "3000"),
+          entry(highScore, MATCHED_OBJECTIVE, "3000"));
+
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(null)));
+
+      // 실제 적합도는 highScore가 더 높지만, 비로그인 요청은 요청 순서(lowScore, highScore)를 그대로 유지해야 한다.
+      List<ChannelComparisonItemResponse> items = comparisonService
+          .compare(List.of(lowScore.getId(), highScore.getId()), onboardingId, null)
+          .items();
+
+      assertThat(items).extracting(ChannelComparisonItemResponse::channelName)
+          .containsExactly("낮은적합도매체", "높은적합도매체");
+      assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
+          .containsExactly(92, 81);
     }
 
     @Test
@@ -640,6 +668,54 @@ class ChannelComparisonServiceImplTest {
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("다매체", "가매체", "나매체");
     }
+  }
+
+  /**
+   * 정렬 정책(요청순 vs 적합도순)이 로그인 × 온보딩 4가지 조합 전체에서 의도대로 유지되는지
+   * 한 곳에서 검증한다. 각 케이스를 개별 테스트로 흩어 두면, 실제 적합도 순위와 요청 순서가
+   * 우연히 같은 데이터로는 정렬 로직 회귀(예: 비로그인인데 적합도순 정렬)를 잡아내지 못한다.
+   */
+  @Nested
+  @DisplayName("정렬 정책: 로그인 × 온보딩 매트릭스")
+  class OrderingMatrix {
+
+    @ParameterizedTest(name = "loggedIn={0}, onboarding={1} → 첫 채널: {2}")
+    @MethodSource("chaeso.zip.server.comparison.application.ChannelComparisonServiceImplTest#orderingCases")
+    void ordersByLoginAndOnboardingCombination(boolean loggedIn, boolean hasOnboarding,
+        String expectedFirstChannel) {
+      // 요청 순서(낮은적합도매체, 높은적합도매체)와 실제 적합도 순위를 일부러 반대로 둬서,
+      // 정렬 로직이 실제로 동작하는지와 동작하지 말아야 할 때 동작하지 않는지를 함께 확인한다.
+      Channel lowScore = matchingChannel("낮은적합도매체", List.of(OTHER_AGE_BAND), "50대");
+      Channel highScore = matchingChannel("높은적합도매체", List.of(MATCHED_AGE_BAND), "20대");
+      givenCatalog(
+          entry(lowScore, MATCHED_OBJECTIVE, "3000"),
+          entry(highScore, MATCHED_OBJECTIVE, "3000"));
+
+      UUID requesterId = loggedIn ? UUID.randomUUID() : null;
+      UUID onboardingId = null;
+      if (hasOnboarding) {
+        onboardingId = UUID.randomUUID();
+        // 익명 온보딩: 로그인 여부와 무관하게 findAccessibleOnboarding을 통과한다.
+        given(onboardingRepository.findById(onboardingId))
+            .willReturn(Optional.of(matchedOnboarding(null)));
+      }
+
+      List<ChannelComparisonItemResponse> items = comparisonService
+          .compare(List.of(lowScore.getId(), highScore.getId()), onboardingId, requesterId)
+          .items();
+
+      assertThat(items.getFirst().channelName()).isEqualTo(expectedFirstChannel);
+    }
+  }
+
+  /** {@link OrderingMatrix#ordersByLoginAndOnboardingCombination}용 (loggedIn, hasOnboarding, 예상 1위 채널). */
+  static Stream<Arguments> orderingCases() {
+    return Stream.of(
+        Arguments.of(false, false, "낮은적합도매체"), // 비로그인, 온보딩 없음 → 요청순
+        Arguments.of(true, false, "낮은적합도매체"), // 로그인, 온보딩 없음 → 요청순
+        Arguments.of(false, true, "낮은적합도매체"), // 비로그인, 온보딩 있음(익명) → 요청순
+        Arguments.of(true, true, "높은적합도매체")   // 로그인, 온보딩 있음 → 적합도순
+    );
   }
 
   @Nested
