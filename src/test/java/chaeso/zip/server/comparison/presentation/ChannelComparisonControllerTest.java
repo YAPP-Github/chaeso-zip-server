@@ -15,12 +15,15 @@ import chaeso.zip.server.common.ratelimit.RateLimiter;
 import chaeso.zip.server.comparison.application.ChannelComparisonService;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
 import chaeso.zip.server.support.ChannelCatalogFixture;
 import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +32,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -262,5 +268,65 @@ class ChannelComparisonControllerTest {
 
     verify(channelComparisonService)
         .save(eq(USER_ID), eq(List.of(first, second)), eq(onboardingId), isNull());
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("내 목록은 200 과 페이지 요약을 반환한다")
+  void listReturnsMyComparisons() throws Exception {
+    UUID comparisonId = UUID.randomUUID();
+    given(channelComparisonService.findMyComparisons(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(summary(comparisonId)), PageRequest.of(0, 5), 1));
+
+    mockMvc.perform(get("/api/v1/channel-comparisons/my"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.content[0].id").value(comparisonId.toString()))
+        .andExpect(jsonPath("$.data.content[0].serviceName").value("채소집"))
+        .andExpect(jsonPath("$.data.content[0].createdAt").value("2026-03-14T10:22:31"))
+        .andExpect(jsonPath("$.data.content[0].channelNames[0]").value("11번가 광고"))
+        .andExpect(jsonPath("$.data.totalElements").value(1))
+        .andExpect(jsonPath("$.data.size").value(5));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("page/size 를 생략시 0 페이지 5건으로 조회한다")
+  void listDefaultsToFirstPageOfFive() throws Exception {
+    given(channelComparisonService.findMyComparisons(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 5), 0));
+
+    mockMvc.perform(get("/api/v1/channel-comparisons/my"))
+        .andExpect(status().isOk());
+
+    verify(channelComparisonService).findMyComparisons(USER_ID, PageRequest.of(0, 5));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("요청한 page/size 를 그대로 조회에 넘긴다")
+  void listPassesRequestedPageAndSize() throws Exception {
+    given(channelComparisonService.findMyComparisons(eq(USER_ID), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(2, 5), 0));
+
+    mockMvc.perform(get("/api/v1/channel-comparisons/my").param("page", "2").param("size", "5"))
+        .andExpect(status().isOk());
+
+    verify(channelComparisonService).findMyComparisons(USER_ID, PageRequest.of(2, 5));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("page/size 가 허용 범위를 벗어나면 400 C-001 을 반환한다")
+  void listRejectsPageSizeOutOfRange() throws Exception {
+    mockMvc.perform(get("/api/v1/channel-comparisons/my").param("size", "51"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("C-001"));
+  }
+
+  private static ChannelComparisonSummaryResponse summary(UUID comparisonId) {
+    return new ChannelComparisonSummaryResponse(comparisonId, "채소집",
+        LocalDateTime.of(2026, Month.MARCH, 14, 10, 22, 31), List.of("11번가 광고", "당근마켓 광고"));
   }
 }

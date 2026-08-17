@@ -2,8 +2,11 @@ package chaeso.zip.server.comparison.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonPageRequest;
 import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonRequest;
 import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -134,6 +137,43 @@ public interface ChannelComparisonApiDocs {
       }
       """;
 
+  String COMPARISON_LIST_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "content": [
+            {
+              "id": "3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
+              "serviceName": "채소집",
+              "createdAt": "2026-03-14T10:22:31",
+              "channelNames": ["11번가 광고", "당근마켓 광고"]
+            }
+          ],
+          "number": 0,
+          "size": 5,
+          "totalElements": 1,
+          "totalPages": 1,
+          "first": true,
+          "last": true
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
+  String COMPARISON_PAGE_SIZE_ERROR_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "C-001",
+          "message": "page 는 0 이상, size 는 1 이상 50 이하여야 합니다",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   String VALIDATION_ERROR_EXAMPLE = """
       {
         "success": false,
@@ -246,4 +286,24 @@ public interface ChannelComparisonApiDocs {
   ApiResponse<SavedChannelComparisonResponse> saveChannelComparison(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SaveChannelComparisonRequest request);
+
+  @Operation(operationId = "getMyChannelComparisons", summary = "내가 저장한 채널 비교 목록",
+      description = """
+          로그인한 사용자가 저장한 채널 비교 결과를 최신순으로 반환한다.
+          
+          page/size 생략시 0 페이지 5건을 반환하며,
+          저장된 결과가 없으면 빈 목록으로 200 응답.""")
+  @SecurityRequirement(name = "bearerAuth")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      useReturnTypeSchema = true,
+      content = @Content(
+          examples = @ExampleObject(name = "COMPARISON_LIST", value = COMPARISON_LIST_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+      description = "page/size 범위 위반(C-001). size 는 1 이상 50 이하여야 한다",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "PAGE_SIZE_ERROR",
+              value = COMPARISON_PAGE_SIZE_ERROR_EXAMPLE)))
+  ApiResponse<PageResponse<ChannelComparisonSummaryResponse>> getMyChannelComparisons(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @ParameterObject ChannelComparisonPageRequest request);
 }

@@ -9,6 +9,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshotFactory;
@@ -25,10 +26,13 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -165,6 +169,41 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
         .toList());
 
     return SavedChannelComparisonResponse.of(comparison.getId(), snapshots);
+  }
+
+  /**
+   * 저장된 비교를 페이지로 조회하고, 매체명과 서비스명을 채워 목록 요약으로 반환한다.
+   *
+   * @param userId   조회하는 사용자
+   * @param pageable 페이지 요청 (최신순 고정)
+   * @return 채널 비교 목록 요약
+   */
+  @Override
+  public Page<ChannelComparisonSummaryResponse> findMyComparisons(UUID userId,
+      Pageable pageable) {
+    Page<ChannelComparison> comparisons =
+        channelComparisonRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+    List<UUID> comparisonIds =
+        comparisons.getContent().stream().map(ChannelComparison::getId).toList();
+    Map<UUID, List<ChannelComparisonItem>> itemsByComparison = comparisonIds.isEmpty()
+        ? Map.of()
+        : channelComparisonItemRepository
+            .findByComparisonIdInOrderBySortOrderAsc(comparisonIds).stream()
+            .collect(Collectors.groupingBy(ChannelComparisonItem::getComparisonId));
+
+    List<UUID> onboardingIds = comparisons.getContent().stream()
+        .map(ChannelComparison::getOnboardingId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, String> onboardingServiceNames = onboardingIds.isEmpty()
+        ? Map.of()
+        : onboardingRepository.findAllById(onboardingIds).stream()
+            .collect(Collectors.toMap(Onboarding::getId, Onboarding::getServiceName));
+
+    return comparisons.map(comparison -> ChannelComparisonSummaryResponse.from(comparison,
+        itemsByComparison.getOrDefault(comparison.getId(), List.of()), onboardingServiceNames));
   }
 
   private List<Channel> findChannels(List<UUID> channelIds) {

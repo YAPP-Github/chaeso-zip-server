@@ -11,9 +11,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
@@ -29,6 +32,7 @@ import chaeso.zip.server.channel.domain.vo.Gender;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
@@ -43,6 +47,8 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +62,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -736,6 +745,97 @@ class ChannelComparisonServiceImplTest {
       assertThatThrownBy(
           () -> comparisonService.save(strangerId, channelIds, onboardingId, null))
           .isInstanceOf(OnboardingNotFoundException.class);
+    }
+  }
+
+  @Nested
+  @DisplayName("내가 저장한 채널 비교 목록 조회")
+  class FindMyComparisons {
+
+    private final Pageable pageable = PageRequest.of(0, 5);
+    private final LocalDateTime createdAt = LocalDateTime.of(2026, Month.MARCH, 14, 10, 22, 31);
+
+    @Test
+    @DisplayName("온보딩 기반 저장이면 온보딩의 서비스명을 반환하고 매체명은 저장 순서(추천순) 그대로 준다")
+    void resolvesServiceNameFromOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, onboardingId, null));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(
+              savedItem(comparisonId, 1, "세 축 채널"),
+              savedItem(comparisonId, 2, "두 축 채널")));
+      Onboarding onboarding = matchedOnboarding(userId);
+      ReflectionTestUtils.setField(onboarding, "id", onboardingId);
+      given(onboardingRepository.findAllById(List.of(onboardingId)))
+          .willReturn(List.of(onboarding));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.id()).isEqualTo(comparisonId);
+      assertThat(summary.serviceName()).isEqualTo(onboarding.getServiceName());
+      assertThat(summary.createdAt()).isEqualTo(createdAt);
+      assertThat(summary.channelNames()).containsExactly("세 축 채널", "두 축 채널");
+    }
+
+    @Test
+    @DisplayName("온보딩 없이 저장한 비교는 저장 당시 입력한 서비스명을 그대로 반환한다")
+    void keepsOwnServiceNameWithoutOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, null, "채소집"));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(savedItem(comparisonId, 1, "가매체")));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.serviceName()).isEqualTo("채소집");
+      assertThat(summary.channelNames()).containsExactly("가매체");
+      verifyNoInteractions(onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("저장된 결과가 없으면 빈 페이지를 반환하고 항목·온보딩은 조회하지 않는다")
+    void returnsEmptyPageWithoutLoadingItems() {
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId);
+
+      assertThat(comparisonService.findMyComparisons(userId, pageable)).isEmpty();
+
+      verifyNoInteractions(onboardingRepository);
+      verify(channelComparisonItemRepository, never())
+          .findByComparisonIdInOrderBySortOrderAsc(anyList());
+    }
+
+    private void givenMyPage(UUID userId, ChannelComparison... comparisons) {
+      given(channelComparisonRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable))
+          .willReturn(new PageImpl<>(List.of(comparisons), pageable, comparisons.length));
+    }
+
+    private ChannelComparison savedComparison(UUID id, UUID userId, UUID onboardingId,
+        String serviceName) {
+      ChannelComparison comparison = ChannelComparison.builder()
+          .userId(userId)
+          .onboardingId(onboardingId)
+          .serviceName(serviceName)
+          .build();
+      ReflectionTestUtils.setField(comparison, "id", id);
+      ReflectionTestUtils.setField(comparison, "createdAt", createdAt);
+      return comparison;
+    }
+
+    private ChannelComparisonItem savedItem(UUID comparisonId, int sortOrder, String channelName) {
+      return ChannelComparisonItem.builder()
+          .comparisonId(comparisonId)
+          .channelId(UUID.randomUUID())
+          .sortOrder(sortOrder)
+          .channelName(channelName)
+          .build();
     }
   }
 
