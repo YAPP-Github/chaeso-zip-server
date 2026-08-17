@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,6 +18,7 @@ import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemRespons
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
 import chaeso.zip.server.support.ChannelCatalogFixture;
@@ -272,6 +274,24 @@ class ChannelComparisonControllerTest {
 
   @Test
   @WithUserPrincipal
+  @DisplayName("본인이 저장한 채널 비교를 조회하면 스냅샷 그대로 반환한다")
+  void getsSavedComparison() throws Exception {
+    UUID comparisonId = UUID.randomUUID();
+    ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
+        ChannelComparisonSnapshot.catalogOnly(
+            ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
+            List.of(), null, null, List.of()));
+    given(channelComparisonService.findComparison(USER_ID, comparisonId))
+        .willReturn(new SavedChannelComparisonResponse(comparisonId, List.of(item)));
+
+    mockMvc.perform(get("/api/v1/channel-comparisons/{comparisonId}", comparisonId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.comparisonId").value(comparisonId.toString()))
+        .andExpect(jsonPath("$.data.items[0].channelId").value(item.channelId().toString()));
+  }
+
+  @Test
+  @WithUserPrincipal
   @DisplayName("내 목록은 200 과 페이지 요약을 반환한다")
   void listReturnsMyComparisons() throws Exception {
     UUID comparisonId = UUID.randomUUID();
@@ -287,6 +307,20 @@ class ChannelComparisonControllerTest {
         .andExpect(jsonPath("$.data.content[0].channelNames[0]").value("11번가 광고"))
         .andExpect(jsonPath("$.data.totalElements").value(1))
         .andExpect(jsonPath("$.data.size").value(5));
+  }
+
+  @Test
+  @WithUserPrincipal
+  @DisplayName("없는 id 나 남의 채널 비교를 조회하면 404 CMP-001 을 반환한다")
+  void getComparisonReturnsNotFound() throws Exception {
+    UUID comparisonId = UUID.randomUUID();
+    willThrow(new ChannelComparisonNotFoundException(comparisonId))
+        .given(channelComparisonService).findComparison(USER_ID, comparisonId);
+
+    mockMvc.perform(get("/api/v1/channel-comparisons/{comparisonId}", comparisonId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("CMP-001"));
   }
 
   @Test

@@ -1,6 +1,7 @@
 package chaeso.zip.server.comparison.application.dto;
 
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
+import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
@@ -19,5 +20,11 @@ public record SavedChannelComparisonResponse(
       List<ChannelComparisonSnapshot> snapshots) {
     return new SavedChannelComparisonResponse(comparisonId,
         snapshots.stream().map(ChannelComparisonItemResponse::from).toList());
+  }
+
+  public static SavedChannelComparisonResponse ofItems(UUID comparisonId,
+      List<ChannelComparisonItem> items) {
+    return new SavedChannelComparisonResponse(comparisonId,
+        items.stream().map(ChannelComparisonItemResponse::from).toList());
   }
 }

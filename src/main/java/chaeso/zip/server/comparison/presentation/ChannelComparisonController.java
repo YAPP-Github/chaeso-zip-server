@@ -11,12 +11,14 @@ import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonPageReques
 import chaeso.zip.server.comparison.presentation.dto.ChannelComparisonRequest;
 import chaeso.zip.server.comparison.presentation.dto.SaveChannelComparisonRequest;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,6 +53,15 @@ public class ChannelComparisonController implements ChannelComparisonApiDocs {
       @Valid @RequestBody SaveChannelComparisonRequest request) {
     return ApiResponse.success(channelComparisonService.save(principal.userId(),
         request.channelIds(), request.onboardingId(), request.serviceName()));
+  }
+
+  @Override
+  @GetMapping("/{comparisonId}")
+  public ApiResponse<SavedChannelComparisonResponse> getSavedChannelComparison(
+      @AuthenticationPrincipal UserPrincipal principal,
+      @PathVariable UUID comparisonId) {
+    return ApiResponse.success(
+        channelComparisonService.findComparison(principal.userId(), comparisonId));
   }
 
   @Override

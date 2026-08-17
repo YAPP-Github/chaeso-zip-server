@@ -11,6 +11,7 @@ import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemRespons
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshotFactory;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
@@ -171,6 +173,22 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   }
 
   /**
+  /**
+   * 저장된 채널 비교를 조회한다.
+   *
+   * 남의 것을 조회했을 때도 404로 응답해, 그 id가 존재한다는 사실을 숨긴다.
+   */
+  @Override
+  public SavedChannelComparisonResponse findComparison(UUID userId, UUID comparisonId) {
+    ChannelComparison comparison = channelComparisonRepository.findById(comparisonId)
+        .filter(c -> c.getUserId().equals(userId))
+        .orElseThrow(() -> new ChannelComparisonNotFoundException(comparisonId));
+    List<ChannelComparisonItem> items = channelComparisonItemRepository
+        .findByComparisonIdOrderBySortOrderAsc(comparison.getId());
+    return SavedChannelComparisonResponse.ofItems(comparison.getId(), items);
+  }
+
+  /**
    * 저장된 비교를 페이지로 조회하고, 매체명과 서비스명을 채워 목록 요약으로 반환한다.
    *
    * @param userId   조회하는 사용자
@@ -206,9 +224,17 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   }
 
   private List<Channel> findChannels(List<UUID> channelIds) {
+    Map<UUID, Channel> channels = channelRepository.findAllById(channelIds).stream()
+        .filter(Channel::isActive)
+        .collect(Collectors.toMap(Channel::getId, Function.identity()));
     return channelIds.stream()
-        .map(id -> channelRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ChannelNotFoundException(id)))
+        .map(id -> {
+          Channel channel = channels.get(id);
+          if (channel == null) {
+            throw new ChannelNotFoundException(id);
+          }
+          return channel;
+        })
         .toList();
   }
 

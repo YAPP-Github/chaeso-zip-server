@@ -8,5 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ChannelComparisonItemRepository
     extends JpaRepository<ChannelComparisonItem, UUID> {
 
+  List<ChannelComparisonItem> findByComparisonIdOrderBySortOrderAsc(UUID comparisonId);
+
   List<ChannelComparisonItem> findByComparisonIdInOrderBySortOrderAsc(List<UUID> comparisonIds);
 }
