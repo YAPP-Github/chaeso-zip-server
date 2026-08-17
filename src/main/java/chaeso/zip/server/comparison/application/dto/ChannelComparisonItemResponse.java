@@ -101,24 +101,6 @@ public record ChannelComparisonItemResponse(
         CountRangeResponse.of(item.getEstClicksMin(), item.getEstClicksMax()));
   }
 
-  /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */
-  public ChannelComparisonItemResponse hideCatalogDetails() {
-    return new ChannelComparisonItemResponse(
-        channelId,
-        channelName,
-        previewImageUrl,
-        null,
-        List.of(),
-        List.of(),
-        minBudgetWon,
-        advantages,
-        tags,
-        cpcWon,
-        cpmWon,
-        null,
-        null,
-        null);
-  }
   /** 목록은 값이 없어도 null 대신 빈 배열로 반환한다. */
   private static List<String> emptyIfNull(List<String> values) {
     return values == null ? List.of() : values;

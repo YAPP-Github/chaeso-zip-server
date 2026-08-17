@@ -79,45 +79,13 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   @Override
   public ChannelComparisonResponse compare(List<UUID> channelIds, UUID onboardingId,
       UUID requesterId) {
-    List<Channel> channels = findChannels(channelIds);
-    Map<UUID, List<ChannelProduct>> productsByChannel = productsByChannel(channels);
-    Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(productsByChannel);
-    BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
-    boolean loggedIn = requesterId != null;
-
-    if (onboardingId == null) {
-      List<ChannelComparisonItemResponse> items = channels.stream()
-          .map(channel -> loggedIn
-              ? ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
-                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-                  defaultCtrPercent)
-              : ChannelComparisonSnapshotFactory.staticSnapshot(channel,
-                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-                  defaultCtrPercent))
-          .map(ChannelComparisonItemResponse::from)
-          .toList();
-      return ChannelComparisonResponse
-          .of(loggedIn ? items : GuestChannelComparisonMocker.mock(items));
-    }
-
-    Onboarding onboarding = findAccessibleOnboarding(onboardingId, requesterId);
-    int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
-    long budgetWon = onboarding.getBudgetMax();
-
-    List<ChannelComparisonSnapshot> snapshots = channels.stream()
-        .map(channel -> ChannelComparisonSnapshotFactory.personalizedSnapshot(onboarding, channel,
-            productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-            budgetWon, periodDays, defaultCtrPercent))
-        .toList();
-    if (loggedIn) {
-      return ChannelComparisonResponse.of(snapshots.stream()
-          .sorted(BEST_FIRST)
-          .map(ChannelComparisonItemResponse::from)
-          .toList());
-    }
-    return ChannelComparisonResponse.of(GuestChannelComparisonMocker.mock(snapshots.stream()
+    List<ChannelComparisonSnapshot> snapshots = buildSnapshots(channelIds, onboardingId, requesterId);
+    List<ChannelComparisonItemResponse> items = snapshots.stream()
         .map(ChannelComparisonItemResponse::from)
-        .toList()));
+        .toList();
+
+    boolean loggedIn = requesterId != null;
+    return ChannelComparisonResponse.of(loggedIn ? items : GuestChannelComparisonMocker.mock(items));
   }
 
   /**
@@ -134,29 +102,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   @Transactional
   public SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds,
       UUID onboardingId, String serviceName) {
-    List<Channel> channels = findChannels(channelIds);
-    Map<UUID, List<ChannelProduct>> productsByChannel = productsByChannel(channels);
-    Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(productsByChannel);
-    BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
-
-    List<ChannelComparisonSnapshot> snapshots;
-    if (onboardingId == null) {
-      snapshots = channels.stream()
-          .map(channel -> ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
-              productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
-              defaultCtrPercent))
-          .toList();
-    } else {
-      Onboarding onboarding = findAccessibleOnboarding(onboardingId, userId);
-      int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
-      long budgetWon = onboarding.getBudgetMax();
-      snapshots = channels.stream()
-          .map(channel -> ChannelComparisonSnapshotFactory.personalizedSnapshot(onboarding,
-              channel, productsByChannel.getOrDefault(channel.getId(), List.of()),
-              pricingsByProduct, budgetWon, periodDays, defaultCtrPercent))
-          .sorted(BEST_FIRST)
-          .toList();
-    }
+    List<ChannelComparisonSnapshot> snapshots = buildSnapshots(channelIds, onboardingId, userId);
 
     ChannelComparison comparison = channelComparisonRepository.save(ChannelComparison.builder()
         .userId(userId)
@@ -173,6 +119,49 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   }
 
   /**
+   * 선택한 채널 목록과 온보딩 조건으로 비교 스냅샷 목록을 생성한다.
+   *
+   * <p>온보딩이 없으면 정적/기본 추정 스냅샷을 요청 순서대로 생성하고,
+   * 온보딩이 있으면 맞춤 지표 계산 후 적합도순으로 정렬한다.
+   *
+   * @param channelIds   비교할 채널 식별자 목록
+   * @param onboardingId 온보딩 식별자 (선택)
+   * @param requesterId  요청자 회원 식별자 (선택)
+   * @return 생성 및 정렬된 채널 비교 스냅샷 목록
+   */
+  private List<ChannelComparisonSnapshot> buildSnapshots(List<UUID> channelIds, UUID onboardingId,
+      UUID requesterId) {
+    List<Channel> channels = findChannels(channelIds);
+    Map<UUID, List<ChannelProduct>> productsByChannel = productsByChannel(channels);
+    Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(productsByChannel);
+    BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
+
+    if (onboardingId == null) {
+      boolean loggedIn = requesterId != null;
+      return channels.stream()
+          .map(channel -> loggedIn
+              ? ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
+                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+                  defaultCtrPercent)
+              : ChannelComparisonSnapshotFactory.staticSnapshot(channel,
+                  productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+                  defaultCtrPercent))
+          .toList();
+    }
+
+    Onboarding onboarding = findAccessibleOnboarding(onboardingId, requesterId);
+    int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
+    long budgetWon = onboarding.getBudgetMax();
+
+    return channels.stream()
+        .map(channel -> ChannelComparisonSnapshotFactory.personalizedSnapshot(onboarding, channel,
+            productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
+            budgetWon, periodDays, defaultCtrPercent))
+        .sorted(BEST_FIRST)
+        .toList();
+  }
+
+
   /**
    * 저장된 채널 비교를 조회한다.
    *
