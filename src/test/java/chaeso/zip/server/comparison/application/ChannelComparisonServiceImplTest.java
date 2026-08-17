@@ -133,7 +133,8 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.minBudgetWon()).isEqualTo(channel.getMinBudgetWon());
       assertThat(item.advantages()).containsExactly("빠른 노출");
-      assertThat(item.tags()).containsExactly("정적태그1", "정적태그2", "정적태그3");
+      // defaultTags는 3개지만 태그는 최대 2개까지만 잘라서 준다.
+      assertThat(item.tags()).containsExactly("정적태그1", "정적태그2");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.matchRate()).isEqualTo(92);
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
@@ -141,7 +142,7 @@ class ChannelComparisonServiceImplTest {
     }
 
     @Test
-    @DisplayName("로그인한 요청은 온보딩이 없어도 채널 정보와 기본 태그 전체를 준다")
+    @DisplayName("로그인한 요청은 온보딩이 없어도 채널 정보와 태그(최대 2개)를 준다")
     void returnsChannelInfoWhenLoggedIn() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags",
@@ -157,7 +158,7 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.audienceSummary()).isEqualTo(channel.getAudienceSummary());
       assertThat(item.adFormats()).isEqualTo(channel.getAdFormats());
       assertThat(item.targetingMethods()).isEqualTo(channel.getTargetingMethods());
-      assertThat(item.tags()).containsExactly("정적태그1", "정적태그2", "정적태그3");
+      assertThat(item.tags()).containsExactly("정적태그1", "정적태그2");
       assertThat(item.matchRate()).isNull();
     }
 
@@ -278,7 +279,7 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.audienceSummary()).isEqualTo("20~30대");
       assertThat(item.adFormats()).containsExactly("배너", "네이티브");
       assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
-      assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
+      assertThat(item.tags()).containsExactly("빠른매칭", "안정노출");
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNotNull();
@@ -409,6 +410,7 @@ class ChannelComparisonServiceImplTest {
     @DisplayName("온보딩 예산이 대표 단가보다 적으면 예상 노출·클릭 수와 환산 CPC를 비우고 고정 CPM은 유지한다")
     void leavesEstimatesEmptyWhenBudgetIsBelowRepresentativePrice() {
       Channel channel = matchedChannel();
+      ReflectionTestUtils.setField(channel, "defaultTags", List.of("빠른 배송", "쉬운 정산"));
       ChannelProduct product = matchedProduct(channel);
       ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "5000000");
       givenCatalog(new CatalogEntry(channel, product, cpmPricing));
@@ -423,7 +425,7 @@ class ChannelComparisonServiceImplTest {
           .items().getFirst();
 
       assertThat(item.matchRate()).isEqualTo(100);
-      assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
+      assertThat(item.tags()).containsExactly("빠른 배송", "쉬운 정산");
       assertThat(item.cpmWon()).isEqualByComparingTo("5000000");
       assertThat(item.cpcWon()).isNull();
       assertThat(item.estImpressions()).isNull();
