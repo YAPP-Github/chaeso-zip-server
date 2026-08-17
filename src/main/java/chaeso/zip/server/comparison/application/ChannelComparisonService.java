@@ -16,8 +16,9 @@ public interface ChannelComparisonService {
   /**
    * 선택한 채널을 비교한다.
    *
-   * 온보딩 X: 대표 단가와 기본 태그를 반환. 비로그인은 카탈로그 상세 노출 X.
-   * 온보딩 O: 맞춤 태그와 단가를 계산하고, 로그인한 요청에만 적합도와 예상 노출/클릭 수를 넣어 적합도순 반환
+   * 온보딩 X: 대표 단가와 태그를 반환. 비로그인은 카탈로그 상세 노출 X.
+   * 온보딩 O: 계산된 단가와 태그를 반환. 로그인한 요청에는 계산된 적합도와 예상 노출/클릭 수를 넣어 적합도순 반환.
+   * 비로그인 요청에는 MOCK 적합도와 예상 노출/클릭 수를 넣고 요청 순서를 유지한다
    *
    * @param channelIds   비교할 채널 식별자 목록
    * @param onboardingId 맞춤 지표 계산에 사용할 온보딩 식별자. 없으면 기본 정보를 반환한다.
@@ -37,7 +38,6 @@ public interface ChannelComparisonService {
    */
   SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds, UUID onboardingId, String serviceName);
 
-  /**
   /**
    * 저장된 채널 비교를 조회한다. 본인이 저장한 것이 아니면 존재하지 않는 것과 동일하게 404로 응답한다.
    *

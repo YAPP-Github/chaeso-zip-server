@@ -14,7 +14,6 @@ import chaeso.zip.server.estimation.domain.vo.ImpressionRange;
 import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.recommendation.domain.ChannelMatcher;
-import chaeso.zip.server.recommendation.domain.MatchAxis;
 import chaeso.zip.server.recommendation.domain.MatchScore;
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,8 +25,8 @@ import java.util.UUID;
  */
 public final class ChannelComparisonSnapshotFactory {
 
-  /** 맞춤 인사이트 태그로 보여줄 최대 개수. */
-  private static final int INSIGHT_TAG_LIMIT = 2;
+  /** 채널 태그로 보여줄 최대 개수. */
+  private static final int MAX_TAGS = 2;
 
   /** 온보딩 없는 로그인 요청의 기본 추정 예산(원). */
   private static final long DEFAULT_ESTIMATION_BUDGET_WON = 1_000_000L;
@@ -42,10 +41,10 @@ public final class ChannelComparisonSnapshotFactory {
     List<String> pricingModelsAll = pricingModelsAll(products, pricingsByProduct);
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     if (catalogPrice == null) {
-      return ChannelComparisonSnapshot.catalogOnly(channel, channel.getDefaultTags(), null, null,
+      return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel), null, null,
           pricingModelsAll);
     }
-    return ChannelComparisonSnapshot.catalogOnly(channel, channel.getDefaultTags(),
+    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel),
         catalogPrice.cpcWon(), catalogPrice.cpmWon(), pricingModelsAll);
   }
 
@@ -60,31 +59,27 @@ public final class ChannelComparisonSnapshotFactory {
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     EstimatedPrice estimated = estimate(catalogPrice, DEFAULT_ESTIMATION_BUDGET_WON,
         PeriodDaysPolicy.M1_DAYS);
-    return ChannelComparisonSnapshot.catalogOnly(channel, channel.getDefaultTags(),
+    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel),
         estimated.cpcWon(), estimated.cpmWon(), pricingModelsAll, estimated.impressions(),
         estimated.clicks());
   }
 
   /**
-   * 온보딩 예산과 캠페인 조건으로 맞춤 태그, 단가, 적합도, 예상 노출, 클릭을 계산한다.
+   * 온보딩 예산과 캠페인 조건으로 단가, 적합도, 예상 노출, 클릭을 계산, 채널 태그를 반환한다.
    */
   public static ChannelComparisonSnapshot personalizedSnapshot(Onboarding onboarding,
       Channel channel, List<ChannelProduct> products,
       Map<UUID, List<ChannelPricing>> pricingsByProduct, long budgetWon, int periodDays,
       BigDecimal defaultCtrPercent) {
     MatchScore score = ChannelMatcher.match(onboarding, channel, products);
-    List<String> tags = score.matchedAxes().stream()
-        .limit(INSIGHT_TAG_LIMIT)
-        .map(MatchAxis::name)
-        .toList();
     List<String> pricingModelsAll = pricingModelsAll(products, pricingsByProduct);
 
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     EstimatedPrice estimated = estimate(catalogPrice, budgetWon, periodDays);
 
-    return ChannelComparisonSnapshot.matched(channel, score, tags, estimated.cpcWon(),
-        estimated.cpmWon(), pricingModelsAll, estimated.executable(), estimated.impressions(),
-        estimated.clicks());
+    return ChannelComparisonSnapshot.matched(channel, score, tags(channel),
+        estimated.cpcWon(), estimated.cpmWon(), pricingModelsAll, estimated.executable(),
+        estimated.impressions(), estimated.clicks());
   }
 
   /**
@@ -129,6 +124,15 @@ public final class ChannelComparisonSnapshotFactory {
     BigDecimal cpcWon = pricing.pricingModel() == PricingModel.CPC ? pricing.value() : null;
     BigDecimal cpmWon = pricing.pricingModel() == PricingModel.CPM ? pricing.value() : null;
     return new CatalogPrice(representative, cpcWon, cpmWon);
+  }
+
+  /** 채널 고유 태그. 최대 {@link #MAX_TAGS}개로 자른다. */
+  private static List<String> tags(Channel channel) {
+    List<String> defaultTags = channel.getDefaultTags();
+    if (defaultTags == null || defaultTags.size() <= MAX_TAGS) {
+      return defaultTags;
+    }
+    return List.copyOf(defaultTags.subList(0, MAX_TAGS));
   }
 
   /**
