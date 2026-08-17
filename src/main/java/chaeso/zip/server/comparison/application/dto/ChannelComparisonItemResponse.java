@@ -33,14 +33,13 @@ public record ChannelComparisonItemResponse(
     @Schema(description = "채널 장점. 등록된 정보가 없으면 빈 배열",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> advantages,
-    @Schema(description = """
-        채널 인사이트 태그. 온보딩이 없으면 기본 태그 전체, 있으면 조건과 일치한 \
-        CATEGORY, OBJECTIVE, AGE_BAND 중 최대 2개를 반환한다. 없으면 빈 배열""",
-        example = "[\"CATEGORY\", \"OBJECTIVE\"]", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "채널 인사이트 태그(최대 2개). 없으면 빈 배열",
+        example = "[\"커머스 특화\", \"구매 전환\"]", requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> tags,
     @Schema(description = """
-        클릭당 비용(원). 클릭당 과금 매체는 대표 단가 그대로, 그 외 매체는 \
-        온보딩 예산 / 예상 클릭 수(중앙값)로 환산한다. 환산할 수 없으면 null""",
+        클릭당 비용(원). 클릭당 과금 매체는 대표 단가, 그 외 매체는 예산(온보딩 있으면 온보딩 예산, \
+        없으면 기본 100만원/1개월) 기준 예상 클릭 수(중앙값)로 환산한다. \
+        환산 불가 시 null""",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpcWon,
     @Schema(description = "1,000회 노출당 단가(원). 대표 단가가 CPM일 때만 채워진다",
@@ -101,24 +100,6 @@ public record ChannelComparisonItemResponse(
         CountRangeResponse.of(item.getEstClicksMin(), item.getEstClicksMax()));
   }
 
-  /** 비로그인 비교용. 단가·장점·최소광고비·태그만 남긴다. */
-  public ChannelComparisonItemResponse hideCatalogDetails() {
-    return new ChannelComparisonItemResponse(
-        channelId,
-        channelName,
-        previewImageUrl,
-        null,
-        List.of(),
-        List.of(),
-        minBudgetWon,
-        advantages,
-        tags,
-        cpcWon,
-        cpmWon,
-        null,
-        null,
-        null);
-  }
   /** 목록은 값이 없어도 null 대신 빈 배열로 반환한다. */
   private static List<String> emptyIfNull(List<String> values) {
     return values == null ? List.of() : values;
