@@ -9,11 +9,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
@@ -29,7 +32,9 @@ import chaeso.zip.server.channel.domain.vo.Gender;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
+import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparisonItem;
 import chaeso.zip.server.comparison.domain.repository.ChannelComparisonItemRepository;
@@ -43,6 +48,8 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +63,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -99,8 +109,8 @@ class ChannelComparisonServiceImplTest {
   class WithoutOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅을 노출하지 않는다")
-    void hidesAudienceForAnonymousRequest() {
+    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅, 적합도, 예상 노출/클릭을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousRequest() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags",
           List.of("정적태그1", "정적태그2", "정적태그3"));
@@ -114,16 +124,16 @@ class ChannelComparisonServiceImplTest {
 
       assertThat(item.channelId()).isEqualTo(channel.getId());
       assertThat(item.channelName()).isEqualTo(channel.getName());
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.minBudgetWon()).isEqualTo(channel.getMinBudgetWon());
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.tags()).containsExactly("정적태그1", "정적태그2", "정적태그3");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
     }
 
     @Test
@@ -158,10 +168,8 @@ class ChannelComparisonServiceImplTest {
       ChannelProduct cpcProduct = product(UUID.randomUUID(), cpcChannel.getId());
       ChannelPricing cpcPricing = pricing(cpcProduct.getId(), PricingModel.CPC, "150");
 
-      given(channelRepository.findByIdAndActiveTrue(cpmChannel.getId()))
-          .willReturn(Optional.of(cpmChannel));
-      given(channelRepository.findByIdAndActiveTrue(cpcChannel.getId()))
-          .willReturn(Optional.of(cpcChannel));
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(cpmChannel, cpcChannel));
       given(channelProductRepository.findByChannelIdIn(any()))
           .willReturn(List.of(cpmProduct, cpcProduct));
       given(channelPricingRepository.findByChannelProductIdIn(any()))
@@ -224,8 +232,7 @@ class ChannelComparisonServiceImplTest {
     @DisplayName("로그인 + 온보딩 없음은 등록된 상품이 없으면 단가와 예상 노출/클릭을 노출하지 않는다")
     void leavesEverythingEmptyWithoutProductWhenLoggedInWithoutOnboarding() {
       Channel channel = matchedChannel();
-      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
-          .willReturn(Optional.of(channel));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(channel));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
 
       ChannelComparisonItemResponse item = comparisonService
@@ -244,8 +251,8 @@ class ChannelComparisonServiceImplTest {
   class WithOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭을 비우고 맞은 축 태그와 단가는 남긴다")
-    void leavesMatchRateEmptyForAnonymousOnboarding() {
+    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭·오디언스·광고형태·타기팅을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousOnboarding() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags", List.of("빠른매칭", "안정노출"));
       ChannelProduct product = matchedProduct(channel);
@@ -261,16 +268,41 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, null)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("비로그인 다건 비교는 채널별로 다른 MOCK 값을 매긴다")
+    void mocksDistinctProfilesByPositionForAnonymousMultiChannel() {
+      Channel first = matchingChannel("가매체", List.of(MATCHED_AGE_BAND), "20대");
+      Channel second = matchingChannel("나매체", List.of(OTHER_AGE_BAND), "50대");
+      Channel third = matchingChannel("다매체", List.of(OTHER_AGE_BAND), "50대");
+      givenCatalog(
+          entry(first, MATCHED_OBJECTIVE, "3000"),
+          entry(second, MATCHED_OBJECTIVE, "3000"),
+          entry(third, MATCHED_OBJECTIVE, "3000"));
+
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(null)));
+
+      List<ChannelComparisonItemResponse> items = comparisonService
+          .compare(List.of(first.getId(), second.getId(), third.getId()), onboardingId, null)
+          .items();
+
+      assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
+          .containsExactly(92, 81, 68);
+      assertThat(items).extracting(ChannelComparisonItemResponse::audienceSummary)
+          .containsExactly("20~30대", "30~40대", "전 연령");
     }
 
     @Test
@@ -454,8 +486,7 @@ class ChannelComparisonServiceImplTest {
     @DisplayName("등록된 상품이 없어 예상 노출·클릭 수를 계산할 수 없으면 적합도만 반환한다")
     void leavesEstimatesEmptyWithoutProduct() {
       Channel channel = matchedChannel();
-      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
-          .willReturn(Optional.of(channel));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(channel));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
 
       UUID userId = UUID.randomUUID();
@@ -569,8 +600,7 @@ class ChannelComparisonServiceImplTest {
       given(onboardingRepository.findById(onboardingId)).willReturn(Optional.of(onboarding));
 
       Channel channel = matchedChannel();
-      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
-          .willReturn(Optional.of(channel));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(channel));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
       List<UUID> channelIds = List.of(channel.getId());
 
@@ -585,8 +615,7 @@ class ChannelComparisonServiceImplTest {
       given(onboardingRepository.findById(onboardingId)).willReturn(Optional.empty());
 
       Channel channel = matchedChannel();
-      given(channelRepository.findByIdAndActiveTrue(channel.getId()))
-          .willReturn(Optional.of(channel));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(channel));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
       List<UUID> channelIds = List.of(channel.getId());
 
@@ -601,12 +630,8 @@ class ChannelComparisonServiceImplTest {
       Channel second = channel(UUID.randomUUID(), "나매체");
       Channel third = channel(UUID.randomUUID(), "다매체");
 
-      given(channelRepository.findByIdAndActiveTrue(first.getId()))
-          .willReturn(Optional.of(first));
-      given(channelRepository.findByIdAndActiveTrue(second.getId()))
-          .willReturn(Optional.of(second));
-      given(channelRepository.findByIdAndActiveTrue(third.getId()))
-          .willReturn(Optional.of(third));
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(first, second, third));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
 
       ChannelComparisonResponse response = comparisonService.compare(
@@ -639,10 +664,8 @@ class ChannelComparisonServiceImplTest {
       Channel second = channel(UUID.randomUUID(), "나매체");
       ReflectionTestUtils.setField(first, "previewImageUrl", "https://cdn/first.png");
 
-      given(channelRepository.findByIdAndActiveTrue(first.getId()))
-          .willReturn(Optional.of(first));
-      given(channelRepository.findByIdAndActiveTrue(second.getId()))
-          .willReturn(Optional.of(second));
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(first, second));
       given(channelProductRepository.findByChannelIdIn(any())).willReturn(List.of());
 
       UUID userId = UUID.randomUUID();
@@ -710,7 +733,7 @@ class ChannelComparisonServiceImplTest {
     @DisplayName("존재하지 않거나 비활성인 채널이 포함되면 404 로 거부한다")
     void rejectsMissingChannel() {
       UUID missingId = UUID.randomUUID();
-      given(channelRepository.findByIdAndActiveTrue(missingId)).willReturn(Optional.empty());
+      given(channelRepository.findAllById(anyList())).willReturn(List.of());
       UUID userId = UUID.randomUUID();
       List<UUID> channelIds = List.of(missingId);
 
@@ -739,11 +762,170 @@ class ChannelComparisonServiceImplTest {
     }
   }
 
+  @Nested
+  @DisplayName("저장된 비교 조회")
+  class FindComparison {
+
+    @Test
+    @DisplayName("본인이 저장한 비교는 정렬 순서 그대로 스냅샷을 반환한다")
+    void returnsSavedSnapshotInSortOrder() {
+      UUID userId = UUID.randomUUID();
+      UUID comparisonId = UUID.randomUUID();
+      ChannelComparison comparison = ChannelComparison.builder()
+          .userId(userId)
+          .onboardingId(null)
+          .serviceName("채소집")
+          .build();
+      ReflectionTestUtils.setField(comparison, "id", comparisonId);
+      given(channelComparisonRepository.findById(comparisonId))
+          .willReturn(Optional.of(comparison));
+
+      ChannelComparisonItem item = ChannelComparisonItem.builder()
+          .comparisonId(comparisonId)
+          .channelId(UUID.randomUUID())
+          .sortOrder(1)
+          .channelName("가매체")
+          .matchRate(78)
+          .build();
+      given(channelComparisonItemRepository.findByComparisonIdOrderBySortOrderAsc(comparisonId))
+          .willReturn(List.of(item));
+
+      SavedChannelComparisonResponse response =
+          comparisonService.findComparison(userId, comparisonId);
+
+      assertThat(response.comparisonId()).isEqualTo(comparisonId);
+      assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
+          .containsExactly("가매체");
+      assertThat(response.items().getFirst().matchRate()).isEqualTo(78);
+      assertThat(response.items().getFirst().estImpressions()).isNull();
+      assertThat(response.items().getFirst().estClicks()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 저장한 비교는 404 로 응답한다")
+    void hidesOtherUsersComparison() {
+      UUID ownerId = UUID.randomUUID();
+      UUID strangerId = UUID.randomUUID();
+      UUID comparisonId = UUID.randomUUID();
+      ChannelComparison comparison = ChannelComparison.builder()
+          .userId(ownerId)
+          .build();
+      ReflectionTestUtils.setField(comparison, "id", comparisonId);
+      given(channelComparisonRepository.findById(comparisonId))
+          .willReturn(Optional.of(comparison));
+
+      assertThatThrownBy(() -> comparisonService.findComparison(strangerId, comparisonId))
+          .isInstanceOf(ChannelComparisonNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 비교는 404 로 응답한다")
+    void rejectsMissingComparison() {
+      UUID userId = UUID.randomUUID();
+      UUID comparisonId = UUID.randomUUID();
+      given(channelComparisonRepository.findById(comparisonId)).willReturn(Optional.empty());
+
+      assertThatThrownBy(() -> comparisonService.findComparison(userId, comparisonId))
+          .isInstanceOf(ChannelComparisonNotFoundException.class);
+    }
+  }
+
+  @Nested
+  @DisplayName("내가 저장한 채널 비교 목록 조회")
+  class FindMyComparisons {
+
+    private final Pageable pageable = PageRequest.of(0, 5);
+    private final LocalDateTime createdAt = LocalDateTime.of(2026, Month.MARCH, 14, 10, 22, 31);
+
+    @Test
+    @DisplayName("온보딩 기반 저장이면 온보딩의 서비스명을 반환하고 매체명은 저장 순서(추천순) 그대로 준다")
+    void resolvesServiceNameFromOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, onboardingId, null));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(
+              savedItem(comparisonId, 1, "세 축 채널"),
+              savedItem(comparisonId, 2, "두 축 채널")));
+      Onboarding onboarding = matchedOnboarding(userId);
+      ReflectionTestUtils.setField(onboarding, "id", onboardingId);
+      given(onboardingRepository.findAllById(List.of(onboardingId)))
+          .willReturn(List.of(onboarding));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.id()).isEqualTo(comparisonId);
+      assertThat(summary.serviceName()).isEqualTo(onboarding.getServiceName());
+      assertThat(summary.createdAt()).isEqualTo(createdAt);
+      assertThat(summary.channelNames()).containsExactly("세 축 채널", "두 축 채널");
+    }
+
+    @Test
+    @DisplayName("온보딩 없이 저장한 비교는 저장 당시 입력한 서비스명을 그대로 반환한다")
+    void keepsOwnServiceNameWithoutOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, null, "채소집"));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(savedItem(comparisonId, 1, "가매체")));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.serviceName()).isEqualTo("채소집");
+      assertThat(summary.channelNames()).containsExactly("가매체");
+      verifyNoInteractions(onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("저장된 결과가 없으면 빈 페이지를 반환하고 항목·온보딩은 조회하지 않는다")
+    void returnsEmptyPageWithoutLoadingItems() {
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId);
+
+      assertThat(comparisonService.findMyComparisons(userId, pageable)).isEmpty();
+
+      verifyNoInteractions(onboardingRepository);
+      verify(channelComparisonItemRepository, never())
+          .findByComparisonIdInOrderBySortOrderAsc(anyList());
+    }
+
+    private void givenMyPage(UUID userId, ChannelComparison... comparisons) {
+      given(channelComparisonRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable))
+          .willReturn(new PageImpl<>(List.of(comparisons), pageable, comparisons.length));
+    }
+
+    private ChannelComparison savedComparison(UUID id, UUID userId, UUID onboardingId,
+        String serviceName) {
+      ChannelComparison comparison = ChannelComparison.builder()
+          .userId(userId)
+          .onboardingId(onboardingId)
+          .serviceName(serviceName)
+          .build();
+      ReflectionTestUtils.setField(comparison, "id", id);
+      ReflectionTestUtils.setField(comparison, "createdAt", createdAt);
+      return comparison;
+    }
+
+    private ChannelComparisonItem savedItem(UUID comparisonId, int sortOrder, String channelName) {
+      return ChannelComparisonItem.builder()
+          .comparisonId(comparisonId)
+          .channelId(UUID.randomUUID())
+          .sortOrder(sortOrder)
+          .channelName(channelName)
+          .build();
+    }
+  }
+
   @Test
   @DisplayName("존재하지 않거나 비활성인 채널이 포함되면 404 로 거부한다")
   void rejectsMissingOrInactiveChannel() {
     UUID missingId = UUID.randomUUID();
-    given(channelRepository.findByIdAndActiveTrue(missingId)).willReturn(Optional.empty());
+    given(channelRepository.findAllById(anyList())).willReturn(List.of());
     List<UUID> channelIds = List.of(missingId);
 
     assertThatThrownBy(() -> comparisonService.compare(channelIds, null, null))
@@ -754,10 +936,8 @@ class ChannelComparisonServiceImplTest {
    * 비교할 채널과 각 채널의 단일 상품·단가를 조회하도록 준비한다.
    */
   private void givenCatalog(CatalogEntry... entries) {
-    for (CatalogEntry entry : entries) {
-      given(channelRepository.findByIdAndActiveTrue(entry.channel().getId()))
-          .willReturn(Optional.of(entry.channel()));
-    }
+    given(channelRepository.findAllById(anyList()))
+        .willReturn(Arrays.stream(entries).map(CatalogEntry::channel).toList());
     given(channelProductRepository.findByChannelIdIn(any()))
         .willReturn(Arrays.stream(entries).map(CatalogEntry::product).toList());
     given(channelPricingRepository.findByChannelProductIdIn(any()))

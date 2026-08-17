@@ -1,9 +1,12 @@
 package chaeso.zip.server.comparison.application;
 
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * 선택한 채널을 카탈로그 정보와 온보딩 조건으로 비교한다.
@@ -33,4 +36,23 @@ public interface ChannelComparisonService {
    * @return 저장된 채널 비교 결과
    */
   SavedChannelComparisonResponse save(UUID userId, List<UUID> channelIds, UUID onboardingId, String serviceName);
+
+  /**
+  /**
+   * 저장된 채널 비교를 조회한다. 본인이 저장한 것이 아니면 존재하지 않는 것과 동일하게 404로 응답한다.
+   *
+   * @param userId        조회하는 사용자
+   * @param comparisonId  조회할 채널 비교 식별자
+   * @return 저장 시점 스냅샷 그대로의 채널 비교 결과
+   */
+  SavedChannelComparisonResponse findComparison(UUID userId, UUID comparisonId);
+
+  /**
+   * 로그인한 사용자가 저장한 채널 비교 결과를 최신순으로 조회한다.
+   *
+   * @param userId   조회하는 사용자
+   * @param pageable 페이지 요청(최신순 고정)
+   * @return 채널 비교 목록 요약
+   */
+  Page<ChannelComparisonSummaryResponse> findMyComparisons(UUID userId, Pageable pageable);
 }

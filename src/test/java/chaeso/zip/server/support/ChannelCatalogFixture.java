@@ -23,6 +23,7 @@ public final class ChannelCatalogFixture {
   public static Channel persistableChannel(String name) {
     Channel channel = BeanUtils.instantiateClass(Channel.class);
     set(channel, "name", name);
+    set(channel, "active", true);
     return channel;
   }
 
@@ -30,6 +31,7 @@ public final class ChannelCatalogFixture {
     Channel channel = BeanUtils.instantiateClass(Channel.class);
     set(channel, "id", id);
     set(channel, "name", name);
+    set(channel, "active", true);
     return channel;
   }
 
