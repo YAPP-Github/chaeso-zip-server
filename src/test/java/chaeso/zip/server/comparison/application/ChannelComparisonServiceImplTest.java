@@ -14,7 +14,9 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
@@ -30,6 +32,7 @@ import chaeso.zip.server.channel.domain.vo.Gender;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.entity.ChannelComparison;
@@ -45,6 +48,8 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +63,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -101,8 +109,8 @@ class ChannelComparisonServiceImplTest {
   class WithoutOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅을 노출하지 않는다")
-    void hidesAudienceForAnonymousRequest() {
+    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅, 적합도, 예상 노출/클릭을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousRequest() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags",
           List.of("정적태그1", "정적태그2", "정적태그3"));
@@ -116,16 +124,16 @@ class ChannelComparisonServiceImplTest {
 
       assertThat(item.channelId()).isEqualTo(channel.getId());
       assertThat(item.channelName()).isEqualTo(channel.getName());
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.minBudgetWon()).isEqualTo(channel.getMinBudgetWon());
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.tags()).containsExactly("정적태그1", "정적태그2", "정적태그3");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
     }
 
     @Test
@@ -243,8 +251,8 @@ class ChannelComparisonServiceImplTest {
   class WithOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭을 비우고 맞은 축 태그와 단가는 남긴다")
-    void leavesMatchRateEmptyForAnonymousOnboarding() {
+    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭·오디언스·광고형태·타기팅을 고정 MOCK 값으로 채운다")
+    void mocksCatalogDetailsForAnonymousOnboarding() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags", List.of("빠른매칭", "안정노출"));
       ChannelProduct product = matchedProduct(channel);
@@ -260,16 +268,41 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, null)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isNull();
-      assertThat(item.estImpressions()).isNull();
-      assertThat(item.estClicks()).isNull();
-      assertThat(item.audienceSummary()).isNull();
-      assertThat(item.adFormats()).isEmpty();
-      assertThat(item.targetingMethods()).isEmpty();
+      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
+      assertThat(item.audienceSummary()).isEqualTo("20~30대");
+      assertThat(item.adFormats()).containsExactly("배너", "네이티브");
+      assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.tags()).containsExactly("CATEGORY", "OBJECTIVE");
       assertThat(item.advantages()).containsExactly("빠른 노출");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("비로그인 다건 비교는 채널별로 다른 MOCK 값을 매긴다")
+    void mocksDistinctProfilesByPositionForAnonymousMultiChannel() {
+      Channel first = matchingChannel("가매체", List.of(MATCHED_AGE_BAND), "20대");
+      Channel second = matchingChannel("나매체", List.of(OTHER_AGE_BAND), "50대");
+      Channel third = matchingChannel("다매체", List.of(OTHER_AGE_BAND), "50대");
+      givenCatalog(
+          entry(first, MATCHED_OBJECTIVE, "3000"),
+          entry(second, MATCHED_OBJECTIVE, "3000"),
+          entry(third, MATCHED_OBJECTIVE, "3000"));
+
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(null)));
+
+      List<ChannelComparisonItemResponse> items = comparisonService
+          .compare(List.of(first.getId(), second.getId(), third.getId()), onboardingId, null)
+          .items();
+
+      assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
+          .containsExactly(92, 81, 68);
+      assertThat(items).extracting(ChannelComparisonItemResponse::audienceSummary)
+          .containsExactly("20~30대", "30~40대", "전 연령");
     }
 
     @Test
@@ -792,6 +825,97 @@ class ChannelComparisonServiceImplTest {
 
       assertThatThrownBy(() -> comparisonService.findComparison(userId, comparisonId))
           .isInstanceOf(ChannelComparisonNotFoundException.class);
+    }
+  }
+
+  @Nested
+  @DisplayName("내가 저장한 채널 비교 목록 조회")
+  class FindMyComparisons {
+
+    private final Pageable pageable = PageRequest.of(0, 5);
+    private final LocalDateTime createdAt = LocalDateTime.of(2026, Month.MARCH, 14, 10, 22, 31);
+
+    @Test
+    @DisplayName("온보딩 기반 저장이면 온보딩의 서비스명을 반환하고 매체명은 저장 순서(추천순) 그대로 준다")
+    void resolvesServiceNameFromOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, onboardingId, null));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(
+              savedItem(comparisonId, 1, "세 축 채널"),
+              savedItem(comparisonId, 2, "두 축 채널")));
+      Onboarding onboarding = matchedOnboarding(userId);
+      ReflectionTestUtils.setField(onboarding, "id", onboardingId);
+      given(onboardingRepository.findAllById(List.of(onboardingId)))
+          .willReturn(List.of(onboarding));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.id()).isEqualTo(comparisonId);
+      assertThat(summary.serviceName()).isEqualTo(onboarding.getServiceName());
+      assertThat(summary.createdAt()).isEqualTo(createdAt);
+      assertThat(summary.channelNames()).containsExactly("세 축 채널", "두 축 채널");
+    }
+
+    @Test
+    @DisplayName("온보딩 없이 저장한 비교는 저장 당시 입력한 서비스명을 그대로 반환한다")
+    void keepsOwnServiceNameWithoutOnboarding() {
+      UUID comparisonId = UUID.randomUUID();
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId, savedComparison(comparisonId, userId, null, "채소집"));
+      given(channelComparisonItemRepository
+          .findByComparisonIdInOrderBySortOrderAsc(List.of(comparisonId)))
+          .willReturn(List.of(savedItem(comparisonId, 1, "가매체")));
+
+      ChannelComparisonSummaryResponse summary =
+          comparisonService.findMyComparisons(userId, pageable).getContent().getFirst();
+
+      assertThat(summary.serviceName()).isEqualTo("채소집");
+      assertThat(summary.channelNames()).containsExactly("가매체");
+      verifyNoInteractions(onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("저장된 결과가 없으면 빈 페이지를 반환하고 항목·온보딩은 조회하지 않는다")
+    void returnsEmptyPageWithoutLoadingItems() {
+      UUID userId = UUID.randomUUID();
+      givenMyPage(userId);
+
+      assertThat(comparisonService.findMyComparisons(userId, pageable)).isEmpty();
+
+      verifyNoInteractions(onboardingRepository);
+      verify(channelComparisonItemRepository, never())
+          .findByComparisonIdInOrderBySortOrderAsc(anyList());
+    }
+
+    private void givenMyPage(UUID userId, ChannelComparison... comparisons) {
+      given(channelComparisonRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable))
+          .willReturn(new PageImpl<>(List.of(comparisons), pageable, comparisons.length));
+    }
+
+    private ChannelComparison savedComparison(UUID id, UUID userId, UUID onboardingId,
+        String serviceName) {
+      ChannelComparison comparison = ChannelComparison.builder()
+          .userId(userId)
+          .onboardingId(onboardingId)
+          .serviceName(serviceName)
+          .build();
+      ReflectionTestUtils.setField(comparison, "id", id);
+      ReflectionTestUtils.setField(comparison, "createdAt", createdAt);
+      return comparison;
+    }
+
+    private ChannelComparisonItem savedItem(UUID comparisonId, int sortOrder, String channelName) {
+      return ChannelComparisonItem.builder()
+          .comparisonId(comparisonId)
+          .channelId(UUID.randomUUID())
+          .sortOrder(sortOrder)
+          .channelName(channelName)
+          .build();
     }
   }
 

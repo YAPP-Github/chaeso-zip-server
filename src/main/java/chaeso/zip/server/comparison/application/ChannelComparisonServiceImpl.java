@@ -9,6 +9,7 @@ import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
+import chaeso.zip.server.comparison.application.dto.ChannelComparisonSummaryResponse;
 import chaeso.zip.server.comparison.application.dto.SavedChannelComparisonResponse;
 import chaeso.zip.server.comparison.domain.ChannelComparisonNotFoundException;
 import chaeso.zip.server.comparison.domain.ChannelComparisonSnapshot;
@@ -26,22 +27,24 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 선택한 채널의 카탈로그 정보와 온보딩 맞춤 지표를 계산한다.
  *
- * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출, 클릭을 노출하지 않는다. 로그인한 뒤 온보딩이 있으면
- * 고른 채널만 적합도순으로 정렬한다.
+ * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출, 클릭을 {@link GuestChannelComparisonMocker}가
+ * 채운 고정 MOCK 값으로 반환한다. 로그인한 뒤 온보딩이 있으면 고른 채널만 적합도순으로 정렬한다.
  *
- * <p>로그인했지만 온보딩이 없으면 예상 노출, 클릭은 기본값(100만원, 1개월)으로 계산한다. 저장도 같은
- * 기준을 쓴다.
+ * <p>로그인했지만 온보딩이 없으면 예상 노출, 클릭은 기본값(100만원, 1개월)으로 계산한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -83,7 +86,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     boolean loggedIn = requesterId != null;
 
     if (onboardingId == null) {
-      return ChannelComparisonResponse.of(channels.stream()
+      List<ChannelComparisonItemResponse> items = channels.stream()
           .map(channel -> loggedIn
               ? ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
@@ -92,8 +95,9 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
                   defaultCtrPercent))
           .map(ChannelComparisonItemResponse::from)
-          .map(item -> loggedIn ? item : item.hideCatalogDetails())
-          .toList());
+          .toList();
+      return ChannelComparisonResponse
+          .of(loggedIn ? items : GuestChannelComparisonMocker.mock(items));
     }
 
     Onboarding onboarding = findAccessibleOnboarding(onboardingId, requesterId);
@@ -111,10 +115,9 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
           .map(ChannelComparisonItemResponse::from)
           .toList());
     }
-    return ChannelComparisonResponse.of(snapshots.stream()
+    return ChannelComparisonResponse.of(GuestChannelComparisonMocker.mock(snapshots.stream()
         .map(ChannelComparisonItemResponse::from)
-        .map(ChannelComparisonItemResponse::hideCatalogDetails)
-        .toList());
+        .toList()));
   }
 
   /**
@@ -170,6 +173,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   }
 
   /**
+  /**
    * 저장된 채널 비교를 조회한다.
    *
    * 남의 것을 조회했을 때도 404로 응답해, 그 id가 존재한다는 사실을 숨긴다.
@@ -182,6 +186,41 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     List<ChannelComparisonItem> items = channelComparisonItemRepository
         .findByComparisonIdOrderBySortOrderAsc(comparison.getId());
     return SavedChannelComparisonResponse.ofItems(comparison.getId(), items);
+  }
+
+  /**
+   * 저장된 비교를 페이지로 조회하고, 매체명과 서비스명을 채워 목록 요약으로 반환한다.
+   *
+   * @param userId   조회하는 사용자
+   * @param pageable 페이지 요청 (최신순 고정)
+   * @return 채널 비교 목록 요약
+   */
+  @Override
+  public Page<ChannelComparisonSummaryResponse> findMyComparisons(UUID userId,
+      Pageable pageable) {
+    Page<ChannelComparison> comparisons =
+        channelComparisonRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+    List<UUID> comparisonIds =
+        comparisons.getContent().stream().map(ChannelComparison::getId).toList();
+    Map<UUID, List<ChannelComparisonItem>> itemsByComparison = comparisonIds.isEmpty()
+        ? Map.of()
+        : channelComparisonItemRepository
+            .findByComparisonIdInOrderBySortOrderAsc(comparisonIds).stream()
+            .collect(Collectors.groupingBy(ChannelComparisonItem::getComparisonId));
+
+    List<UUID> onboardingIds = comparisons.getContent().stream()
+        .map(ChannelComparison::getOnboardingId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+    Map<UUID, String> onboardingServiceNames = onboardingIds.isEmpty()
+        ? Map.of()
+        : onboardingRepository.findAllById(onboardingIds).stream()
+            .collect(Collectors.toMap(Onboarding::getId, Onboarding::getServiceName));
+
+    return comparisons.map(comparison -> ChannelComparisonSummaryResponse.from(comparison,
+        itemsByComparison.getOrDefault(comparison.getId(), List.of()), onboardingServiceNames));
   }
 
   private List<Channel> findChannels(List<UUID> channelIds) {
