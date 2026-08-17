@@ -39,11 +39,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 선택한 채널의 카탈로그 정보와 온보딩 맞춤 지표를 계산한다.
  *
- * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출, 클릭을 노출하지 않는다. 로그인한 뒤 온보딩이 있으면
- * 고른 채널만 적합도순으로 정렬한다.
+ * <p>비로그인은 카탈로그 상세와 적합도, 예상 노출, 클릭을 {@link GuestChannelComparisonMocker}가
+ * 채운 고정 MOCK 값으로 반환한다. 로그인한 뒤 온보딩이 있으면 고른 채널만 적합도순으로 정렬한다.
  *
- * <p>로그인했지만 온보딩이 없으면 예상 노출, 클릭은 기본값(100만원, 1개월)으로 계산한다. 저장도 같은
- * 기준을 쓴다.
+ * <p>로그인했지만 온보딩이 없으면 예상 노출, 클릭은 기본값(100만원, 1개월)으로 계산한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -85,7 +84,7 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     boolean loggedIn = requesterId != null;
 
     if (onboardingId == null) {
-      return ChannelComparisonResponse.of(channels.stream()
+      List<ChannelComparisonItemResponse> items = channels.stream()
           .map(channel -> loggedIn
               ? ChannelComparisonSnapshotFactory.estimatedStaticSnapshot(channel,
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
@@ -94,8 +93,9 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
                   productsByChannel.getOrDefault(channel.getId(), List.of()), pricingsByProduct,
                   defaultCtrPercent))
           .map(ChannelComparisonItemResponse::from)
-          .map(item -> loggedIn ? item : item.hideCatalogDetails())
-          .toList());
+          .toList();
+      return ChannelComparisonResponse
+          .of(loggedIn ? items : GuestChannelComparisonMocker.mock(items));
     }
 
     Onboarding onboarding = findAccessibleOnboarding(onboardingId, requesterId);
@@ -113,10 +113,9 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
           .map(ChannelComparisonItemResponse::from)
           .toList());
     }
-    return ChannelComparisonResponse.of(snapshots.stream()
+    return ChannelComparisonResponse.of(GuestChannelComparisonMocker.mock(snapshots.stream()
         .map(ChannelComparisonItemResponse::from)
-        .map(ChannelComparisonItemResponse::hideCatalogDetails)
-        .toList());
+        .toList()));
   }
 
   /**

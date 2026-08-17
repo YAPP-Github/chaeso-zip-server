@@ -33,17 +33,17 @@ public interface ChannelComparisonApiDocs {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
               "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
-              "audienceSummary": null,
-              "adFormats": [],
-              "targetingMethods": [],
+              "audienceSummary": "20~30대",
+              "adFormats": ["배너", "네이티브"],
+              "targetingMethods": ["키워드", "리타겟팅"],
               "minBudgetWon": 3000000,
               "advantages": ["빠른 노출", "다양한 타기팅"],
               "tags": ["커머스 특화", "구매 전환"],
               "cpcWon": null,
               "cpmWon": 3000,
-              "matchRate": null,
-              "estImpressions": null,
-              "estClicks": null
+              "matchRate": 92,
+              "estImpressions": {"min": 40000, "max": 60000},
+              "estClicks": {"min": 400, "max": 600}
             }
           ]
         },
@@ -64,14 +64,14 @@ public interface ChannelComparisonApiDocs {
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
-              "minBudgetWon": 3000000,
+              "minBudgetWon": 500000,
               "advantages": ["빠른 노출", "다양한 타기팅"],
               "tags": ["커머스 특화", "구매 전환"],
-              "cpcWon": null,
+              "cpcWon": 133,
               "cpmWon": 3000,
               "matchRate": null,
-              "estImpressions": null,
-              "estClicks": null
+              "estImpressions": { "min": 250000, "max": 350000 },
+              "estClicks": { "min": 6250, "max": 8750 }
             }
           ]
         },
@@ -221,15 +221,26 @@ public interface ChannelComparisonApiDocs {
 
   @Operation(operationId = "getChannelComparison", summary = "채널 비교 조회",
       description = """
-          채널을 2~3개까지 비교한다. \
-          비로그인 \
-          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환. 오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 비움 \
+          채널을 2~3개까지 비교한다.
+          [비로그인]
+          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환.
+          오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 고정 MOCK 값
+
+          [로그인]
+          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 맞춤 태그, 장점을 적합도순 반환
+          온보딩X: 매체명, 채널 상세, CPC/CPM, 기본 태그, 장점을 요청순 반환
           
-          로그인 \
-          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 맞춤 태그, 장점을 적합도순 반환 \
-          온보딩X: 매체명, 채널 상세, CPC/CPM, 기본 태그, 장점을 요청순 반환 \
-          
-          예산이 부족하면 예상 노출·클릭은 null. \
+          예산이 부족하면 예상 노출·클릭은 null.
+          채널을 2~3개까지 비교한다.
+          [비로그인]
+          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환.
+          오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 고정 MOCK 값
+
+          [로그인]
+          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 맞춤 태그, 장점을 적합도순 반환
+          온보딩X: 매체명, 채널 상세, 기본 예산(100만원/1개월) 기준 예상 노출·클릭, CPC/CPM, 기본 태그, 장점을 요청순 반환
+
+          예산이 부족하면 예상 노출·클릭은 null.
           회원이 만든 온보딩은 해당 회원만 사용할 수 있다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "조회 성공",
