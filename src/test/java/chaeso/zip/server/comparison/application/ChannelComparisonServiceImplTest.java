@@ -797,6 +797,8 @@ class ChannelComparisonServiceImplTest {
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("가매체");
       assertThat(response.items().getFirst().matchRate()).isEqualTo(78);
+      assertThat(response.items().getFirst().estImpressions()).isNull();
+      assertThat(response.items().getFirst().estClicks()).isNull();
     }
 
     @Test
