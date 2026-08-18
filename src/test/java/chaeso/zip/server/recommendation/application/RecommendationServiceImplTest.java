@@ -7,10 +7,12 @@ import static chaeso.zip.server.support.ChannelCatalogFixture.withObjectives;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -35,17 +37,23 @@ import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
+import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResult;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
+import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationResultRepository;
 import chaeso.zip.server.support.OnboardingFixture;
+import chaeso.zip.server.support.RecommendationFixture;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -57,11 +65,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class RecommendationServiceImplTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final UUID RESULT_ID = UUID.randomUUID();
+  private static final Pageable PAGEABLE = PageRequest.of(0, 5);
   private static final String SERVICE_NAME = "채소집";
   private static final UUID USER_ID = UUID.randomUUID();
 
@@ -85,6 +99,8 @@ class RecommendationServiceImplTest {
   @Mock
   private ChannelRecommendationRepository channelRecommendationRepository;
   @Mock
+  private ChannelRecommendationResultRepository channelRecommendationResultRepository;
+  @Mock
   private DefaultCtrProvider defaultCtrProvider;
 
   @InjectMocks
@@ -95,6 +111,9 @@ class RecommendationServiceImplTest {
 
   @Captor
   private ArgumentCaptor<List<ChannelRecommendation>> savedCaptor;
+
+  @Captor
+  private ArgumentCaptor<ChannelRecommendationResult> resultCaptor;
 
   @Nested
   @DisplayName("적합도 계산과 순서")
@@ -359,6 +378,14 @@ class RecommendationServiceImplTest {
   @DisplayName("추천 결과 저장 (POST /recommendations)")
   class Save {
 
+    /** 저장에 성공하는 경로에서만 쓰이므로 lenient 로 둔다. */
+    @BeforeEach
+    void givenIssuedResultId() {
+      lenient().when(channelRecommendationResultRepository.save(any()))
+          .thenReturn(RecommendationFixture.result(RESULT_ID, USER_ID, ONBOARDING_ID, SERVICE_NAME,
+              LocalDateTime.of(2026, 3, 14, 10, 22, 31)));
+    }
+
     @Test
     @DisplayName("추천된 채널을 각각 한 행으로 저장하고 순위를 1부터 매긴다")
     void savesOneRowPerChannelWithRank() {
@@ -370,6 +397,7 @@ class RecommendationServiceImplTest {
 
       SavedRecommendationResponse response = save(ownedOnboarding());
 
+      assertThat(response.id()).isEqualTo(RESULT_ID);
       assertThat(response.onboardingId()).isEqualTo(ONBOARDING_ID);
       assertThat(response.channelCount()).isEqualTo(2);
 
@@ -381,8 +409,24 @@ class RecommendationServiceImplTest {
           .allSatisfy(row -> {
             assertThat(row.getUserId()).isEqualTo(USER_ID);
             assertThat(row.getOnboardingId()).isEqualTo(ONBOARDING_ID);
-            assertThat(row.getServiceName()).isEqualTo(SERVICE_NAME);
+            // 채널별 행은 발급된 추천 1건에 묶인다
+            assertThat(row.getResultId()).isEqualTo(RESULT_ID);
           });
+    }
+
+    @Test
+    @DisplayName("서비스명은 채널별 행이 아니라 추천 1건에 저장한다")
+    void savesServiceNameOnRecommendationResult() {
+      Channel channel = matchingChannel("가매체", List.of(INDUSTRY), List.of(TARGET_AGE_BAND));
+      givenCatalog(entry(channel, OBJECTIVE, PricingModel.CPM, "3000"));
+
+      save(ownedOnboarding());
+
+      verify(channelRecommendationResultRepository).save(resultCaptor.capture());
+      ChannelRecommendationResult saved = resultCaptor.getValue();
+      assertThat(saved.getUserId()).isEqualTo(USER_ID);
+      assertThat(saved.getOnboardingId()).isEqualTo(ONBOARDING_ID);
+      assertThat(saved.getServiceName()).isEqualTo(SERVICE_NAME);
     }
 
     @Test
@@ -456,8 +500,12 @@ class RecommendationServiceImplTest {
 
       save(ownedOnboarding());
 
-      InOrder inOrder = inOrder(channelRecommendationRepository);
+      // 채널별 행이 추천 1건을 참조하므로 자식 → 부모 순으로 지운 뒤 다시 넣는다
+      InOrder inOrder =
+          inOrder(channelRecommendationRepository, channelRecommendationResultRepository);
       inOrder.verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationResultRepository).deleteByOnboardingId(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationResultRepository).save(any());
       inOrder.verify(channelRecommendationRepository).saveAll(anyList());
     }
 
@@ -470,10 +518,11 @@ class RecommendationServiceImplTest {
       save(ownedOnboarding());
 
       InOrder inOrder = inOrder(channelRepository, onboardingRepository,
-          channelRecommendationRepository);
+          channelRecommendationRepository, channelRecommendationResultRepository);
       inOrder.verify(channelRepository).findByActiveTrue();
       inOrder.verify(onboardingRepository).findByIdForUpdate(ONBOARDING_ID);
       inOrder.verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      inOrder.verify(channelRecommendationResultRepository).deleteByOnboardingId(ONBOARDING_ID);
       inOrder.verify(channelRecommendationRepository).saveAll(anyList());
     }
 
@@ -491,6 +540,7 @@ class RecommendationServiceImplTest {
       assertThat(response.items()).isEmpty();
       // 덮어쓰기는 그대로 수행한다. 이번 추천이 비었다면 이전 저장분도 남아 있으면 안 된다
       verify(channelRecommendationRepository).deleteByOnboardingId(ONBOARDING_ID);
+      verify(channelRecommendationResultRepository).deleteByOnboardingId(ONBOARDING_ID);
       verify(channelRecommendationRepository).saveAll(List.of());
     }
 
@@ -503,7 +553,8 @@ class RecommendationServiceImplTest {
           .isInstanceOf(OnboardingNotFoundException.class)
           .hasMessageContaining(ONBOARDING_ID.toString());
 
-      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+      verifyNoInteractions(channelRecommendationRepository, channelRecommendationResultRepository,
+          channelRepository);
     }
 
     @Test
@@ -514,7 +565,8 @@ class RecommendationServiceImplTest {
       assertThatThrownBy(() -> save(anonymous))
           .isInstanceOf(OnboardingNotFoundException.class);
 
-      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+      verifyNoInteractions(channelRecommendationRepository, channelRecommendationResultRepository,
+          channelRepository);
     }
 
     @Test
@@ -525,7 +577,8 @@ class RecommendationServiceImplTest {
       assertThatThrownBy(() -> recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
           .isInstanceOf(OnboardingNotFoundException.class);
 
-      verifyNoInteractions(channelRecommendationRepository, channelRepository);
+      verifyNoInteractions(channelRecommendationRepository, channelRecommendationResultRepository,
+          channelRepository);
     }
 
     @Test
@@ -555,6 +608,87 @@ class RecommendationServiceImplTest {
     private Onboarding onboarding(UUID userId) {
       return OnboardingFixture.onboarding(userId, INDUSTRY, OBJECTIVE, List.of(TARGET_AGE_BAND),
           1_000_000L, BUDGET_MAX, CampaignPeriod.M1);
+    }
+  }
+
+  @Nested
+  @DisplayName("내가 저장한 추천 목록 (GET /recommendations/my)")
+  class MyRecommendations {
+
+    private static final UUID OTHER_RESULT_ID = UUID.randomUUID();
+    private static final LocalDateTime SAVED_AT = LocalDateTime.of(2026, 3, 14, 10, 22, 31);
+
+    @Test
+    @DisplayName("저장된 추천을 요약해 최신순 페이지로 준다")
+    void summarizesSavedRecommendations() {
+      givenResults(result(RESULT_ID, SERVICE_NAME, SAVED_AT));
+      givenItems(
+          RecommendationFixture.recommendation(RESULT_ID, 1, "11번가 광고"),
+          RecommendationFixture.recommendation(RESULT_ID, 2, "당근마켓 광고"));
+
+      Page<RecommendationSummaryResponse> page = findMyRecommendations();
+
+      assertThat(page.getContent()).containsExactly(new RecommendationSummaryResponse(
+          RESULT_ID, SERVICE_NAME, SAVED_AT, List.of("11번가 광고", "당근마켓 광고")));
+    }
+
+    @Test
+    @DisplayName("매체명은 저장 당시 이름을 순위 순으로 주고 채널을 다시 조회하지 않는다")
+    void usesSnapshotChannelNamesInRankOrder() {
+      givenResults(result(RESULT_ID, SERVICE_NAME, SAVED_AT));
+      givenItems(
+          RecommendationFixture.recommendation(RESULT_ID, 1, "저장 당시 이름"),
+          RecommendationFixture.recommendation(RESULT_ID, 2, "그다음 이름"));
+
+      assertThat(findMyRecommendations().getContent().getFirst().channelNames())
+          .containsExactly("저장 당시 이름", "그다음 이름");
+      verifyNoInteractions(channelRepository);
+    }
+
+    @Test
+    @DisplayName("건이 여럿이면 각 건에 자기 매체만 담는다")
+    void groupsItemsByRecommendation() {
+      givenResults(result(RESULT_ID, SERVICE_NAME, SAVED_AT),
+          result(OTHER_RESULT_ID, "다른 서비스", SAVED_AT.minusDays(1)));
+      givenItems(
+          RecommendationFixture.recommendation(RESULT_ID, 1, "11번가 광고"),
+          RecommendationFixture.recommendation(OTHER_RESULT_ID, 1, "당근마켓 광고"));
+
+      assertThat(findMyRecommendations().getContent())
+          .extracting(RecommendationSummaryResponse::id,
+              RecommendationSummaryResponse::channelNames)
+          .containsExactly(
+              tuple(RESULT_ID, List.of("11번가 광고")),
+              tuple(OTHER_RESULT_ID, List.of("당근마켓 광고")));
+    }
+
+    @Test
+    @DisplayName("저장분이 없으면 채널을 조회하지 않고 빈 페이지를 준다")
+    void givesEmptyPageWithoutSavedRecommendations() {
+      givenResults();
+
+      assertThat(findMyRecommendations()).isEmpty();
+      verifyNoInteractions(channelRecommendationRepository);
+    }
+
+    private void givenResults(ChannelRecommendationResult... results) {
+      given(channelRecommendationResultRepository
+          .findByUserIdOrderByCreatedAtDescIdDesc(USER_ID, PAGEABLE))
+          .willReturn(new PageImpl<>(List.of(results), PAGEABLE, results.length));
+    }
+
+    private void givenItems(ChannelRecommendation... items) {
+      given(channelRecommendationRepository.findByResultIdInOrderByRankAsc(anyCollection()))
+          .willReturn(List.of(items));
+    }
+
+    private ChannelRecommendationResult result(UUID id, String serviceName,
+        LocalDateTime createdAt) {
+      return RecommendationFixture.result(id, USER_ID, UUID.randomUUID(), serviceName, createdAt);
+    }
+
+    private Page<RecommendationSummaryResponse> findMyRecommendations() {
+      return recommendationService.findMyRecommendations(USER_ID, PAGEABLE);
     }
   }
 

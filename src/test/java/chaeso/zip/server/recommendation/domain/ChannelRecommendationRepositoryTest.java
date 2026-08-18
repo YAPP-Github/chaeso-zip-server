@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
+import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResult;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.support.OnboardingFixture;
 import chaeso.zip.server.support.PostgresDataJpaTest;
@@ -31,6 +32,7 @@ class ChannelRecommendationRepositoryTest {
 
   private UUID userId;
   private UUID onboardingId;
+  private UUID resultId;
   private UUID channelId;
 
   @BeforeEach
@@ -39,6 +41,11 @@ class ChannelRecommendationRepositoryTest {
         UserFixture.user(UUID.randomUUID() + "@example.com")).getId();
     onboardingId = entityManager.persistAndFlush(
         OnboardingFixture.onboarding(userId)).getId();
+    resultId = entityManager.persistAndFlush(ChannelRecommendationResult.builder()
+        .userId(userId)
+        .onboardingId(onboardingId)
+        .serviceName("채소집")
+        .build()).getId();
     channelId = entityManager.persistAndFlush(persistableChannel("11번가 광고")).getId();
   }
 
@@ -93,6 +100,19 @@ class ChannelRecommendationRepositoryTest {
         .hasSize(1);
   }
 
+  @Test
+  @DisplayName("추천 1건에 묶인 채널을 순위 순으로 한 번에 읽는다")
+  void readsItemsByResultIdInRankOrder() {
+    UUID otherChannelId = entityManager.persistAndFlush(persistableChannel("당근마켓 광고")).getId();
+    channelRecommendationRepository.saveAndFlush(recommendation(2, otherChannelId));
+    channelRecommendationRepository.saveAndFlush(recommendation(1));
+    entityManager.clear();
+
+    assertThat(channelRecommendationRepository.findByResultIdInOrderByRankAsc(List.of(resultId)))
+        .extracting(ChannelRecommendation::getRank)
+        .containsExactly(1, 2);
+  }
+
   private ChannelRecommendation recommendation(int rank) {
     return recommendation(rank, channelId);
   }
@@ -101,6 +121,7 @@ class ChannelRecommendationRepositoryTest {
     return ChannelRecommendation.builder()
         .userId(userId)
         .onboardingId(onboardingId)
+        .resultId(resultId)
         .channelId(channel)
         .rank(rank)
         .score(78)
