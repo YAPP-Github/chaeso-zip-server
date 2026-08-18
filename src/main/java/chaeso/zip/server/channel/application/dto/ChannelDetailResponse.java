@@ -61,7 +61,8 @@ public record ChannelDetailResponse(
     @Schema(description = "채널 광고 상품 목록(상품 없는 채널은 빈 배열)",
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<ProductResponse> products,
-    @Schema(description = "오디언스 규모 지표 목록", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "대표 오디언스 규모 지표 목록(우선순위 상위 최대 2개, 없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
     List<AudienceMetricResponse> audienceMetrics,
     @Schema(description = "집행 사례 목록", requiredMode = Schema.RequiredMode.REQUIRED)
     List<String> references,
