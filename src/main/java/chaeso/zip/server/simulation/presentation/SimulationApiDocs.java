@@ -113,14 +113,9 @@ public interface SimulationApiDocs {
         "data": {
           "content": [
             {
-              "simulationId": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+              "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+              "serviceName": "채소집",
               "createdAt": "2026-03-14T10:22:31",
-              "totalBudgetWon": 3000000,
-              "period": "M1",
-              "totalEstImpressions": 1150000,
-              "totalEstClicks": 23000,
-              "channelCount": 2,
-              "executableChannelCount": 1,
               "channelNames": ["11번가 광고", "당근마켓 광고"]
             }
           ],
@@ -255,9 +250,12 @@ public interface SimulationApiDocs {
   @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "getMySimulations", summary = "내가 저장한 시뮬레이션 목록",
       description = """
-          로그인한 사용자가 저장한 시뮬레이션을 최신순으로 반환한다. 목록은 요약만 담으며 \
-          매체별 항목은 상세 조회에서 받는다. 정렬은 최신순 고정이고 page/size 를 생략하면 \
-          0 페이지 5건을 반환한다. 저장된 결과가 없으면 빈 목록으로 200 을 반환한다.""")
+          로그인한 사용자가 저장한 시뮬레이션을 최신순으로 반환한다. 목록은 어떤 조합을 저장했는지 \
+          알아볼 정도의 요약만 담으며, 예산·추정치와 매체별 항목은 상세 조회에서 받는다. \
+          매체명은 예산을 배분한 매체만 저장 순서대로 담는다.
+
+          정렬은 최신순 고정이고 page/size 를 생략하면 0 페이지 5건을 반환한다. 저장된 결과가 \
+          없으면 빈 목록으로 200 을 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,
       content = @Content(
