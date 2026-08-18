@@ -2,14 +2,18 @@ package chaeso.zip.server.recommendation.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.recommendation.application.RecommendationService;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.presentation.dto.RecommendationPageRequest;
 import chaeso.zip.server.recommendation.presentation.dto.SaveRecommendationRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,5 +46,14 @@ public class RecommendationController implements RecommendationApiDocs {
       @Valid @RequestBody SaveRecommendationRequest request) {
     return ApiResponse.success(recommendationService.save(
         principal.userId(), request.onboardingId(), request.serviceName()));
+  }
+
+  @Override
+  @GetMapping("/my")
+  public ApiResponse<PageResponse<RecommendationSummaryResponse>> getMyRecommendations(
+      @AuthenticationPrincipal UserPrincipal principal,
+      @ParameterObject RecommendationPageRequest request) {
+    return ApiResponse.success(PageResponse.from(
+        recommendationService.findMyRecommendations(principal.userId(), request.toPageable())));
   }
 }

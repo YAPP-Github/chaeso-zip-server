@@ -16,11 +16,13 @@ import chaeso.zip.server.onboarding.domain.OnboardingErrorCode;
 import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.recommendation.application.RecommendationService;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
 import chaeso.zip.server.recommendation.presentation.dto.SaveRecommendationRequest;
 import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +31,8 @@ import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,6 +43,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class RecommendationControllerTest {
 
   private static final UUID ONBOARDING_ID = UUID.randomUUID();
+  private static final UUID RESULT_ID = UUID.randomUUID();
   private static final String SERVICE_NAME = "채소집";
   private static final UUID USER_ID = UUID.fromString(WithUserPrincipal.DEFAULT_USER_ID);
 
@@ -121,7 +126,7 @@ class RecommendationControllerTest {
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         true, null);
     given(recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
-        .willReturn(new SavedRecommendationResponse(ONBOARDING_ID, 1, List.of(item)));
+        .willReturn(new SavedRecommendationResponse(RESULT_ID, ONBOARDING_ID, 1, List.of(item)));
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
@@ -129,6 +134,7 @@ class RecommendationControllerTest {
                 new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.id").value(RESULT_ID.toString()))
         .andExpect(jsonPath("$.data.onboardingId").value(ONBOARDING_ID.toString()))
         .andExpect(jsonPath("$.data.channelCount").value(1))
         .andExpect(jsonPath("$.data.items[0].channelId").value(channelId.toString()));
@@ -138,7 +144,7 @@ class RecommendationControllerTest {
   @DisplayName("맞는 채널이 없으면 201 과 빈 배열을 반환한다")
   void saveRecommendation_savesNothing() throws Exception {
     given(recommendationService.save(USER_ID, ONBOARDING_ID, SERVICE_NAME))
-        .willReturn(new SavedRecommendationResponse(ONBOARDING_ID, 0, List.of()));
+        .willReturn(new SavedRecommendationResponse(RESULT_ID, ONBOARDING_ID, 0, List.of()));
 
     mockMvc.perform(post("/api/v1/recommendations")
             .contentType(MediaType.APPLICATION_JSON)
@@ -184,6 +190,44 @@ class RecommendationControllerTest {
                 new SaveRecommendationRequest(ONBOARDING_ID, SERVICE_NAME))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("ONB-007"));
+  }
+
+  @Test
+  @DisplayName("내 추천 목록은 page/size 없이 호출하면 0 페이지 5건으로 조회한다")
+  void getMyRecommendations_defaultPage() throws Exception {
+    given(recommendationService.findMyRecommendations(USER_ID, PageRequest.of(0, 5)))
+        .willReturn(new PageImpl<>(List.of(new RecommendationSummaryResponse(RESULT_ID,
+            SERVICE_NAME, LocalDateTime.of(2026, 3, 14, 10, 22, 31),
+            List.of("11번가 광고", "당근마켓 광고"))), PageRequest.of(0, 5), 1));
+
+    mockMvc.perform(get("/api/v1/recommendations/my"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.content[0].id").value(RESULT_ID.toString()))
+        .andExpect(jsonPath("$.data.content[0].serviceName").value(SERVICE_NAME))
+        .andExpect(jsonPath("$.data.content[0].createdAt").value("2026-03-14T10:22:31"))
+        .andExpect(jsonPath("$.data.content[0].channelNames[0]").value("11번가 광고"))
+        .andExpect(jsonPath("$.data.size").value(5))
+        .andExpect(jsonPath("$.data.totalElements").value(1));
+  }
+
+  @Test
+  @DisplayName("저장분이 없으면 200 과 빈 목록을 반환한다")
+  void getMyRecommendations_empty() throws Exception {
+    given(recommendationService.findMyRecommendations(USER_ID, PageRequest.of(0, 5)))
+        .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 5), 0));
+
+    mockMvc.perform(get("/api/v1/recommendations/my"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.content").isEmpty())
+        .andExpect(jsonPath("$.data.totalElements").value(0));
+  }
+
+  @Test
+  @DisplayName("size 가 허용 범위를 넘으면 400 C-001 로 거부한다")
+  void getMyRecommendations_sizeOutOfRange() throws Exception {
+    mockMvc.perform(get("/api/v1/recommendations/my").param("size", "51"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("C-001"));
   }
 
   @Test

@@ -1,6 +1,7 @@
 package chaeso.zip.server.support;
 
 import chaeso.zip.server.channel.domain.entity.Channel;
+import chaeso.zip.server.channel.domain.entity.ChannelAudienceMetric;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.vo.AgeBand;
@@ -108,6 +109,20 @@ public final class ChannelCatalogFixture {
     set(pricing, "valueMax", decimal(valueMax));
     set(pricing, "unitDays", decimal(unitDays));
     return pricing;
+  }
+
+  public static ChannelAudienceMetric audienceMetric(UUID channelId, String metricName) {
+    return audienceMetric(channelId, metricName, null);
+  }
+
+  public static ChannelAudienceMetric audienceMetric(UUID channelId, String metricName,
+      String valueNumeric) {
+    ChannelAudienceMetric metric = BeanUtils.instantiateClass(ChannelAudienceMetric.class);
+    set(metric, "id", UUID.randomUUID());
+    set(metric, "channelId", channelId);
+    set(metric, "metricName", metricName);
+    set(metric, "valueNumeric", decimal(valueNumeric));
+    return metric;
   }
 
   private static BigDecimal decimal(String value) {

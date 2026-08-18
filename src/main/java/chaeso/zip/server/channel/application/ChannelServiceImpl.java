@@ -8,6 +8,7 @@ import chaeso.zip.server.channel.application.dto.ProductResponse;
 import chaeso.zip.server.channel.application.dto.RecommendationBasisResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
+import chaeso.zip.server.channel.domain.entity.ChannelAudienceMetric;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.entity.ChannelProduct;
 import chaeso.zip.server.channel.domain.entity.ChannelReference;
@@ -16,15 +17,20 @@ import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelProductRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelReferenceRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelRepository;
+import chaeso.zip.server.channel.domain.vo.AudienceMetricCategory;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +44,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChannelServiceImpl implements ChannelService {
 
   private static final int MAX_TAGS = 2;
+  private static final int MAX_AUDIENCE_METRICS = 2;
+
+  /**
+   * 대표 오디언스 지표 선택 순서
+   */
+  private static final Comparator<ChannelAudienceMetric> REPRESENTATIVE_FIRST = Comparator
+      .comparing(ChannelServiceImpl::categoryOf)
+      .thenComparing(ChannelAudienceMetric::getValueNumeric,
+          Comparator.nullsLast(Comparator.reverseOrder()))
+      .thenComparing(ChannelAudienceMetric::getMetricName,
+          Comparator.nullsLast(Comparator.naturalOrder()))
+      .thenComparing(ChannelAudienceMetric::getId,
+          Comparator.nullsLast(Comparator.naturalOrder()));
 
   private final ChannelRepository channelRepository;
   private final ChannelProductRepository channelProductRepository;
@@ -72,9 +91,7 @@ public class ChannelServiceImpl implements ChannelService {
         .toList();
 
     List<AudienceMetricResponse> audienceMetrics =
-        channelAudienceMetricRepository.findByChannelId(id).stream()
-            .map(AudienceMetricResponse::from)
-            .toList();
+        representativeAudienceMetrics(channelAudienceMetricRepository.findByChannelId(id));
 
     List<String> references = channelReferenceRepository.findByChannelId(id).stream()
         .map(ChannelReference::getResultText)
@@ -117,6 +134,41 @@ public class ChannelServiceImpl implements ChannelService {
       return defaultTags;
     }
     return List.copyOf(defaultTags.subList(0, MAX_TAGS));
+  }
+
+  /**
+   * 채널이 가진 지표 중 카테고리 우선순위가 높은 것부터 서로 다른 카테고리로 두 개를 고른다.
+   * 지표명을 정규화하지 않고 원본을 그대로 주며, 카테고리가 하나뿐인 채널은 그 카테고리에서 두 개를 고른다.
+   */
+  private static List<AudienceMetricResponse> representativeAudienceMetrics(
+      List<ChannelAudienceMetric> metrics) {
+    List<ChannelAudienceMetric> byPriority = metrics.stream()
+        .sorted(REPRESENTATIVE_FIRST)
+        .toList();
+
+    List<ChannelAudienceMetric> selected = new ArrayList<>(MAX_AUDIENCE_METRICS);
+    Set<AudienceMetricCategory> pickedCategories = EnumSet.noneOf(AudienceMetricCategory.class);
+    for (ChannelAudienceMetric metric : byPriority) {
+      if (selected.size() == MAX_AUDIENCE_METRICS) {
+        break;
+      }
+      if (pickedCategories.add(categoryOf(metric))) {
+        selected.add(metric);
+      }
+    }
+    for (ChannelAudienceMetric metric : byPriority) {
+      if (selected.size() == MAX_AUDIENCE_METRICS) {
+        break;
+      }
+      if (!selected.contains(metric)) {
+        selected.add(metric);
+      }
+    }
+    return selected.stream().map(AudienceMetricResponse::from).toList();
+  }
+
+  private static AudienceMetricCategory categoryOf(ChannelAudienceMetric metric) {
+    return AudienceMetricCategory.of(metric.getMetricName());
   }
 
   private static ProductResponse productResponse(ChannelProduct product,

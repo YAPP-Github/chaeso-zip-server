@@ -1,6 +1,7 @@
 package chaeso.zip.server.recommendation.domain.repository;
 
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,8 @@ public interface ChannelRecommendationRepository
     extends JpaRepository<ChannelRecommendation, UUID> {
 
   List<ChannelRecommendation> findByOnboardingIdOrderByRankAsc(UUID onboardingId);
+
+  List<ChannelRecommendation> findByResultIdInOrderByRankAsc(Collection<UUID> resultIds);
 
   /**
    * 이 온보딩의 추천 결과에 포함된 채널인지 판정할 때 쓴다.
