@@ -1,5 +1,6 @@
 package chaeso.zip.server.channel.application;
 
+import static chaeso.zip.server.support.ChannelCatalogFixture.audienceMetric;
 import static chaeso.zip.server.support.ChannelCatalogFixture.channel;
 import static chaeso.zip.server.support.ChannelCatalogFixture.channelWithDefaultTags;
 import static chaeso.zip.server.support.ChannelCatalogFixture.pricing;
@@ -10,11 +11,13 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import chaeso.zip.server.channel.application.dto.AudienceMetricResponse;
 import chaeso.zip.server.channel.application.dto.ChannelDetailResponse;
 import chaeso.zip.server.channel.application.dto.ProductResponse;
 import chaeso.zip.server.channel.application.dto.RecommendationBasisResponse;
 import chaeso.zip.server.channel.domain.ChannelNotFoundException;
 import chaeso.zip.server.channel.domain.entity.Channel;
+import chaeso.zip.server.channel.domain.entity.ChannelAudienceMetric;
 import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.repository.ChannelAudienceMetricRepository;
 import chaeso.zip.server.channel.domain.repository.ChannelPricingRepository;
@@ -30,6 +33,7 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.support.OnboardingFixture;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -343,6 +347,93 @@ class ChannelServiceImplTest {
 
     private List<String> tagsOf(UUID onboardingId, UUID requesterId) {
       return channelService.getChannel(CHANNEL_ID, onboardingId, requesterId).tags();
+    }
+  }
+
+  @Nested
+  @DisplayName("대표 오디언스 규모 지표")
+  class AudienceMetrics {
+
+    @BeforeEach
+    void givenChannelWithoutProducts() {
+      given(channelRepository.findByIdAndActiveTrue(CHANNEL_ID))
+          .willReturn(Optional.of(channel(CHANNEL_ID, "11번가 광고")));
+      given(channelProductRepository.findByChannelId(CHANNEL_ID)).willReturn(List.of());
+      given(channelReferenceRepository.findByChannelId(CHANNEL_ID)).willReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("카테고리 우선순위가 높은 지표부터 서로 다른 카테고리로 두 개를 고른다")
+    void picksTwoMetricsFromDifferentCategoriesByPriority() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "팔로워 수"), audienceMetric(CHANNEL_ID, "누적 회원 수"),
+          audienceMetric(CHANNEL_ID, "글로벌 MAU"), audienceMetric(CHANNEL_ID, "앱 DAU"));
+
+      assertThat(metricNames()).containsExactly("글로벌 MAU", "앱 DAU");
+    }
+
+    @Test
+    @DisplayName("MAU/DAU 가 없는 채널은 회원 수·방문자 수 같은 하위 카테고리로 채운다")
+    void fallsBackToLowerCategoriesWithoutActiveUserMetrics() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "구독자 수"), audienceMetric(CHANNEL_ID, "월 방문자 수"),
+          audienceMetric(CHANNEL_ID, "가입자수"));
+
+      assertThat(metricNames()).containsExactly("가입자수", "월 방문자 수");
+    }
+
+    @Test
+    @DisplayName("같은 카테고리 지표가 여럿이어도 다른 카테고리를 먼저 채워 다양성을 지킨다")
+    void prefersAnotherCategoryOverSecondMetricOfTopCategory() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "국내 MAU"), audienceMetric(CHANNEL_ID, "해외 MAU"),
+          audienceMetric(CHANNEL_ID, "누적 가입자"));
+
+      assertThat(metricNames()).containsExactly("국내 MAU", "누적 가입자");
+    }
+
+    @Test
+    @DisplayName("카테고리가 하나뿐이면 그 카테고리에서 조회 순서대로 두 개까지 채운다")
+    void fillsFromSingleCategoryWhenNoOtherCategoryExists() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "국내 MAU"), audienceMetric(CHANNEL_ID, "해외 MAU"),
+          audienceMetric(CHANNEL_ID, "앱 MAU"));
+
+      assertThat(metricNames()).containsExactly("국내 MAU", "해외 MAU");
+    }
+
+    @Test
+    @DisplayName("분류되지 않는 지표만 가진 채널도 그 지표를 그대로 대표로 준다")
+    void picksUnclassifiedMetricsAsRepresentative() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "누적 거래액"), audienceMetric(CHANNEL_ID, "제휴사 수"));
+
+      assertThat(metricNames()).containsExactly("누적 거래액", "제휴사 수");
+    }
+
+    @Test
+    @DisplayName("지표가 하나뿐이면 하나만 준다")
+    void givesSingleMetricWhenChannelHasOne() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "MAU", "1000000"));
+
+      assertThat(audienceMetrics()).containsExactly(
+          new AudienceMetricResponse("MAU", new BigDecimal("1000000"), null, null, null));
+    }
+
+    @Test
+    @DisplayName("지표가 없으면 null 이 아니라 빈 배열을 준다")
+    void givesEmptyListWhenChannelHasNoMetrics() {
+      givenMetrics();
+
+      assertThat(audienceMetrics()).isEmpty();
+    }
+
+    private void givenMetrics(ChannelAudienceMetric... metrics) {
+      given(channelAudienceMetricRepository.findByChannelId(CHANNEL_ID))
+          .willReturn(List.of(metrics));
+    }
+
+    private List<AudienceMetricResponse> audienceMetrics() {
+      return channelService.getChannel(CHANNEL_ID, null, OWNER_ID).audienceMetrics();
+    }
+
+    private List<String> metricNames() {
+      return audienceMetrics().stream().map(AudienceMetricResponse::metricName).toList();
     }
   }
 
