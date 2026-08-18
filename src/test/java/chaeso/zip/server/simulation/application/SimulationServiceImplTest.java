@@ -701,14 +701,9 @@ class SimulationServiceImplTest {
       SimulationSummaryResponse summary =
           simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
 
-      assertThat(summary.simulationId()).isEqualTo(simulationId);
+      assertThat(summary.id()).isEqualTo(simulationId);
+      assertThat(summary.serviceName()).isEqualTo(SERVICE_NAME);
       assertThat(summary.createdAt()).isEqualTo(CREATED_AT);
-      assertThat(summary.totalBudgetWon()).isEqualTo(3_000_000);
-      assertThat(summary.period()).isEqualTo(CampaignPeriod.M1);
-      assertThat(summary.totalEstImpressions()).isEqualTo(1_000_000);
-      assertThat(summary.totalEstClicks()).isEqualTo(25_000);
-      assertThat(summary.channelCount()).isEqualTo(2);
-      assertThat(summary.executableChannelCount()).isEqualTo(1);   // 2개 중 1개만
       assertThat(summary.channelNames()).containsExactly(CHANNEL_NAME, "당근마켓 광고");
 
       // 재계산하지 않았음: 상품·단가 조회도, CTR 집계도 하지 않는다
@@ -716,8 +711,8 @@ class SimulationServiceImplTest {
     }
 
     @Test
-    @DisplayName("대표 매체명은 저장 순서대로 최대 3개만 담는다")
-    void previewsFirstThreeChannelNames() {
+    @DisplayName("매체명은 저장 순서대로 모두 담는다")
+    void listsChannelNamesInSavedOrder() {
       UUID simulationId = UUID.randomUUID();
       List<UUID> channelIds = List.of(CHANNEL_ID, UUID.randomUUID(), UUID.randomUUID(),
           UUID.randomUUID());
@@ -735,12 +730,11 @@ class SimulationServiceImplTest {
       SimulationSummaryResponse summary =
           simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
 
-      assertThat(summary.channelCount()).isEqualTo(4);          // 자르는 건 대표 매체명뿐이다
-      assertThat(summary.channelNames()).containsExactly("매체0", "매체1", "매체2");
+      assertThat(summary.channelNames()).containsExactly("매체0", "매체1", "매체2", "매체3");
     }
 
     @Test
-    @DisplayName("예산을 배분하지 않은 매체는 매체 수와 대표 매체명에서 뺀다")
+    @DisplayName("예산을 배분하지 않은 매체는 매체명에서 뺀다")
     void excludesUnallocatedChannels() {
       // 담아만 두고 0원을 준 매체는 상세 재현을 위해 저장되지만, 목록에서는 배분한 매체가 아니다
       UUID simulationId = UUID.randomUUID();
@@ -757,8 +751,6 @@ class SimulationServiceImplTest {
       SimulationSummaryResponse summary =
           simulationService.findMySimulations(USER_ID, pageable).getContent().getFirst();
 
-      assertThat(summary.channelCount()).isEqualTo(1);
-      assertThat(summary.executableChannelCount()).isEqualTo(1);
       assertThat(summary.channelNames()).containsExactly(CHANNEL_NAME);
     }
 
@@ -869,6 +861,7 @@ class SimulationServiceImplTest {
   private static BudgetSimulation savedSimulation(UUID simulationId, UUID userId) {
     BudgetSimulation simulation = withId(BudgetSimulation.builder()
         .userId(userId)
+        .serviceName(SERVICE_NAME)
         .totalBudgetWon(3_000_000L)
         .period(CampaignPeriod.M1)
         .totalEstImpressions(1_000_000L)

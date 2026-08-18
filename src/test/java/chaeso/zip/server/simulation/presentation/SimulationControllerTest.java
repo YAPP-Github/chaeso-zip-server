@@ -193,14 +193,17 @@ class SimulationControllerTest {
     mockMvc.perform(get("/api/v1/simulations"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.content[0].simulationId").value(simulationId.toString()))
+        .andExpect(jsonPath("$.data.content[0].id").value(simulationId.toString()))
+        .andExpect(jsonPath("$.data.content[0].serviceName").value(SERVICE_NAME))
         .andExpect(jsonPath("$.data.content[0].createdAt").value("2026-03-14T10:22:31"))
-        .andExpect(jsonPath("$.data.content[0].period").value("M1"))
-        .andExpect(jsonPath("$.data.content[0].channelCount").value(2))
-        .andExpect(jsonPath("$.data.content[0].executableChannelCount").value(1))
         .andExpect(jsonPath("$.data.content[0].channelNames[0]").value("11번가 광고"))
-        // 목록은 요약만 담고 매체별 항목은 상세에서 받는다
         .andExpect(jsonPath("$.data.content[0].items").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].totalBudgetWon").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].period").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].totalEstImpressions").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].totalEstClicks").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].channelCount").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].executableChannelCount").doesNotExist())
         .andExpect(jsonPath("$.data.totalElements").value(1))
         .andExpect(jsonPath("$.data.size").value(10));
   }
@@ -436,9 +439,8 @@ class SimulationControllerTest {
   }
 
   private static SimulationSummaryResponse summary(UUID simulationId) {
-    return new SimulationSummaryResponse(simulationId,
-        LocalDateTime.of(2026, 3, 14, 10, 22, 31), 3_000_000L, CampaignPeriod.M1,
-        1_000_000L, 25_000L, 2, 1, List.of("11번가 광고", "당근마켓 광고"));
+    return new SimulationSummaryResponse(simulationId, SERVICE_NAME,
+        LocalDateTime.of(2026, 3, 14, 10, 22, 31), List.of("11번가 광고", "당근마켓 광고"));
   }
 
   private static SimulationResponse response(UUID simulationId) {
