@@ -46,6 +46,18 @@ public class ChannelServiceImpl implements ChannelService {
   private static final int MAX_TAGS = 2;
   private static final int MAX_AUDIENCE_METRICS = 2;
 
+  /**
+   * 대표 오디언스 지표 선택 순서
+   */
+  private static final Comparator<ChannelAudienceMetric> REPRESENTATIVE_FIRST = Comparator
+      .comparing(ChannelServiceImpl::categoryOf)
+      .thenComparing(ChannelAudienceMetric::getValueNumeric,
+          Comparator.nullsLast(Comparator.reverseOrder()))
+      .thenComparing(ChannelAudienceMetric::getMetricName,
+          Comparator.nullsLast(Comparator.naturalOrder()))
+      .thenComparing(ChannelAudienceMetric::getId,
+          Comparator.nullsLast(Comparator.naturalOrder()));
+
   private final ChannelRepository channelRepository;
   private final ChannelProductRepository channelProductRepository;
   private final ChannelPricingRepository channelPricingRepository;
@@ -130,9 +142,8 @@ public class ChannelServiceImpl implements ChannelService {
    */
   private static List<AudienceMetricResponse> representativeAudienceMetrics(
       List<ChannelAudienceMetric> metrics) {
-    // 안정 정렬이라 같은 카테고리 안에서는 조회 순서가 그대로 유지된다
     List<ChannelAudienceMetric> byPriority = metrics.stream()
-        .sorted(Comparator.comparing(ChannelServiceImpl::categoryOf))
+        .sorted(REPRESENTATIVE_FIRST)
         .toList();
 
     List<ChannelAudienceMetric> selected = new ArrayList<>(MAX_AUDIENCE_METRICS);

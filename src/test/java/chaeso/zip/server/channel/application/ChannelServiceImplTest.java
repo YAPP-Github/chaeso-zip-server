@@ -390,12 +390,37 @@ class ChannelServiceImplTest {
     }
 
     @Test
-    @DisplayName("카테고리가 하나뿐이면 그 카테고리에서 조회 순서대로 두 개까지 채운다")
+    @DisplayName("카테고리가 하나뿐이면 그 카테고리에서 규모가 큰 두 개를 채운다")
     void fillsFromSingleCategoryWhenNoOtherCategoryExists() {
-      givenMetrics(audienceMetric(CHANNEL_ID, "국내 MAU"), audienceMetric(CHANNEL_ID, "해외 MAU"),
-          audienceMetric(CHANNEL_ID, "앱 MAU"));
+      givenMetrics(audienceMetric(CHANNEL_ID, "국내 MAU", "1000000"),
+          audienceMetric(CHANNEL_ID, "해외 MAU", "3000000"),
+          audienceMetric(CHANNEL_ID, "앱 MAU", "2000000"));
 
-      assertThat(metricNames()).containsExactly("국내 MAU", "해외 MAU");
+      assertThat(metricNames()).containsExactly("해외 MAU", "앱 MAU");
+    }
+
+    @Test
+    @DisplayName("같은 카테고리에서는 수치가 큰 지표를 대표로 고르고, 수치가 없는 지표는 뒤로 보낸다")
+    void prefersLargerValueAndDefersValuelessMetricWithinCategory() {
+      givenMetrics(audienceMetric(CHANNEL_ID, "제휴 회원 수"),
+          audienceMetric(CHANNEL_ID, "누적 회원 수", "5000000"),
+          audienceMetric(CHANNEL_ID, "월 방문자 수"));
+
+      assertThat(metricNames()).containsExactly("누적 회원 수", "월 방문자 수");
+    }
+
+    @Test
+    @DisplayName("조회 순서가 뒤바뀌어도 같은 지표를 고른다")
+    void picksSameMetricsRegardlessOfQueryOrder() {
+      ChannelAudienceMetric member = audienceMetric(CHANNEL_ID, "누적 회원 수", "5000000");
+      ChannelAudienceMetric smallerMember = audienceMetric(CHANNEL_ID, "제휴 회원 수", "1000000");
+      ChannelAudienceMetric visitor = audienceMetric(CHANNEL_ID, "월 방문자 수", "9000000");
+
+      givenMetrics(visitor, smallerMember, member);
+      assertThat(metricNames()).containsExactly("누적 회원 수", "월 방문자 수");
+
+      givenMetrics(smallerMember, member, visitor);
+      assertThat(metricNames()).containsExactly("누적 회원 수", "월 방문자 수");
     }
 
     @Test
