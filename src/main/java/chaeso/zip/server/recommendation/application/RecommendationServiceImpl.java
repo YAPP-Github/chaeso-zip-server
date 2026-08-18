@@ -18,12 +18,15 @@ import chaeso.zip.server.onboarding.domain.OnboardingNotFoundException;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
 import chaeso.zip.server.recommendation.domain.ChannelMatcher;
 import chaeso.zip.server.recommendation.domain.MatchScore;
 import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
+import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResult;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
+import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationResultRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
@@ -34,6 +37,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +65,7 @@ public class RecommendationServiceImpl implements RecommendationService {
   private final ChannelProductRepository channelProductRepository;
   private final ChannelPricingRepository channelPricingRepository;
   private final ChannelRecommendationRepository channelRecommendationRepository;
+  private final ChannelRecommendationResultRepository channelRecommendationResultRepository;
   private final DefaultCtrProvider defaultCtrProvider;
 
   @Override
@@ -81,9 +87,16 @@ public class RecommendationServiceImpl implements RecommendationService {
     onboardingRepository.findByIdForUpdate(onboardingId);
 
     channelRecommendationRepository.deleteByOnboardingId(onboardingId);
+    channelRecommendationResultRepository.deleteByOnboardingId(onboardingId);
+    UUID resultId;
     try {
+      resultId = channelRecommendationResultRepository.save(ChannelRecommendationResult.builder()
+          .userId(userId)
+          .onboardingId(onboardingId)
+          .serviceName(serviceName)
+          .build()).getId();
       channelRecommendationRepository.saveAll(IntStream.range(0, snapshots.size())
-          .mapToObj(index -> toEntity(userId, onboardingId, serviceName, FIRST_RANK + index,
+          .mapToObj(index -> toEntity(userId, onboardingId, resultId, FIRST_RANK + index,
               snapshots.get(index)))
           .toList());
       channelRecommendationRepository.flush();
@@ -91,7 +104,28 @@ public class RecommendationServiceImpl implements RecommendationService {
       throw new OnboardingBusinessException(OnboardingErrorCode.CONCURRENT_SUBMISSION);
     }
 
-    return SavedRecommendationResponse.of(onboardingId, snapshots);
+    return SavedRecommendationResponse.of(resultId, onboardingId, snapshots);
+  }
+
+  @Override
+  public Page<RecommendationSummaryResponse> findMyRecommendations(UUID userId, Pageable pageable) {
+    Page<ChannelRecommendationResult> results =
+        channelRecommendationResultRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId,
+            pageable);
+
+    Map<UUID, List<ChannelRecommendation>> itemsByResult = itemsOf(
+        results.getContent().stream().map(ChannelRecommendationResult::getId).toList());
+
+    return results.map(result -> RecommendationSummaryResponse.from(result,
+        itemsByResult.getOrDefault(result.getId(), List.of())));
+  }
+
+  private Map<UUID, List<ChannelRecommendation>> itemsOf(List<UUID> resultIds) {
+    if (resultIds.isEmpty()) {
+      return Map.of();
+    }
+    return channelRecommendationRepository.findByResultIdInOrderByRankAsc(resultIds).stream()
+        .collect(Collectors.groupingBy(ChannelRecommendation::getResultId));
   }
 
   private Onboarding findOnboarding(UUID onboardingId) {
@@ -107,12 +141,12 @@ public class RecommendationServiceImpl implements RecommendationService {
     return onboarding;
   }
 
-  private ChannelRecommendation toEntity(UUID userId, UUID onboardingId, String serviceName,
+  private ChannelRecommendation toEntity(UUID userId, UUID onboardingId, UUID resultId,
       int rank, RecommendationSnapshot snapshot) {
     return ChannelRecommendation.builder()
         .userId(userId)
         .onboardingId(onboardingId)
-        .serviceName(serviceName)
+        .resultId(resultId)
         .channelId(snapshot.channelId())
         .rank(rank)
         .score(snapshot.matchRate())

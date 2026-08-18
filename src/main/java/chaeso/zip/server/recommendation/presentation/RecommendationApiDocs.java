@@ -2,8 +2,11 @@ package chaeso.zip.server.recommendation.presentation;
 
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.common.response.ApiResponse;
+import chaeso.zip.server.common.response.PageResponse;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
+import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.presentation.dto.RecommendationPageRequest;
 import chaeso.zip.server.recommendation.presentation.dto.SaveRecommendationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -63,6 +67,7 @@ public interface RecommendationApiDocs {
       {
         "success": true,
         "data": {
+          "id": "3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
           "onboardingId": "550e8400-e29b-41d4-a716-446655440000",
           "channelCount": 1,
           "items": [
@@ -83,6 +88,43 @@ public interface RecommendationApiDocs {
           ]
         },
         "error": null,
+        "code": null
+      }
+      """;
+
+  String RECOMMENDATION_LIST_EXAMPLE = """
+      {
+        "success": true,
+        "data": {
+          "content": [
+            {
+              "id": "3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
+              "serviceName": "채소집",
+              "createdAt": "2026-03-14T10:22:31",
+              "channelNames": ["11번가 광고", "당근마켓 광고"]
+            }
+          ],
+          "number": 0,
+          "size": 5,
+          "totalElements": 1,
+          "totalPages": 1,
+          "first": true,
+          "last": true
+        },
+        "error": null,
+        "code": null
+      }
+      """;
+
+  String RECOMMENDATION_PAGE_SIZE_ERROR_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "C-001",
+          "message": "page 는 0 이상, size 는 1 이상 50 이하여야 합니다",
+          "fieldErrors": []
+        },
         "code": null
       }
       """;
@@ -161,8 +203,8 @@ public interface RecommendationApiDocs {
   @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "saveRecommendation", summary = "채널 추천 결과 저장",
       description = """
-          추천을 다시 계산해 그 시점 값을 스냅샷으로 저장한다. 채널 1개가 1행이고, 요청한 \
-          온보딩이 저장된 추천 1건을 가리키는 키가 된다.
+          추천을 다시 계산해 그 시점 값을 스냅샷으로 저장한다. 채널 1개가 1행이고, 그 행들은 \
+          저장 시점에 발급되는 추천 id 하나로 묶인다. 상세 조회·목록에는 이 id 를 쓴다.
 
           이후 채널의 단가·상품이 바뀌어도 저장된 추천은 변하지 않는다. 마이페이지는 이 저장분을 \
           그대로 읽는다.
@@ -193,4 +235,26 @@ public interface RecommendationApiDocs {
   ApiResponse<SavedRecommendationResponse> saveRecommendation(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @Valid @RequestBody SaveRecommendationRequest request);
+
+  @SecurityRequirement(name = "bearerAuth")
+  @Operation(operationId = "getMyRecommendations", summary = "내가 저장한 채널 추천 목록",
+      description = """
+          로그인한 사용자가 저장한 추천 결과를 최신순으로 반환한다. 목록에는 요약만 담고, \
+          매체별 추정값·추천 근거는 상세 조회에서 받는다.
+
+          매체명은 저장 당시 이름을 추천 순위 순으로 준다.
+
+          page/size 생략시 0 페이지 5건을 반환하며, 저장된 결과가 없으면 빈 목록으로 200 응답.""")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+      useReturnTypeSchema = true,
+      content = @Content(examples = @ExampleObject(name = "RECOMMENDATION_LIST",
+          value = RECOMMENDATION_LIST_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+      description = "page/size 범위 위반(C-001). size 는 1 이상 50 이하여야 한다",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "PAGE_SIZE_ERROR",
+              value = RECOMMENDATION_PAGE_SIZE_ERROR_EXAMPLE)))
+  ApiResponse<PageResponse<RecommendationSummaryResponse>> getMyRecommendations(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @ParameterObject RecommendationPageRequest request);
 }

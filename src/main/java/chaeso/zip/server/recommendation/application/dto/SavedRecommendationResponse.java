@@ -7,7 +7,11 @@ import java.util.UUID;
 
 @Schema(description = "저장된 채널 추천")
 public record SavedRecommendationResponse(
-    @Schema(description = "추천을 묶는 온보딩 응답 식별자. 이 값으로 저장된 추천 1건을 가리킨다",
+    @Schema(description = "저장된 추천 id",
+        example = "3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    UUID id,
+    @Schema(description = "추천의 근거가 된 온보딩 응답 식별자",
         example = "550e8400-e29b-41d4-a716-446655440000",
         requiredMode = Schema.RequiredMode.REQUIRED)
     UUID onboardingId,
@@ -18,9 +22,9 @@ public record SavedRecommendationResponse(
         requiredMode = Schema.RequiredMode.REQUIRED)
     List<RecommendationItemResponse> items) {
 
-  public static SavedRecommendationResponse of(UUID onboardingId,
+  public static SavedRecommendationResponse of(UUID id, UUID onboardingId,
       List<RecommendationSnapshot> snapshots) {
-    return new SavedRecommendationResponse(onboardingId, snapshots.size(),
+    return new SavedRecommendationResponse(id, onboardingId, snapshots.size(),
         snapshots.stream().map(RecommendationItemResponse::from).toList());
   }
 }
