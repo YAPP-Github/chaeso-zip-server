@@ -18,6 +18,7 @@ import chaeso.zip.server.recommendation.application.RecommendationService;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.domain.RecommendationNotFoundException;
 import chaeso.zip.server.recommendation.presentation.dto.SaveRecommendationRequest;
 import chaeso.zip.server.support.security.WithUserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -228,6 +229,50 @@ class RecommendationControllerTest {
     mockMvc.perform(get("/api/v1/recommendations/my").param("size", "51"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("C-001"));
+  }
+
+  @Test
+  @DisplayName("저장한 추천 상세는 200 과 추천 조회와 같은 구조의 스냅샷 배열을 반환한다")
+  void getRecommendation_success() throws Exception {
+    UUID channelId = UUID.randomUUID();
+    given(recommendationService.findRecommendation(USER_ID, RESULT_ID))
+        .willReturn(List.of(new RecommendationItemResponse(channelId, "11번가 광고", 78,
+            "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요", "20~40대 여성",
+            new BigDecimal("120"), PricingModel.CPM, 3_000L,
+            new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
+            true, null)));
+
+    mockMvc.perform(get("/api/v1/recommendations/{recommendationId}", RESULT_ID))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").isArray())
+        .andExpect(jsonPath("$.data[0].channelId").value(channelId.toString()))
+        .andExpect(jsonPath("$.data[0].channelName").value("11번가 광고"))
+        .andExpect(jsonPath("$.data[0].matchRate").value(78))
+        .andExpect(jsonPath("$.data[0].pricingModel").value("CPM"))
+        .andExpect(jsonPath("$.data[0].minBudgetWon").value(3000))
+        .andExpect(jsonPath("$.data[0].estImpressions.min").value(850000))
+        .andExpect(jsonPath("$.data[0].estClicks.max").value(28750))
+        .andExpect(jsonPath("$.data[0].isExecutable").value(true))
+        .andExpect(jsonPath("$.data[0].shortfallWon").value(nullValue()));
+  }
+
+  @Test
+  @DisplayName("없는 추천이나 남의 추천을 조회하면 404 REC-001 을 반환한다")
+  void getRecommendation_notFound() throws Exception {
+    BDDMockito.willThrow(new RecommendationNotFoundException(RESULT_ID))
+        .given(recommendationService).findRecommendation(USER_ID, RESULT_ID);
+
+    mockMvc.perform(get("/api/v1/recommendations/{recommendationId}", RESULT_ID))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("REC-001"));
+  }
+
+  @Test
+  @DisplayName("추천 id 가 UUID 형식이 아니면 400 으로 거부한다")
+  void getRecommendation_invalidId() throws Exception {
+    mockMvc.perform(get("/api/v1/recommendations/{recommendationId}", "not-a-uuid"))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

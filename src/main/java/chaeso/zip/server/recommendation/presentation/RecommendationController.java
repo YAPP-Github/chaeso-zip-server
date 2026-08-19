@@ -17,6 +17,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,5 +56,14 @@ public class RecommendationController implements RecommendationApiDocs {
       @ParameterObject RecommendationPageRequest request) {
     return ApiResponse.success(PageResponse.from(
         recommendationService.findMyRecommendations(principal.userId(), request.toPageable())));
+  }
+
+  @Override
+  @GetMapping("/{recommendationId}")
+  public ApiResponse<List<RecommendationItemResponse>> getRecommendation(
+      @AuthenticationPrincipal UserPrincipal principal,
+      @PathVariable UUID recommendationId) {
+    return ApiResponse.success(
+        recommendationService.findRecommendation(principal.userId(), recommendationId));
   }
 }

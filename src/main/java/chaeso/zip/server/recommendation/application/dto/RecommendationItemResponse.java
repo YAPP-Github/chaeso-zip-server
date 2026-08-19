@@ -3,6 +3,7 @@ package chaeso.zip.server.recommendation.application.dto;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.estimation.application.dto.CountRangeResponse;
 import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
+import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -62,5 +63,27 @@ public record RecommendationItemResponse(
         CountRangeResponse.from(snapshot.clicks()),
         snapshot.isExecutable(),
         snapshot.shortfallWon());
+  }
+
+  /**
+   * 저장된 추천 한 행을 그대로 되살린다. 적합도·근거·금액·추정값은 모두 저장 시점 스냅샷이며
+   * 재계산하지 않는다.
+   *
+   * @param channelName 지금의 채널명
+   */
+  public static RecommendationItemResponse from(ChannelRecommendation item, String channelName) {
+    return new RecommendationItemResponse(
+        item.getChannelId(),
+        channelName,
+        item.getScore(),
+        item.getReason(),
+        item.getAudienceSummarySnap(),
+        item.getCpcWon(),
+        item.getEstPricingModel(),
+        item.getMinBudgetWonSnap(),
+        CountRangeResponse.of(item.getEstImpressionsMin(), item.getEstImpressionsMax()),
+        CountRangeResponse.of(item.getEstClicksMin(), item.getEstClicksMax()),
+        item.isExecutable(),
+        item.getShortfallWon());
   }
 }

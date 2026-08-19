@@ -22,6 +22,7 @@ import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryRes
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
 import chaeso.zip.server.recommendation.domain.ChannelMatcher;
 import chaeso.zip.server.recommendation.domain.MatchScore;
+import chaeso.zip.server.recommendation.domain.RecommendationNotFoundException;
 import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResult;
@@ -118,6 +119,36 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     return results.map(result -> RecommendationSummaryResponse.from(result,
         itemsByResult.getOrDefault(result.getId(), List.of())));
+  }
+
+  @Override
+  public List<RecommendationItemResponse> findRecommendation(UUID userId, UUID recommendationId) {
+    ChannelRecommendationResult result = channelRecommendationResultRepository
+        .findById(recommendationId)
+        .filter(saved -> saved.getUserId().equals(userId))
+        .orElseThrow(() -> new RecommendationNotFoundException(recommendationId));
+
+    return restore(channelRecommendationRepository.findByResultIdOrderByRankAsc(result.getId()));
+  }
+
+  private List<RecommendationItemResponse> restore(List<ChannelRecommendation> items) {
+    Map<UUID, String> channelNames = channelNames(items.stream()
+        .map(ChannelRecommendation::getChannelId)
+        .distinct()
+        .toList());
+
+    return items.stream()
+        .map(item -> RecommendationItemResponse.from(item,
+            channelNames.getOrDefault(item.getChannelId(), item.getChannelName())))
+        .toList();
+  }
+
+  private Map<UUID, String> channelNames(List<UUID> channelIds) {
+    if (channelIds.isEmpty()) {
+      return Map.of();
+    }
+    return channelRepository.findAllById(channelIds).stream()
+        .collect(Collectors.toMap(Channel::getId, Channel::getName));
   }
 
   private Map<UUID, List<ChannelRecommendation>> itemsOf(List<UUID> resultIds) {

@@ -17,6 +17,11 @@ public interface ChannelRecommendationRepository
   List<ChannelRecommendation> findByResultIdInOrderByRankAsc(Collection<UUID> resultIds);
 
   /**
+   * 추천 1건에 묶인 채널별 행을 순위대로 읽는다.
+   */
+  List<ChannelRecommendation> findByResultIdOrderByRankAsc(UUID resultId);
+
+  /**
    * 이 온보딩의 추천 결과에 포함된 채널인지 판정할 때 쓴다.
    */
   boolean existsByOnboardingIdAndChannelId(UUID onboardingId, UUID channelId);

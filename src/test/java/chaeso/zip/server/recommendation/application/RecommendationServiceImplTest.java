@@ -39,6 +39,7 @@ import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.domain.RecommendationNotFoundException;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendation;
 import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResult;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
@@ -689,6 +690,146 @@ class RecommendationServiceImplTest {
 
     private Page<RecommendationSummaryResponse> findMyRecommendations() {
       return recommendationService.findMyRecommendations(USER_ID, PAGEABLE);
+    }
+  }
+
+  @Nested
+  @DisplayName("저장한 추천 상세 (GET /recommendations/{recommendationId})")
+  class RecommendationDetail {
+
+    private static final UUID CHANNEL_ID = UUID.randomUUID();
+
+    @Test
+    @DisplayName("저장된 스냅샷을 추천 조회와 같은 항목으로 순위 순으로 되살린다")
+    void restoresSnapshotInRankOrder() {
+      givenResult(USER_ID);
+      givenItems(snapshotRow(1, CHANNEL_ID, "11번가 광고"),
+          snapshotRow(2, UUID.randomUUID(), "당근마켓 광고"));
+      givenChannels(channel(CHANNEL_ID, "11번가 광고"));
+
+      List<RecommendationItemResponse> items = findRecommendation();
+
+      assertThat(items).extracting(RecommendationItemResponse::channelName,
+              RecommendationItemResponse::matchRate)
+          .containsExactly(tuple("11번가 광고", 78), tuple("당근마켓 광고", 61));
+      assertThat(items.getFirst()).isEqualTo(new RecommendationItemResponse(
+          CHANNEL_ID, "11번가 광고", 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
+          "30대 여성", new BigDecimal("120"), PricingModel.CPM, 3_000L,
+          new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
+          true, null));
+    }
+
+    @Test
+    @DisplayName("단가·상품이 바뀌어도 저장 당시 수치를 그대로 주고 다시 계산하지 않는다")
+    void neverRecalculates() {
+      givenResult(USER_ID);
+      givenItems(snapshotRow(1, CHANNEL_ID, "11번가 광고"));
+      givenChannels(channel(CHANNEL_ID, "11번가 광고"));
+
+      findRecommendation();
+
+      verifyNoInteractions(channelProductRepository, channelPricingRepository,
+          defaultCtrProvider, onboardingRepository);
+    }
+
+    @Test
+    @DisplayName("매체명은 채널을 알아볼 수 있게 지금 이름으로 준다")
+    void usesCurrentChannelName() {
+      givenResult(USER_ID);
+      givenItems(snapshotRow(1, CHANNEL_ID, "저장 당시 이름"));
+      givenChannels(channel(CHANNEL_ID, "바뀐 이름"));
+
+      assertThat(findRecommendation().getFirst().channelName()).isEqualTo("바뀐 이름");
+    }
+
+    @Test
+    @DisplayName("채널이 사라졌으면 저장 당시 이름으로 채운다")
+    void fallsBackToSnapshotChannelName() {
+      givenResult(USER_ID);
+      givenItems(snapshotRow(1, CHANNEL_ID, "저장 당시 이름"));
+      givenChannels();
+
+      assertThat(findRecommendation().getFirst().channelName()).isEqualTo("저장 당시 이름");
+    }
+
+    @Test
+    @DisplayName("저장된 채널이 없으면 채널을 조회하지 않고 빈 배열을 준다")
+    void givesEmptyItems() {
+      givenResult(USER_ID);
+      givenItems();
+
+      assertThat(findRecommendation()).isEmpty();
+      verifyNoInteractions(channelRepository);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 추천은 없는 것과 같은 404 로 숨기고 항목을 조회하지 않는다")
+    void hidesOthersRecommendation() {
+      givenResult(UUID.randomUUID());
+
+      assertThatThrownBy(this::findRecommendation)
+          .isInstanceOf(RecommendationNotFoundException.class);
+      verifyNoInteractions(channelRecommendationRepository);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 추천 id 는 404 로 거부한다")
+    void rejectsUnknownRecommendation() {
+      given(channelRecommendationResultRepository.findById(RESULT_ID))
+          .willReturn(Optional.empty());
+
+      assertThatThrownBy(this::findRecommendation)
+          .isInstanceOf(RecommendationNotFoundException.class);
+    }
+
+    private void givenResult(UUID ownerId) {
+      given(channelRecommendationResultRepository.findById(RESULT_ID)).willReturn(Optional.of(
+          RecommendationFixture.result(RESULT_ID, ownerId, ONBOARDING_ID, SERVICE_NAME,
+              LocalDateTime.of(2026, 3, 14, 10, 22, 31))));
+    }
+
+    private void givenItems(ChannelRecommendation... items) {
+      given(channelRecommendationRepository.findByResultIdOrderByRankAsc(RESULT_ID))
+          .willReturn(List.of(items));
+    }
+
+    private void givenChannels(Channel... channels) {
+      given(channelRepository.findAllById(anyList())).willReturn(List.of(channels));
+    }
+
+    private List<RecommendationItemResponse> findRecommendation() {
+      return recommendationService.findRecommendation(USER_ID, RESULT_ID);
+    }
+
+    /** 순위 1은 집행 가능한 추정 스냅샷, 그 아래는 부족액이 있는 스냅샷. */
+    private static ChannelRecommendation snapshotRow(int rank, UUID channelId,
+        String channelName) {
+      boolean executable = rank == 1;
+      return ChannelRecommendation.builder()
+          .userId(USER_ID)
+          .onboardingId(ONBOARDING_ID)
+          .resultId(RESULT_ID)
+          .channelId(channelId)
+          .rank(rank)
+          .score(executable ? 78 : 61)
+          .reason(executable
+              ? "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요"
+              : "쇼핑·커머스 업종에 적합하지만 집행에는 500,000원이 더 필요해요")
+          .reasonTags(List.of("CATEGORY", "OBJECTIVE"))
+          .channelName(channelName)
+          .estPricingModel(PricingModel.CPM)
+          .estUnitPrice(new BigDecimal("3000"))
+          .estImpressionsMin(850_000L)
+          .estImpressionsMax(1_150_000L)
+          .estClicksMin(21_250L)
+          .estClicksMax(28_750L)
+          .cpcWon(new BigDecimal("120"))
+          .pricingModelsAll(List.of("CPM", "CPC"))
+          .minBudgetWonSnap(3_000L)
+          .audienceSummarySnap("30대 여성")
+          .executable(executable)
+          .shortfallWon(executable ? null : 500_000L)
+          .build();
     }
   }
 
