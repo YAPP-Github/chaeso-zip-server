@@ -23,7 +23,7 @@ import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.estimation.domain.vo.EstimationProduct;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
-import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
+import chaeso.zip.server.recommendation.application.RecommendationService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -63,7 +63,7 @@ public class ChannelServiceImpl implements ChannelService {
   private final ChannelPricingRepository channelPricingRepository;
   private final ChannelAudienceMetricRepository channelAudienceMetricRepository;
   private final ChannelReferenceRepository channelReferenceRepository;
-  private final ChannelRecommendationRepository channelRecommendationRepository;
+  private final RecommendationService recommendationService;
   private final OnboardingRepository onboardingRepository;
 
   @Override
@@ -119,8 +119,8 @@ public class ChannelServiceImpl implements ChannelService {
     if (onboarding == null) {
       return null;
     }
-    boolean recommended = channelRecommendationRepository
-        .existsByOnboardingIdAndChannelId(onboardingId, channelId);
+    boolean recommended = recommendationService.recommend(onboardingId).stream()
+        .anyMatch(item -> item.channelId().equals(channelId));
     return recommended ? RecommendationBasisResponse.from(onboarding) : null;
   }
 
