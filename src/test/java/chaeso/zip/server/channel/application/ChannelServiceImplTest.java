@@ -31,7 +31,8 @@ import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
 import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.onboarding.domain.vo.CampaignPeriod;
-import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
+import chaeso.zip.server.recommendation.application.RecommendationService;
+import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.support.OnboardingFixture;
 import java.math.BigDecimal;
 import java.util.List;
@@ -64,7 +65,7 @@ class ChannelServiceImplTest {
   @Mock
   private ChannelReferenceRepository channelReferenceRepository;
   @Mock
-  private ChannelRecommendationRepository channelRecommendationRepository;
+  private RecommendationService recommendationService;
   @Mock
   private OnboardingRepository onboardingRepository;
 
@@ -103,7 +104,7 @@ class ChannelServiceImplTest {
       ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, null, OWNER_ID);
 
       assertThat(detail.recommendationBasis()).isNull();
-      verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+      verifyNoInteractions(recommendationService, onboardingRepository);
     }
 
     @Test
@@ -112,7 +113,7 @@ class ChannelServiceImplTest {
       ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, null);
 
       assertThat(detail.recommendationBasis()).isNull();
-      verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+      verifyNoInteractions(recommendationService, onboardingRepository);
     }
 
     @Test
@@ -125,7 +126,7 @@ class ChannelServiceImplTest {
           channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, UUID.randomUUID());
 
       assertThat(detail.recommendationBasis()).isNull();
-      verifyNoInteractions(channelRecommendationRepository);
+      verifyNoInteractions(recommendationService);
     }
 
     @Test
@@ -136,14 +137,14 @@ class ChannelServiceImplTest {
       ChannelDetailResponse detail = channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID);
 
       assertThat(detail.recommendationBasis()).isNull();
-      verifyNoInteractions(channelRecommendationRepository);
+      verifyNoInteractions(recommendationService);
     }
 
     @Test
     @DisplayName("그 추천에 없던 채널이면 근거를 비운다")
     void skipsBasisForChannelOutsideRecommendation() {
-      given(channelRecommendationRepository
-          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(false);
+      given(recommendationService.recommend(ONBOARDING_ID))
+          .willReturn(List.of(recommendationItem(UUID.randomUUID())));
       given(onboardingRepository.findById(ONBOARDING_ID))
           .willReturn(Optional.of(onboarding(OWNER_ID)));
 
@@ -161,12 +162,17 @@ class ChannelServiceImplTest {
 
       assertThat(detail.id()).isEqualTo(CHANNEL_ID);
       assertThat(detail.recommendationBasis()).isNull();
-      verifyNoInteractions(channelRecommendationRepository);
+      verifyNoInteractions(recommendationService);
     }
 
     private void givenRecommended() {
-      given(channelRecommendationRepository
-          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
+      given(recommendationService.recommend(ONBOARDING_ID))
+          .willReturn(List.of(recommendationItem(CHANNEL_ID)));
+    }
+
+    private RecommendationItemResponse recommendationItem(UUID channelId) {
+      return new RecommendationItemResponse(channelId, "채널", 0, "근거", "타깃",
+          null, null, null, null, null, false, null);
     }
 
     private Onboarding onboarding(UUID userId) {
@@ -307,7 +313,7 @@ class ChannelServiceImplTest {
       givenChannelTags(DEFAULT_TAGS);
 
       assertThat(tagsOf(null, OWNER_ID)).isEqualTo(DEFAULT_TAGS);
-      verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+      verifyNoInteractions(recommendationService, onboardingRepository);
     }
 
     @Test
@@ -318,8 +324,9 @@ class ChannelServiceImplTest {
           .willReturn(Optional.of(OnboardingFixture.onboarding(OWNER_ID,
               Category.MEDICAL_HEALTHCARE, CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S),
               1_000_000L, 3_000_000L, CampaignPeriod.M1)));
-      given(channelRecommendationRepository
-          .existsByOnboardingIdAndChannelId(ONBOARDING_ID, CHANNEL_ID)).willReturn(true);
+      given(recommendationService.recommend(ONBOARDING_ID))
+          .willReturn(List.of(new RecommendationItemResponse(CHANNEL_ID, "채널", 0, "근거", "타깃",
+              null, null, null, null, null, false, null)));
 
       assertThat(tagsOf(ONBOARDING_ID, OWNER_ID)).isEqualTo(DEFAULT_TAGS);
     }
@@ -470,6 +477,6 @@ class ChannelServiceImplTest {
     assertThatThrownBy(() -> channelService.getChannel(CHANNEL_ID, ONBOARDING_ID, OWNER_ID))
         .isInstanceOf(ChannelNotFoundException.class);
 
-    verifyNoInteractions(channelRecommendationRepository, onboardingRepository);
+    verifyNoInteractions(recommendationService, onboardingRepository);
   }
 }
