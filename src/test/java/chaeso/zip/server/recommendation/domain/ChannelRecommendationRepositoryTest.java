@@ -113,6 +113,19 @@ class ChannelRecommendationRepositoryTest {
         .containsExactly(1, 2);
   }
 
+  @Test
+  @DisplayName("상세 조회는 추천 1건의 채널을 순위 순으로 읽는다")
+  void readsItemsOfOneResultInRankOrder() {
+    UUID otherChannelId = entityManager.persistAndFlush(persistableChannel("당근마켓 광고")).getId();
+    channelRecommendationRepository.saveAndFlush(recommendation(2, otherChannelId));
+    channelRecommendationRepository.saveAndFlush(recommendation(1));
+    entityManager.clear();
+
+    assertThat(channelRecommendationRepository.findByResultIdOrderByRankAsc(resultId))
+        .extracting(ChannelRecommendation::getRank)
+        .containsExactly(1, 2);
+  }
+
   private ChannelRecommendation recommendation(int rank) {
     return recommendation(rank, channelId);
   }

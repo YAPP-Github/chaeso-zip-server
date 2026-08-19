@@ -33,4 +33,13 @@ public interface RecommendationService {
    * @return 추천 목록 요약
    */
   Page<RecommendationSummaryResponse> findMyRecommendations(UUID userId, Pageable pageable);
+
+  /**
+   * 저장된 추천 1건을 채널별 항목까지 저장 시점 값 그대로 조회한다.
+   *
+   * @param userId           조회하는 사용자
+   * @param recommendationId 저장할 때 발급된 추천 id
+   * @return 저장된 추천 채널. 적합도(순위) 순
+   */
+  List<RecommendationItemResponse> findRecommendation(UUID userId, UUID recommendationId);
 }

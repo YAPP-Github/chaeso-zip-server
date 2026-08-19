@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "Recommendation", description = "채널 추천 API")
@@ -174,6 +175,19 @@ public interface RecommendationApiDocs {
       }
       """;
 
+  String RECOMMENDATION_NOT_FOUND_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "REC-001",
+          "message": "존재하지 않는 추천입니다. id=3f8e2b1a-6c4d-4e9a-9f2b-1a2b3c4d5e6f",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   @Operation(operationId = "getRecommendations", summary = "온보딩 기반 채널 추천",
       description = """
           온보딩 응답을 업종·광고 목적·타깃 연령대로 매칭해 적합한 채널을 적합도 순으로 \
@@ -257,4 +271,25 @@ public interface RecommendationApiDocs {
   ApiResponse<PageResponse<RecommendationSummaryResponse>> getMyRecommendations(
       @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
       @ParameterObject RecommendationPageRequest request);
+
+  @SecurityRequirement(name = "bearerAuth")
+  @Operation(operationId = "getRecommendation", summary = "저장된 채널 추천 상세",
+      description = """
+          저장된 추천 1건을 매체별 항목까지 재계산 없이 그대로 반환한다.
+
+          적합도·추천 근거·단가·노출/클릭 추정·부족액은 모두 저장 시점 값이라, 이후 채널의 단가나 \
+          상품이 바뀌어도 달라지지 않는다. 매체명만 채널을 알아볼 수 있게 지금 이름으로 준다.""")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+      description = "조회 성공. 저장할 때 맞는 채널이 없었으면 빈 배열",
+      useReturnTypeSchema = true,
+      content = @Content(
+          examples = @ExampleObject(name = "RECOMMENDATION", value = RECOMMENDATION_EXAMPLE)))
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+      description = "존재하지 않거나 다른 사용자의 추천(REC-001)",
+      content = @Content(schema = @Schema(implementation = ApiResponse.class),
+          examples = @ExampleObject(name = "RECOMMENDATION_NOT_FOUND",
+              value = RECOMMENDATION_NOT_FOUND_EXAMPLE)))
+  ApiResponse<List<RecommendationItemResponse>> getRecommendation(
+      @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal,
+      @Parameter(description = "저장할 때 발급된 추천 id") @PathVariable UUID recommendationId);
 }
