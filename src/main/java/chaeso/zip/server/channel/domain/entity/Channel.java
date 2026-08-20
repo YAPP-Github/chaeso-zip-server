@@ -56,8 +56,9 @@ public class Channel extends BaseEntity {
   @JdbcTypeCode(SqlTypes.ARRAY)
   private List<String> advantages;
 
-  @Column(name = "preview_image_url", length = 500)
-  private String previewImageUrl;
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "preview_image_urls")
+  private List<String> previewImageUrls;
 
   @Column(name = "audience_summary")
   private String audienceSummary;

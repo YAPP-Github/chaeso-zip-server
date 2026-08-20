@@ -210,7 +210,8 @@ class ChannelControllerTest {
         productId, "메인 배너", "DISPLAY", List.of(), 1_000_000, 5_000_000,
         1_500_000L, 5_250L, null, List.of(pricing), true);
     ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "11번가 광고", "월 방문자 수 상위 오픈마켓", null, "요약",
+        channelId, "11번가 광고", "월 방문자 수 상위 오픈마켓", null,
+        List.of("https://cdn.chaeso-zip.com/channels/preview-1.png"), "요약",
         Category.SHOPPING_COMMERCE, "DISPLAY",
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         ExecutionType.SELF, List.of(), List.of(),
@@ -233,6 +234,8 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.products[0].isExecutable").value(true))
         .andExpect(jsonPath("$.data.products[0].ctr").doesNotExist())
         .andExpect(jsonPath("$.data.iconUrl").value(nullValue()))
+        .andExpect(jsonPath("$.data.previewImageUrls").value(
+            contains("https://cdn.chaeso-zip.com/channels/preview-1.png")))
         .andExpect(jsonPath("$.data.products[0].pricing[0].valueMax").value(nullValue()))
         .andExpect(jsonPath("$.data.products[0].pricing[0].pricingModel").value("CPM"))
         .andExpect(jsonPath("$.data.products[0].pricing[0].vat").value("EXCLUDED"))
@@ -289,7 +292,8 @@ class ChannelControllerTest {
   void getChannel_emptyProducts() throws Exception {
     UUID channelId = UUID.randomUUID();
     ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "상품없는 채널", null, null, "요약", Category.SHOPPING_COMMERCE, null,
+        channelId, "상품없는 채널", null, null, List.of(), "요약", Category.SHOPPING_COMMERCE,
+        null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), null, List.of());
@@ -318,7 +322,7 @@ class ChannelControllerTest {
   private static ChannelDetailResponse channelDetail(UUID channelId,
       RecommendationBasisResponse basis) {
     return new ChannelDetailResponse(
-        channelId, "11번가 광고", null, null, null, Category.SHOPPING_COMMERCE, null,
+        channelId, "11번가 광고", null, null, List.of(), null, Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), basis, List.of());

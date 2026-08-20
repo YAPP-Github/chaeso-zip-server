@@ -23,6 +23,9 @@ public record ChannelDetailResponse(
     @Schema(description = "심볼 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String iconUrl,
+    @Schema(description = "채널 광고예시 이미지 URL 목록(없으면 빈 배열)",
+        requiredMode = Schema.RequiredMode.REQUIRED)
+    List<String> previewImageUrls,
     @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String description,
     @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE",
@@ -87,6 +90,7 @@ public record ChannelDetailResponse(
         channel.getName(),
         channel.getTagline(),
         channel.getIconUrl(),
+        emptyIfNull(channel.getPreviewImageUrls()),
         channel.getDescription(),
         channel.getPrimaryCategory(),
         channel.getMediaType(),
