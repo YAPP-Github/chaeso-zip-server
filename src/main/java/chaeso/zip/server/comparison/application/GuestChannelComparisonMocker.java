@@ -29,7 +29,7 @@ final class GuestChannelComparisonMocker {
           return new ChannelComparisonItemResponse(
               item.channelId(),
               item.channelName(),
-              item.previewImageUrl(),
+              item.iconUrl(),
               profile.audienceSummary(),
               profile.adFormats(),
               profile.targetingMethods(),

@@ -52,6 +52,9 @@ public class ChannelComparisonItem {
   @Column(name = "channel_name", nullable = false)
   private String channelName;
 
+  @Column(name = "icon_url_snap", length = 500)
+  private String iconUrlSnap;
+
   @Column(name = "preview_image_url_snap", length = 500)
   private String previewImageUrlSnap;
 
@@ -108,12 +111,12 @@ public class ChannelComparisonItem {
 
   @Builder
   private ChannelComparisonItem(UUID comparisonId, UUID channelId, int sortOrder,
-      Integer matchRate, List<String> tagsSnap, String channelName, String previewImageUrlSnap,
-      List<String> displayPlatformsSnap, List<String> advantagesSnap, String audienceSummarySnap,
-      List<String> adFormatsSnap, List<String> targetingMethodsSnap, String executionTypeSnap,
-      List<String> pricingModelsAll, BigDecimal cpcWon, BigDecimal cpmWon,
-      Integer minBudgetWonSnap, Long estImpressionsMin, Long estImpressionsMax, Long estClicksMin,
-      Long estClicksMax) {
+      Integer matchRate, List<String> tagsSnap, String channelName, String iconUrlSnap,
+      List<String> displayPlatformsSnap, List<String> advantagesSnap,
+      String audienceSummarySnap, List<String> adFormatsSnap, List<String> targetingMethodsSnap,
+      String executionTypeSnap, List<String> pricingModelsAll, BigDecimal cpcWon,
+      BigDecimal cpmWon, Integer minBudgetWonSnap, Long estImpressionsMin, Long estImpressionsMax,
+      Long estClicksMin, Long estClicksMax) {
     if (comparisonId == null) {
       throw new IllegalArgumentException("ChannelComparisonItem requires a comparisonId.");
     }
@@ -126,7 +129,7 @@ public class ChannelComparisonItem {
     this.matchRate = matchRate;
     this.tagsSnap = tagsSnap;
     this.channelName = channelName;
-    this.previewImageUrlSnap = previewImageUrlSnap;
+    this.iconUrlSnap = iconUrlSnap;
     this.displayPlatformsSnap = displayPlatformsSnap;
     this.advantagesSnap = advantagesSnap;
     this.audienceSummarySnap = audienceSummarySnap;
@@ -153,7 +156,7 @@ public class ChannelComparisonItem {
         .matchRate(snapshot.matchRate())
         .tagsSnap(snapshot.tags())
         .channelName(snapshot.channelName())
-        .previewImageUrlSnap(snapshot.previewImageUrl())
+        .iconUrlSnap(snapshot.iconUrl())
         .displayPlatformsSnap(snapshot.displayPlatforms())
         .advantagesSnap(snapshot.advantages())
         .audienceSummarySnap(snapshot.audienceSummary())
