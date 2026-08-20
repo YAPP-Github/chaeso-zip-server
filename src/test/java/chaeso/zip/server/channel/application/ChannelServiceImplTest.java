@@ -171,7 +171,7 @@ class ChannelServiceImplTest {
     }
 
     private RecommendationItemResponse recommendationItem(UUID channelId) {
-      return new RecommendationItemResponse(channelId, "채널", 0, "근거", "타깃",
+      return new RecommendationItemResponse(channelId, "채널", null, 0, "근거", "타깃",
           null, null, null, null, null, false, null);
     }
 
@@ -325,7 +325,7 @@ class ChannelServiceImplTest {
               Category.MEDICAL_HEALTHCARE, CampaignObjective.TRAFFIC, List.of(AgeBand.AGE_20S),
               1_000_000L, 3_000_000L, CampaignPeriod.M1)));
       given(recommendationService.recommend(ONBOARDING_ID))
-          .willReturn(List.of(new RecommendationItemResponse(CHANNEL_ID, "채널", 0, "근거", "타깃",
+          .willReturn(List.of(new RecommendationItemResponse(CHANNEL_ID, "채널", null, 0, "근거", "타깃",
               null, null, null, null, null, false, null)));
 
       assertThat(tagsOf(ONBOARDING_ID, OWNER_ID)).isEqualTo(DEFAULT_TAGS);

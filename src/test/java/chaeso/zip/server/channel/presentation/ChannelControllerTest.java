@@ -232,7 +232,7 @@ class ChannelControllerTest {
         .andExpect(jsonPath("$.data.products[0].expectedClicks").value(5250))
         .andExpect(jsonPath("$.data.products[0].isExecutable").value(true))
         .andExpect(jsonPath("$.data.products[0].ctr").doesNotExist())
-        .andExpect(jsonPath("$.data.logoUrl").value(nullValue()))
+        .andExpect(jsonPath("$.data.iconUrl").value(nullValue()))
         .andExpect(jsonPath("$.data.products[0].pricing[0].valueMax").value(nullValue()))
         .andExpect(jsonPath("$.data.products[0].pricing[0].pricingModel").value("CPM"))
         .andExpect(jsonPath("$.data.products[0].pricing[0].vat").value("EXCLUDED"))
@@ -289,7 +289,7 @@ class ChannelControllerTest {
   void getChannel_emptyProducts() throws Exception {
     UUID channelId = UUID.randomUUID();
     ChannelDetailResponse detail = new ChannelDetailResponse(
-        channelId, "상품없는 채널", null, null, null, Category.SHOPPING_COMMERCE, null,
+        channelId, "상품없는 채널", null, null, "요약", Category.SHOPPING_COMMERCE, null,
         List.of(), List.of(), null, null, null, null, List.of(), null, null,
         null, List.of(), List.of(),
         List.of(), List.of(), List.of(), null, List.of());
