@@ -27,6 +27,20 @@ class ChannelResponseMappingTest {
     assertThat(detail.advantages()).isEmpty();
     assertThat(detail.adFormats()).isEmpty();
     assertThat(detail.targetingMethods()).isEmpty();
+    assertThat(detail.previewImageUrls()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("광고예시 이미지는 등록된 순서대로 목록에 그대로 실린다")
+  void mapsPreviewImageUrls() {
+    Channel channel = channel(UUID.randomUUID(), "11번가 광고");
+    ReflectionTestUtils.setField(channel, "previewImageUrls",
+        List.of("https://cdn.chaeso-zip.com/preview-1.png",
+            "https://cdn.chaeso-zip.com/preview-2.png"));
+
+    assertThat(detailOf(channel).previewImageUrls()).containsExactly(
+        "https://cdn.chaeso-zip.com/preview-1.png",
+        "https://cdn.chaeso-zip.com/preview-2.png");
   }
 
   @Test
