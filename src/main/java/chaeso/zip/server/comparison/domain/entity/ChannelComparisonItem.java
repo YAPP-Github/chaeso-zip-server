@@ -55,9 +55,6 @@ public class ChannelComparisonItem {
   @Column(name = "icon_url_snap", length = 500)
   private String iconUrlSnap;
 
-  @Column(name = "preview_image_url_snap", length = 500)
-  private String previewImageUrlSnap;
-
   @JdbcTypeCode(SqlTypes.ARRAY)
   @Column(name = "display_platforms_snap")
   private List<String> displayPlatformsSnap;

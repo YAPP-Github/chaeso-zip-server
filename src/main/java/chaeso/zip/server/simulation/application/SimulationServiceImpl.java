@@ -123,7 +123,7 @@ public class SimulationServiceImpl implements SimulationService {
   private SimulationResponse restore(BudgetSimulation simulation) {
     List<BudgetSimulationItem> items = budgetSimulationItemRepository
         .findByBudgetSimulationIdOrderBySortOrderAsc(simulation.getId());
-    Map<UUID, Channel> channels = loadChannels(items.stream()
+    Map<UUID, Channel> channels = loadChannelsTolerant(items.stream()
         .map(BudgetSimulationItem::getChannelId)
         .distinct()
         .toList());
@@ -247,6 +247,15 @@ public class SimulationServiceImpl implements SimulationService {
     }
     return channelRepository.findAllById(channelIds).stream()
         .collect(Collectors.toMap(Channel::getId, Channel::getName));
+  }
+
+  /** 삭제된 채널 참조 시 예외 대신 결과에서 제외. 복원 전용 */
+  private Map<UUID, Channel> loadChannelsTolerant(List<UUID> channelIds) {
+    if (channelIds.isEmpty()) {
+      return Map.of();
+    }
+    return channelRepository.findAllById(channelIds).stream()
+        .collect(Collectors.toMap(Channel::getId, Function.identity()));
   }
 
   private Map<UUID, List<ChannelPricing>> loadPricings(
