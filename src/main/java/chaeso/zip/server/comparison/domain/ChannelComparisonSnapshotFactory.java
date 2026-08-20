@@ -28,6 +28,9 @@ public final class ChannelComparisonSnapshotFactory {
   /** 채널 태그로 보여줄 최대 개수. */
   private static final int MAX_TAGS = 2;
 
+  /** 채널 장점으로 보여줄 최대 개수. 정렬 근거가 아직 없어 저장 순서 그대로 자른다. */
+  private static final int MAX_ADVANTAGES = 3;
+
   /** 온보딩 없는 로그인 요청의 기본 추정 예산(원). */
   private static final long DEFAULT_ESTIMATION_BUDGET_WON = 1_000_000L;
 
@@ -41,10 +44,10 @@ public final class ChannelComparisonSnapshotFactory {
     List<String> pricingModelsAll = pricingModelsAll(products, pricingsByProduct);
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     if (catalogPrice == null) {
-      return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel), null, null,
-          pricingModelsAll);
+      return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel), advantages(channel),
+          null, null, pricingModelsAll);
     }
-    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel),
+    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel), advantages(channel),
         catalogPrice.cpcWon(), catalogPrice.cpmWon(), pricingModelsAll);
   }
 
@@ -59,7 +62,7 @@ public final class ChannelComparisonSnapshotFactory {
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     EstimatedPrice estimated = estimate(catalogPrice, DEFAULT_ESTIMATION_BUDGET_WON,
         PeriodDaysPolicy.M1_DAYS);
-    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel),
+    return ChannelComparisonSnapshot.catalogOnly(channel, tags(channel), advantages(channel),
         estimated.cpcWon(), estimated.cpmWon(), pricingModelsAll, estimated.impressions(),
         estimated.clicks());
   }
@@ -77,7 +80,7 @@ public final class ChannelComparisonSnapshotFactory {
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     EstimatedPrice estimated = estimate(catalogPrice, budgetWon, periodDays);
 
-    return ChannelComparisonSnapshot.matched(channel, score, tags(channel),
+    return ChannelComparisonSnapshot.matched(channel, score, tags(channel), advantages(channel),
         estimated.cpcWon(), estimated.cpmWon(), pricingModelsAll, estimated.executable(),
         estimated.impressions(), estimated.clicks());
   }
@@ -133,6 +136,15 @@ public final class ChannelComparisonSnapshotFactory {
       return defaultTags;
     }
     return List.copyOf(defaultTags.subList(0, MAX_TAGS));
+  }
+
+  /** 채널 장점. 최대 {@link #MAX_ADVANTAGES}개로 자른다. */
+  private static List<String> advantages(Channel channel) {
+    List<String> advantages = channel.getAdvantages();
+    if (advantages == null || advantages.size() <= MAX_ADVANTAGES) {
+      return advantages;
+    }
+    return List.copyOf(advantages.subList(0, MAX_ADVANTAGES));
   }
 
   /**

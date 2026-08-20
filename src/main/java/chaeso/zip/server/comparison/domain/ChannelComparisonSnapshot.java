@@ -11,7 +11,7 @@ import java.util.UUID;
 public record ChannelComparisonSnapshot(
     UUID channelId,
     String channelName,
-    String previewImageUrl,
+    String iconUrl,
     List<String> displayPlatforms,
     String audienceSummary,
     List<String> adFormats,
@@ -31,24 +31,25 @@ public record ChannelComparisonSnapshot(
 
   /** 온보딩 없을 때의 카탈로그 스냅샷 */
   public static ChannelComparisonSnapshot catalogOnly(Channel channel, List<String> tags,
-      BigDecimal cpcWon, BigDecimal cpmWon, List<String> pricingModelsAll) {
-    return catalogOnly(channel, tags, cpcWon, cpmWon, pricingModelsAll, null, null);
+      List<String> advantages, BigDecimal cpcWon, BigDecimal cpmWon,
+      List<String> pricingModelsAll) {
+    return catalogOnly(channel, tags, advantages, cpcWon, cpmWon, pricingModelsAll, null, null);
   }
 
   /** 온보딩 없이 로그인만 한 경우의 카탈로그 스냅샷. 기본값 기준 예상 노출, 클릭 포함 */
   public static ChannelComparisonSnapshot catalogOnly(Channel channel, List<String> tags,
-      BigDecimal cpcWon, BigDecimal cpmWon, List<String> pricingModelsAll,
-      ImpressionRange impressions, ClickRange clicks) {
+      List<String> advantages, BigDecimal cpcWon, BigDecimal cpmWon,
+      List<String> pricingModelsAll, ImpressionRange impressions, ClickRange clicks) {
     return new ChannelComparisonSnapshot(
         channel.getId(),
         channel.getName(),
-        channel.getPreviewImageUrl(),
+        channel.getIconUrl(),
         channel.getDisplayPlatforms(),
         channel.getAudienceSummary(),
         channel.getAdFormats(),
         channel.getTargetingMethods(),
         channel.getMinBudgetWon(),
-        channel.getAdvantages(),
+        advantages,
         tags,
         executionTypeName(channel),
         pricingModelsAll,
@@ -63,18 +64,19 @@ public record ChannelComparisonSnapshot(
 
   /** 온보딩 조건을 반영한 스냅샷. 적합도와 예상 노출, 클릭 포함 */
   public static ChannelComparisonSnapshot matched(Channel channel, MatchScore score,
-      List<String> tags, BigDecimal cpcWon, BigDecimal cpmWon, List<String> pricingModelsAll,
-      boolean executable, ImpressionRange impressions, ClickRange clicks) {
+      List<String> tags, List<String> advantages, BigDecimal cpcWon, BigDecimal cpmWon,
+      List<String> pricingModelsAll, boolean executable, ImpressionRange impressions,
+      ClickRange clicks) {
     return new ChannelComparisonSnapshot(
         channel.getId(),
         channel.getName(),
-        channel.getPreviewImageUrl(),
+        channel.getIconUrl(),
         channel.getDisplayPlatforms(),
         channel.getAudienceSummary(),
         channel.getAdFormats(),
         channel.getTargetingMethods(),
         channel.getMinBudgetWon(),
-        channel.getAdvantages(),
+        advantages,
         tags,
         executionTypeName(channel),
         pricingModelsAll,

@@ -445,7 +445,7 @@ class SimulationControllerTest {
 
   private static SimulationResponse response(UUID simulationId) {
     SimulationItemResponse item = new SimulationItemResponse(
-        CHANNEL_ID, "11번가 광고", PRODUCT_ID, 3_000_000L, new BigDecimal("100"),
+        CHANNEL_ID, "11번가 광고", null, PRODUCT_ID, 3_000_000L, new BigDecimal("100"),
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         new BigDecimal("120"), new BigDecimal("3000"), 1_000_000L, true, null, BasisNote.COMMON);
     return new SimulationResponse(simulationId, 3_000_000L, CampaignPeriod.M1, 1_000_000L, 25_000L,

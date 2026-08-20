@@ -34,7 +34,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~30대",
               "adFormats": ["배너", "네이티브"],
               "targetingMethods": ["키워드", "리타겟팅"],
@@ -43,7 +43,7 @@ public interface ChannelComparisonApiDocs {
               "tags": ["커머스 특화", "구매 전환"],
               "cpcWon": null,
               "cpmWon": 3000,
-              "matchRate": 92,
+              "matchRate": null,
               "estImpressions": {"min": 40000, "max": 60000},
               "estClicks": {"min": 400, "max": 600}
             }
@@ -62,7 +62,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
@@ -90,7 +90,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
@@ -119,7 +119,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
@@ -238,12 +238,12 @@ public interface ChannelComparisonApiDocs {
       description = """
           채널을 2~3개까지 비교한다.
           [비로그인]
-          매체명, CPC/CPM, 태그, 장점, 최소광고비를 요청순 반환.
-          오디언스·광고형태·타기팅·적합도·예상 노출·클릭은 고정 MOCK 값
+          매체명, CPC/CPM, 태그, 장점(최대 3개), 최소광고비를 요청순 반환.
+          오디언스·광고형태·타기팅·예상 노출·클릭은 고정 MOCK 값
 
           [로그인]
-          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 채널 태그, 장점을 적합도순 반환
-          온보딩X: 매체명, 채널 상세, 기본 예산(100만원/1개월) 기준 예상 노출·클릭, CPC/CPM, 채널 태그, 장점을 요청순 반환
+          온보딩O: 매체명, 채널 상세, 적합도, 예상 노출·클릭, CPC/CPM, 채널 태그, 장점(최대 3개)을 적합도순 반환
+          온보딩X: 매체명, 채널 상세, 기본 예산(100만원/1개월) 기준 예상 노출·클릭, CPC/CPM, 채널 태그, 장점(최대 3개)을 요청순 반환
 
           예산이 부족하면 예상 노출·클릭은 null.
           회원이 만든 온보딩은 해당 회원만 사용할 수 있다.""")

@@ -20,7 +20,7 @@ class ChannelComparisonSnapshotTest {
     ReflectionTestUtils.setField(channel, "executionType", ExecutionType.SELF);
 
     ChannelComparisonSnapshot snapshot = ChannelComparisonSnapshot.catalogOnly(
-        channel, List.of(), null, null, List.of());
+        channel, List.of(), List.of(), null, null, List.of());
 
     assertThat(snapshot.executionType()).isEqualTo("SELF");
   }
@@ -31,7 +31,7 @@ class ChannelComparisonSnapshotTest {
     Channel channel = ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고");
 
     ChannelComparisonSnapshot snapshot = ChannelComparisonSnapshot.catalogOnly(
-        channel, List.of(), null, null, List.of());
+        channel, List.of(), List.of(), null, null, List.of());
 
     assertThat(snapshot.executionType()).isNull();
   }

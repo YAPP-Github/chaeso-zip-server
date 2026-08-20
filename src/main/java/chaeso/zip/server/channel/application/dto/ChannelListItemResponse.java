@@ -12,9 +12,9 @@ public record ChannelListItemResponse(
     UUID id,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String name,
-    @Schema(description = "로고 이미지 URL",
+    @Schema(description = "심볼 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-    String logoUrl,
+    String iconUrl,
     @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String description,
     @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE",
@@ -25,7 +25,7 @@ public record ChannelListItemResponse(
     return new ChannelListItemResponse(
         channel.getId(),
         channel.getName(),
-        channel.getLogoUrl(),
+        channel.getIconUrl(),
         channel.getDescription(),
         channel.getPrimaryCategory());
   }

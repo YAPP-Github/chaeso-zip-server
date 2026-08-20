@@ -184,6 +184,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         .reason(snapshot.reason())
         .reasonTags(snapshot.reasonTags())
         .channelName(snapshot.channelName())
+        .wordmarkUrlSnap(snapshot.wordmarkUrl())
         .estPricingModel(snapshot.pricingModel())
         .estUnitPrice(snapshot.unitPrice())
         .estImpressionsMin(snapshot.impressions() == null ? null : snapshot.impressions().min())

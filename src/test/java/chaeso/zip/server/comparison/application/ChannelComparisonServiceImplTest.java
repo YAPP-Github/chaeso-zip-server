@@ -113,11 +113,13 @@ class ChannelComparisonServiceImplTest {
   class WithoutOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅, 적합도, 예상 노출/클릭을 고정 MOCK 값으로 채운다")
+    @DisplayName("비로그인 요청은 주요 오디언스와 광고 형태, 타기팅, 예상 노출/클릭을 고정 MOCK 값으로 채우고 적합도는 null이다")
     void mocksCatalogDetailsForAnonymousRequest() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags",
           List.of("정적태그1", "정적태그2", "정적태그3"));
+      ReflectionTestUtils.setField(channel, "advantages",
+          List.of("빠른 노출1", "빠른 노출2", "빠른 노출3", "빠른 노출4"));
       ChannelProduct product = matchedProduct(channel);
       ChannelPricing cpmPricing = pricing(product.getId(), PricingModel.CPM, "3000");
       givenCatalog(new CatalogEntry(channel, product, cpmPricing));
@@ -132,11 +134,12 @@ class ChannelComparisonServiceImplTest {
       assertThat(item.adFormats()).containsExactly("배너", "네이티브");
       assertThat(item.targetingMethods()).containsExactly("키워드", "리타겟팅");
       assertThat(item.minBudgetWon()).isEqualTo(channel.getMinBudgetWon());
-      assertThat(item.advantages()).containsExactly("빠른 노출");
+      // advantages는 4개지만 장점은 최대 3개까지만 잘라서 준다.
+      assertThat(item.advantages()).containsExactly("빠른 노출1", "빠른 노출2", "빠른 노출3");
       // defaultTags는 3개지만 태그는 최대 2개까지만 잘라서 준다.
       assertThat(item.tags()).containsExactly("정적태그1", "정적태그2");
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
-      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.matchRate()).isNull();
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
     }
@@ -256,7 +259,7 @@ class ChannelComparisonServiceImplTest {
   class WithOnboarding {
 
     @Test
-    @DisplayName("비로그인 요청은 적합도와 예상 노출·클릭·오디언스·광고형태·타기팅을 고정 MOCK 값으로 채운다")
+    @DisplayName("비로그인 요청은 예상 노출·클릭·오디언스·광고형태·타기팅을 고정 MOCK 값으로 채우고 적합도는 null이다")
     void mocksCatalogDetailsForAnonymousOnboarding() {
       Channel channel = matchedChannel();
       ReflectionTestUtils.setField(channel, "defaultTags", List.of("빠른매칭", "안정노출"));
@@ -273,7 +276,7 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, null)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(92);
+      assertThat(item.matchRate()).isNull();
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(40_000, 60_000));
       assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(400, 600));
       assertThat(item.audienceSummary()).isEqualTo("20~30대");
@@ -305,7 +308,7 @@ class ChannelComparisonServiceImplTest {
           .items();
 
       assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
-          .containsExactly(92, 81, 68);
+          .containsExactly(null, null, null);
       assertThat(items).extracting(ChannelComparisonItemResponse::audienceSummary)
           .containsExactly("20~30대", "30~40대", "전 연령");
     }
@@ -331,7 +334,7 @@ class ChannelComparisonServiceImplTest {
       assertThat(items).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("낮은적합도매체", "높은적합도매체");
       assertThat(items).extracting(ChannelComparisonItemResponse::matchRate)
-          .containsExactly(92, 81);
+          .containsExactly(null, null);
     }
 
     @Test
@@ -740,7 +743,7 @@ class ChannelComparisonServiceImplTest {
     void savesWithServiceNameInRequestOrder() {
       Channel first = channel(UUID.randomUUID(), "가매체");
       Channel second = channel(UUID.randomUUID(), "나매체");
-      ReflectionTestUtils.setField(first, "previewImageUrl", "https://cdn/first.png");
+      ReflectionTestUtils.setField(first, "iconUrl", "https://cdn/first.png");
 
       given(channelRepository.findAllById(anyList()))
           .willReturn(List.of(first, second));
@@ -768,7 +771,7 @@ class ChannelComparisonServiceImplTest {
       ChannelComparisonItem savedFirst = itemsCaptor.getValue().get(1);
       assertThat(savedFirst.getChannelId()).isEqualTo(first.getId());
       assertThat(savedFirst.getChannelName()).isEqualTo("가매체");
-      assertThat(savedFirst.getPreviewImageUrlSnap()).isEqualTo("https://cdn/first.png");
+      assertThat(savedFirst.getIconUrlSnap()).isEqualTo("https://cdn/first.png");
       assertThat(savedFirst.getMatchRate()).isNull();
       assertThat(savedFirst.getComparisonId()).isEqualTo(COMPARISON_ID);
     }

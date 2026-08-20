@@ -20,8 +20,9 @@ public record ChannelDetailResponse(
         example = "월 방문자 수 상위 오픈마켓",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String tagline,
-    @Schema(description = "로고 이미지 URL", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-    String logoUrl,
+    @Schema(description = "심볼 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    String iconUrl,
     @Schema(description = "채널 핵심 요약", requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String description,
     @Schema(description = "대표 업종 코드값", example = "SHOPPING_COMMERCE",
@@ -85,7 +86,7 @@ public record ChannelDetailResponse(
         channel.getId(),
         channel.getName(),
         channel.getTagline(),
-        channel.getLogoUrl(),
+        channel.getIconUrl(),
         channel.getDescription(),
         channel.getPrimaryCategory(),
         channel.getMediaType(),

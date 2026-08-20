@@ -33,10 +33,10 @@ Long id,
 따로 처리하지 않아도 됩니다.
 
 ```java
-// 항상 실리고 값이 없으면 null → 프론트 타입은 logoUrl: string | null
-@Schema(description = "로고 이미지 URL",
+// 항상 실리고 값이 없으면 null → 프론트 타입은 iconUrl: string | null
+@Schema(description = "심볼 로고 이미지 URL",
     requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-String logoUrl,
+String iconUrl,
 ```
 
 - **응답 DTO**: 값이 없을 수 있으면 `REQUIRED` + `nullable = true`. 키가 항상 있으니 `required`에 남습니다.
