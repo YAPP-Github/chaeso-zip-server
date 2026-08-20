@@ -389,8 +389,9 @@ class SimulationServiceImplTest {
     @Test
     @DisplayName("단가 정보가 있는 상품이 없는 매체는 견적 문의 안내만 남긴다")
     void guidesToQuoteWhenNoUsablePricing() {
+      String iconUrl = "https://assets.chaeso-zip.com/channels/icon.png";
       given(channelRepository.findAllById(anyList()))
-          .willReturn(List.of(channel(CHANNEL_ID, CHANNEL_NAME)));
+          .willReturn(List.of(channelWithIconUrl(CHANNEL_ID, CHANNEL_NAME, iconUrl)));
       given(channelProductRepository.findByChannelIdIn(anyList()))
           .willReturn(List.of(product(PRODUCT_ID, CHANNEL_ID)));
       given(channelPricingRepository.findByChannelProductIdIn(anyList())).willReturn(List.of(
@@ -399,6 +400,8 @@ class SimulationServiceImplTest {
       SimulationItemResponse item = simulationService.estimate(
           command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
+      assertThat(item.channelName()).isEqualTo(CHANNEL_NAME);
+      assertThat(item.iconUrl()).isEqualTo(iconUrl);
       assertThat(item.channelProductId()).isNull();
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.estImpressions()).isNull();
