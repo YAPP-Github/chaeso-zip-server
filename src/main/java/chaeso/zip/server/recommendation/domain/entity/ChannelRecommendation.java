@@ -68,6 +68,9 @@ public class ChannelRecommendation {
   @Column(name = "channel_name", nullable = false)
   private String channelName;
 
+  @Column(name = "wordmark_url_snap", length = 500)
+  private String wordmarkUrlSnap;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "est_pricing_model", length = 20)
   private PricingModel estPricingModel;
@@ -114,7 +117,8 @@ public class ChannelRecommendation {
   @Builder
   private ChannelRecommendation(UUID userId, UUID onboardingId, UUID resultId, UUID channelId,
       int rank, int score,
-      String reason, List<String> reasonTags, String channelName, PricingModel estPricingModel,
+      String reason, List<String> reasonTags, String channelName, String wordmarkUrlSnap,
+      PricingModel estPricingModel,
       BigDecimal estUnitPrice, Long estImpressionsMin, Long estImpressionsMax, Long estClicksMin,
       Long estClicksMax, BigDecimal cpcWon, List<String> pricingModelsAll, Long minBudgetWonSnap,
       String audienceSummarySnap, boolean executable, Long shortfallWon) {
@@ -139,6 +143,7 @@ public class ChannelRecommendation {
     this.reason = reason;
     this.reasonTags = reasonTags;
     this.channelName = channelName;
+    this.wordmarkUrlSnap = wordmarkUrlSnap;
     this.estPricingModel = estPricingModel;
     this.estUnitPrice = estUnitPrice;
     this.estImpressionsMin = estImpressionsMin;

@@ -713,7 +713,7 @@ class RecommendationServiceImplTest {
               RecommendationItemResponse::matchRate)
           .containsExactly(tuple("11번가 광고", 78), tuple("당근마켓 광고", 61));
       assertThat(items.getFirst()).isEqualTo(new RecommendationItemResponse(
-          CHANNEL_ID, "11번가 광고", 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
+          CHANNEL_ID, "11번가 광고", null, 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
           "30대 여성", new BigDecimal("120"), PricingModel.CPM, 3_000L,
           new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
           true, null));

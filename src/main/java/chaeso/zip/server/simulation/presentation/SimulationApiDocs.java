@@ -40,6 +40,7 @@ public interface SimulationApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "channelProductId": "7b1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2d",
               "allocatedBudgetWon": 2000000,
               "allocationPct": 66.7,
@@ -55,6 +56,7 @@ public interface SimulationApiDocs {
             {
               "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
               "channelName": "당근마켓 광고",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e/icon.png",
               "channelProductId": null,
               "allocatedBudgetWon": 1000000,
               "allocationPct": 33.3,
@@ -88,6 +90,7 @@ public interface SimulationApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "channelProductId": "7b1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2d",
               "allocatedBudgetWon": 3000000,
               "allocationPct": 100,

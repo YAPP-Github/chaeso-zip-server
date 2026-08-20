@@ -1,6 +1,7 @@
 package chaeso.zip.server.simulation.application;
 
 import static chaeso.zip.server.support.ChannelCatalogFixture.channel;
+import static chaeso.zip.server.support.ChannelCatalogFixture.channelWithIconUrl;
 import static chaeso.zip.server.support.ChannelCatalogFixture.pricing;
 import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static chaeso.zip.server.support.ChannelCatalogFixture.productWithCtrRange;
@@ -98,8 +99,13 @@ class SimulationServiceImplTest {
     @Test
     @DisplayName("CPM 매체의 노출·클릭 범위와 CPM 단가를 계산하고 합계는 범위 중앙값으로 낸다")
     void calculatesCpmChannel() {
-      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
-          pricing(PRODUCT_ID, PricingModel.CPM, "3000"));
+      String iconUrl = "https://assets.chaeso-zip.com/channels/icon.png";
+      given(channelRepository.findAllById(anyList()))
+          .willReturn(List.of(channelWithIconUrl(CHANNEL_ID, CHANNEL_NAME, iconUrl)));
+      given(channelProductRepository.findByChannelIdIn(anyList()))
+          .willReturn(List.of(product(PRODUCT_ID, CHANNEL_ID)));
+      given(channelPricingRepository.findByChannelProductIdIn(anyList()))
+          .willReturn(List.of(pricing(PRODUCT_ID, PricingModel.CPM, "3000")));
 
       SimulationResponse response = simulationService.estimate(
           command(3_000_000, CampaignPeriod.M1, allocation(3_000_000, "100")));
@@ -107,6 +113,7 @@ class SimulationServiceImplTest {
       SimulationItemResponse item = response.items().getFirst();
       assertThat(response.simulationId()).isNull();          // 저장하지 않았다
       assertThat(item.channelName()).isEqualTo(CHANNEL_NAME);
+      assertThat(item.iconUrl()).isEqualTo(iconUrl);
       assertThat(item.channelProductId()).isEqualTo(PRODUCT_ID);
       assertThat(item.isExecutable()).isTrue();
       assertThat(item.shortfallWon()).isNull();
@@ -382,8 +389,9 @@ class SimulationServiceImplTest {
     @Test
     @DisplayName("단가 정보가 있는 상품이 없는 매체는 견적 문의 안내만 남긴다")
     void guidesToQuoteWhenNoUsablePricing() {
+      String iconUrl = "https://assets.chaeso-zip.com/channels/icon.png";
       given(channelRepository.findAllById(anyList()))
-          .willReturn(List.of(channel(CHANNEL_ID, CHANNEL_NAME)));
+          .willReturn(List.of(channelWithIconUrl(CHANNEL_ID, CHANNEL_NAME, iconUrl)));
       given(channelProductRepository.findByChannelIdIn(anyList()))
           .willReturn(List.of(product(PRODUCT_ID, CHANNEL_ID)));
       given(channelPricingRepository.findByChannelProductIdIn(anyList())).willReturn(List.of(
@@ -392,6 +400,8 @@ class SimulationServiceImplTest {
       SimulationItemResponse item = simulationService.estimate(
           command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
+      assertThat(item.channelName()).isEqualTo(CHANNEL_NAME);
+      assertThat(item.iconUrl()).isEqualTo(iconUrl);
       assertThat(item.channelProductId()).isNull();
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.estImpressions()).isNull();
@@ -675,6 +685,39 @@ class SimulationServiceImplTest {
           .willReturn(Optional.empty());
 
       assertThat(simulationService.findLatest(USER_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("이후 삭제된 채널을 참조하는 항목은 예외 없이 이름·아이콘을 비운 채로 되살아난다")
+    void restoresItemWithDeletedChannelAsNull() {
+      UUID simulationId = UUID.randomUUID();
+      BudgetSimulation simulation = withId(BudgetSimulation.builder()
+          .userId(USER_ID)
+          .totalBudgetWon(1_000_000L)
+          .period(CampaignPeriod.LE_1W)
+          .totalEstImpressions(0L)
+          .totalEstClicks(0L)
+          .build(), simulationId);
+      given(budgetSimulationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(USER_ID))
+          .willReturn(Optional.of(simulation));
+      given(budgetSimulationItemRepository
+          .findByBudgetSimulationIdOrderBySortOrderAsc(simulationId))
+          .willReturn(List.of(BudgetSimulationItem.builder()
+              .budgetSimulationId(simulationId)
+              .channelId(CHANNEL_ID)
+              .sortOrder(0)
+              .allocatedBudgetWon(1_000_000L)
+              .allocationPct(new BigDecimal("100"))
+              .executable(false)
+              .basisNote("견적 문의 필요")
+              .build()));
+      given(channelRepository.findAllById(anyList())).willReturn(List.of());   // 채널이 삭제됨
+
+      SimulationItemResponse item =
+          simulationService.findLatest(USER_ID).orElseThrow().items().getFirst();
+
+      assertThat(item.channelName()).isNull();
+      assertThat(item.iconUrl()).isNull();
     }
   }
 

@@ -740,7 +740,7 @@ class ChannelComparisonServiceImplTest {
     void savesWithServiceNameInRequestOrder() {
       Channel first = channel(UUID.randomUUID(), "가매체");
       Channel second = channel(UUID.randomUUID(), "나매체");
-      ReflectionTestUtils.setField(first, "previewImageUrl", "https://cdn/first.png");
+      ReflectionTestUtils.setField(first, "iconUrl", "https://cdn/first.png");
 
       given(channelRepository.findAllById(anyList()))
           .willReturn(List.of(first, second));
@@ -768,7 +768,7 @@ class ChannelComparisonServiceImplTest {
       ChannelComparisonItem savedFirst = itemsCaptor.getValue().get(1);
       assertThat(savedFirst.getChannelId()).isEqualTo(first.getId());
       assertThat(savedFirst.getChannelName()).isEqualTo("가매체");
-      assertThat(savedFirst.getPreviewImageUrlSnap()).isEqualTo("https://cdn/first.png");
+      assertThat(savedFirst.getIconUrlSnap()).isEqualTo("https://cdn/first.png");
       assertThat(savedFirst.getMatchRate()).isNull();
       assertThat(savedFirst.getComparisonId()).isEqualTo(COMPARISON_ID);
     }

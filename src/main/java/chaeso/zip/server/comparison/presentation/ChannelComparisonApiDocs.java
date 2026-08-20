@@ -34,7 +34,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~30대",
               "adFormats": ["배너", "네이티브"],
               "targetingMethods": ["키워드", "리타겟팅"],
@@ -62,7 +62,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
@@ -90,7 +90,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],
@@ -119,7 +119,7 @@ public interface ChannelComparisonApiDocs {
             {
               "channelId": "550e8400-e29b-41d4-a716-446655440000",
               "channelName": "11번가 광고",
-              "previewImageUrl": "https://cdn.chaesozip.com/channels/11st-preview.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "audienceSummary": "20~40대 여성",
               "adFormats": ["배너"],
               "targetingMethods": ["관심사"],

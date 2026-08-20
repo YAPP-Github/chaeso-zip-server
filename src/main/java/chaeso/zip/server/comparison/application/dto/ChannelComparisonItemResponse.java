@@ -15,9 +15,9 @@ public record ChannelComparisonItemResponse(
     UUID channelId,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String channelName,
-    @Schema(description = "채널 로고 미리보기 URL",
+    @Schema(description = "심볼 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
-    String previewImageUrl,
+    String iconUrl,
     @Schema(description = "채널의 주요 오디언스. 등록된 정보가 없으면 null, 비로그인이면 MOCK 값",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     String audienceSummary,
@@ -67,7 +67,7 @@ public record ChannelComparisonItemResponse(
     return new ChannelComparisonItemResponse(
         snapshot.channelId(),
         snapshot.channelName(),
-        snapshot.previewImageUrl(),
+        snapshot.iconUrl(),
         snapshot.audienceSummary(),
         emptyIfNull(snapshot.adFormats()),
         emptyIfNull(snapshot.targetingMethods()),
@@ -86,7 +86,7 @@ public record ChannelComparisonItemResponse(
     return new ChannelComparisonItemResponse(
         item.getChannelId(),
         item.getChannelName(),
-        item.getPreviewImageUrlSnap(),
+        item.getIconUrlSnap(),
         item.getAudienceSummarySnap(),
         emptyIfNull(item.getAdFormatsSnap()),
         emptyIfNull(item.getTargetingMethodsSnap()),

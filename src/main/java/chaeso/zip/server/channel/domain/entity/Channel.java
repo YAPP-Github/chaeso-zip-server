@@ -31,8 +31,11 @@ public class Channel extends BaseEntity {
   @Column(name = "display_platforms")
   private List<String> displayPlatforms;
 
-  @Column(name = "logo_url", length = 500)
-  private String logoUrl;
+  @Column(name = "icon_url", length = 500)
+  private String iconUrl;
+
+  @Column(name = "wordmark_url", length = 500)
+  private String wordmarkUrl;
 
   @Column(name = "media_type", length = 20)
   private String mediaType;

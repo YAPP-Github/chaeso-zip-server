@@ -28,7 +28,7 @@ public interface ChannelApiDocs {
             {
               "id": "550e8400-e29b-41d4-a716-446655440000",
               "name": "11번가 광고",
-              "logoUrl": "https://cdn.chaeso.zip/channels/11st-logo.png",
+              "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
               "description": "월 방문자 수 상위 오픈마켓 채널",
               "primaryCategory": "SHOPPING_COMMERCE"
             }
@@ -52,7 +52,7 @@ public interface ChannelApiDocs {
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "name": "11번가 광고",
           "tagline": "월 방문자 수 상위 오픈마켓",
-          "logoUrl": "https://cdn.chaeso.zip/channels/11st-logo.png",
+          "iconUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
           "description": "월 방문자 수 상위 오픈마켓 채널",
           "primaryCategory": "SHOPPING_COMMERCE",
           "mediaType": "DISPLAY",

@@ -15,6 +15,9 @@ public record RecommendationItemResponse(
     UUID channelId,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String channelName,
+    @Schema(description = "워드마크 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/wordmark.png",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    String wordmarkUrl,
     @Schema(description = "적합도(%)", example = "78", requiredMode = Schema.RequiredMode.REQUIRED)
     int matchRate,
     @Schema(description = "추천 근거",
@@ -53,6 +56,7 @@ public record RecommendationItemResponse(
     return new RecommendationItemResponse(
         snapshot.channelId(),
         snapshot.channelName(),
+        snapshot.wordmarkUrl(),
         snapshot.matchRate(),
         snapshot.reason(),
         snapshot.primaryTarget(),
@@ -75,6 +79,7 @@ public record RecommendationItemResponse(
     return new RecommendationItemResponse(
         item.getChannelId(),
         channelName,
+        item.getWordmarkUrlSnap(),
         item.getScore(),
         item.getReason(),
         item.getAudienceSummarySnap(),

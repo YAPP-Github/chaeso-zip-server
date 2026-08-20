@@ -11,7 +11,7 @@ import java.util.UUID;
 public record ChannelComparisonSnapshot(
     UUID channelId,
     String channelName,
-    String previewImageUrl,
+    String iconUrl,
     List<String> displayPlatforms,
     String audienceSummary,
     List<String> adFormats,
@@ -42,7 +42,7 @@ public record ChannelComparisonSnapshot(
     return new ChannelComparisonSnapshot(
         channel.getId(),
         channel.getName(),
-        channel.getPreviewImageUrl(),
+        channel.getIconUrl(),
         channel.getDisplayPlatforms(),
         channel.getAudienceSummary(),
         channel.getAdFormats(),
@@ -68,7 +68,7 @@ public record ChannelComparisonSnapshot(
     return new ChannelComparisonSnapshot(
         channel.getId(),
         channel.getName(),
-        channel.getPreviewImageUrl(),
+        channel.getIconUrl(),
         channel.getDisplayPlatforms(),
         channel.getAudienceSummary(),
         channel.getAdFormats(),

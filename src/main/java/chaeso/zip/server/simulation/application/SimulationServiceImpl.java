@@ -123,13 +123,18 @@ public class SimulationServiceImpl implements SimulationService {
   private SimulationResponse restore(BudgetSimulation simulation) {
     List<BudgetSimulationItem> items = budgetSimulationItemRepository
         .findByBudgetSimulationIdOrderBySortOrderAsc(simulation.getId());
-    Map<UUID, String> channelNames = channelNames(items.stream()
+    Map<UUID, Channel> channels = loadChannelsTolerant(items.stream()
         .map(BudgetSimulationItem::getChannelId)
         .distinct()
         .toList());
 
     return SimulationResponse.from(simulation, items.stream()
-        .map(item -> SimulationItemResponse.from(item, channelNames.get(item.getChannelId())))
+        .map(item -> {
+          Channel ch = channels.get(item.getChannelId());
+          return SimulationItemResponse.from(item,
+              ch != null ? ch.getName() : null,
+              ch != null ? ch.getIconUrl() : null);
+        })
         .toList());
   }
 
@@ -148,13 +153,17 @@ public class SimulationServiceImpl implements SimulationService {
     Map<UUID, List<ChannelPricing>> pricingsByProduct = loadPricings(productsByChannel);
 
     List<SimulationItemResponse> items = command.allocations().stream()
-        .map(allocation -> evaluate(
-            allocation,
-            channels.get(allocation.channelId()).getName(),
-            productsByChannel.getOrDefault(allocation.channelId(), List.of()),
-            pricingsByProduct,
-            periodDays,
-            defaultCtrPercent))
+        .map(allocation -> {
+          Channel channel = channels.get(allocation.channelId());
+          return evaluate(
+              allocation,
+              channel != null ? channel.getName() : null,
+              channel != null ? channel.getIconUrl() : null,
+              productsByChannel.getOrDefault(allocation.channelId(), List.of()),
+              pricingsByProduct,
+              periodDays,
+              defaultCtrPercent);
+        })
         .toList();
 
     return SimulationResponse.of(
@@ -166,7 +175,8 @@ public class SimulationServiceImpl implements SimulationService {
   }
 
   private SimulationItemResponse evaluate(AllocationCommand allocation, String channelName,
-      List<ChannelProduct> products, Map<UUID, List<ChannelPricing>> pricingsByProduct,
+      String iconUrl, List<ChannelProduct> products,
+      Map<UUID, List<ChannelPricing>> pricingsByProduct,
       int periodDays, BigDecimal defaultCtrPercent) {
     UUID channelId = allocation.channelId();
 
@@ -175,7 +185,7 @@ public class SimulationServiceImpl implements SimulationService {
         .orElse(null);
 
     if (representative == null) {
-      return SimulationItemResponse.quoteRequired(channelId, channelName, allocation.budgetWon(),
+      return SimulationItemResponse.quoteRequired(channelId, channelName, iconUrl, allocation.budgetWon(),
           allocation.allocationPct());
     }
 
@@ -183,7 +193,7 @@ public class SimulationServiceImpl implements SimulationService {
     BigDecimal requiredWon = requiredWon(minBudgetWon, representative.pricing().value());
 
     if (allocation.budgetWon() <= 0) {
-      return SimulationItemResponse.notAllocated(channelId, channelName, representative.productId(),
+      return SimulationItemResponse.notAllocated(channelId, channelName, iconUrl, representative.productId(),
           allocation.allocationPct(), representative.pricing(), minBudgetWon,
           shortfallWon(requiredWon, 0));
     }
@@ -191,13 +201,13 @@ public class SimulationServiceImpl implements SimulationService {
     EstimationResult result = EstimationService.estimate(representative.product(),
         allocation.budgetWon(), periodDays);
     if (result == null) {
-      return SimulationItemResponse.quoteRequired(channelId, channelName, allocation.budgetWon(),
+      return SimulationItemResponse.quoteRequired(channelId, channelName, iconUrl, allocation.budgetWon(),
           allocation.allocationPct());
     }
 
     boolean executable = BigDecimal.valueOf(allocation.budgetWon()).compareTo(requiredWon) >= 0;
     Long shortfall = executable ? null : shortfallWon(requiredWon, allocation.budgetWon());
-    return SimulationItemResponse.estimated(channelId, channelName, representative.productId(),
+    return SimulationItemResponse.estimated(channelId, channelName, iconUrl, representative.productId(),
         allocation.budgetWon(), allocation.allocationPct(), representative.pricing(), result,
         minBudgetWon, executable, shortfall);
   }
@@ -237,6 +247,15 @@ public class SimulationServiceImpl implements SimulationService {
     }
     return channelRepository.findAllById(channelIds).stream()
         .collect(Collectors.toMap(Channel::getId, Channel::getName));
+  }
+
+  /** 삭제된 채널 참조 시 예외 대신 결과에서 제외. 복원 전용 */
+  private Map<UUID, Channel> loadChannelsTolerant(List<UUID> channelIds) {
+    if (channelIds.isEmpty()) {
+      return Map.of();
+    }
+    return channelRepository.findAllById(channelIds).stream()
+        .collect(Collectors.toMap(Channel::getId, Function.identity()));
   }
 
   private Map<UUID, List<ChannelPricing>> loadPricings(
