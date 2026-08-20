@@ -42,6 +42,12 @@ public final class ChannelCatalogFixture {
     return channel;
   }
 
+  public static Channel channelWithIconUrl(UUID id, String name, String iconUrl) {
+    Channel channel = channel(id, name);
+    set(channel, "iconUrl", iconUrl);
+    return channel;
+  }
+
   /** 추천 매칭 축(적합 업종·연령대)과 주요 타깃까지 채운 채널. */
   public static Channel channel(UUID id, String name, List<Category> suitableCategories,
       List<AgeBand> ageBandCodes, String primaryAgeBand, Gender primaryGender) {
