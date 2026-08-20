@@ -106,6 +106,7 @@ class ChannelRecommendationResultRepositoryTest {
     UUID resultId = channelRecommendationResultRepository.saveAndFlush(result(onboardingId)).getId();
     channelRecommendationRepository.saveAndFlush(recommendation(resultId));
 
+    channelRecommendationRepository.deleteByOnboardingId(onboardingId);
     int deleted = channelRecommendationResultRepository.deleteByOnboardingId(onboardingId);
     entityManager.clear();
 

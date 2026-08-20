@@ -16,6 +16,7 @@ import java.util.UUID;
 public record RecommendationSnapshot(
     UUID channelId,
     String channelName,
+    String wordmarkUrl,
     int matchRate,
     Set<MatchAxis> matchedAxes,
     String reason,
@@ -36,6 +37,7 @@ public record RecommendationSnapshot(
     return new RecommendationSnapshot(
         channel.getId(),
         channel.getName(),
+        channel.getWordmarkUrl(),
         score.matchRate(),
         score.matchedAxes(),
         RecommendationReason.of(score, industry, null, false),
@@ -59,6 +61,7 @@ public record RecommendationSnapshot(
     return new RecommendationSnapshot(
         channel.getId(),
         channel.getName(),
+        channel.getWordmarkUrl(),
         score.matchRate(),
         score.matchedAxes(),
         RecommendationReason.of(score, industry, shortfallWon, true),

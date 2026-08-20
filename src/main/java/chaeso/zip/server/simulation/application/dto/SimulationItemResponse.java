@@ -17,6 +17,9 @@ public record SimulationItemResponse(
     UUID channelId,
     @Schema(description = "채널명", example = "11번가 광고", requiredMode = Schema.RequiredMode.REQUIRED)
     String channelName,
+    @Schema(description = "심볼 로고 이미지 URL", example = "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/icon.png",
+        requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+    String iconUrl,
     @Schema(description = "추정 근거가 된 대표 상품 id. 단가 정보가 없으면 null",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     UUID channelProductId,
@@ -55,22 +58,22 @@ public record SimulationItemResponse(
     String basisNote) {
 
   /** 단가 정보가 있는 상품이 없어 추정할 수 없는 매체. */
-  public static SimulationItemResponse quoteRequired(UUID channelId, String channelName,
+  public static SimulationItemResponse quoteRequired(UUID channelId, String channelName, String iconUrl,
       long allocatedBudgetWon, BigDecimal allocationPct) {
-    return new SimulationItemResponse(channelId, channelName, null, allocatedBudgetWon,
+    return new SimulationItemResponse(channelId, channelName, iconUrl, null, allocatedBudgetWon,
         allocationPct, null, null, null, null, null, false, null, BasisNote.quoteRequired());
   }
 
   /** 사용자가 예산을 배분하지 않은 매체. 집행에 필요한 금액만 알려준다. */
-  public static SimulationItemResponse notAllocated(UUID channelId, String channelName,
+  public static SimulationItemResponse notAllocated(UUID channelId, String channelName, String iconUrl,
       UUID channelProductId, BigDecimal allocationPct, EstimationPricing pricing,
       Long minBudgetWon, Long shortfallWon) {
-    return new SimulationItemResponse(channelId, channelName, channelProductId, 0L, allocationPct,
+    return new SimulationItemResponse(channelId, channelName, iconUrl, channelProductId, 0L, allocationPct,
         null, null, cpcWon(pricing, 0L, null), cpmWon(pricing), minBudgetWon, false, shortfallWon,
         BasisNote.notAllocated());
   }
 
-  public static SimulationItemResponse estimated(UUID channelId, String channelName,
+  public static SimulationItemResponse estimated(UUID channelId, String channelName, String iconUrl,
       UUID channelProductId, long allocatedBudgetWon, BigDecimal allocationPct,
       EstimationPricing pricing, EstimationResult result, Long minBudgetWon, boolean executable,
       Long shortfallWon) {
@@ -81,6 +84,7 @@ public record SimulationItemResponse(
     return new SimulationItemResponse(
         channelId,
         channelName,
+        iconUrl,
         channelProductId,
         allocatedBudgetWon,
         allocationPct,
@@ -94,10 +98,11 @@ public record SimulationItemResponse(
         basisNoteFor(executable, hasImpressionData));
   }
 
-  public static SimulationItemResponse from(BudgetSimulationItem item, String channelName) {
+  public static SimulationItemResponse from(BudgetSimulationItem item, String channelName, String iconUrl) {
     return new SimulationItemResponse(
         item.getChannelId(),
         channelName,
+        iconUrl,
         item.getChannelProductId(),
         item.getAllocatedBudgetWon(),
         item.getAllocationPct(),

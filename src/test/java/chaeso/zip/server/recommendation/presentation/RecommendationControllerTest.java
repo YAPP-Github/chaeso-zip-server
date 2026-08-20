@@ -65,7 +65,7 @@ class RecommendationControllerTest {
   void getRecommendations_success() throws Exception {
     UUID channelId = UUID.randomUUID();
     RecommendationItemResponse item = new RecommendationItemResponse(
-        channelId, "11번가 광고", 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
+        channelId, "11번가 광고", null, 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
         "20~40대 여성", new BigDecimal("120"), PricingModel.CPM, 3_000L,
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         true, null);
@@ -77,6 +77,7 @@ class RecommendationControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data[0].channelId").value(channelId.toString()))
         .andExpect(jsonPath("$.data[0].channelName").value("11번가 광고"))
+        .andExpect(jsonPath("$.data[0].wordmarkUrl").value(nullValue()))
         .andExpect(jsonPath("$.data[0].matchRate").value(78))
         .andExpect(jsonPath("$.data[0].primaryTarget").value("20~40대 여성"))
         .andExpect(jsonPath("$.data[0].pricingModel").value("CPM"))
@@ -122,7 +123,7 @@ class RecommendationControllerTest {
   void saveRecommendation_created() throws Exception {
     UUID channelId = UUID.randomUUID();
     RecommendationItemResponse item = new RecommendationItemResponse(
-        channelId, "11번가 광고", 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
+        channelId, "11번가 광고", null, 78, "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요",
         "20~40대 여성", new BigDecimal("120"), PricingModel.CPM, 3_000L,
         new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
         true, null);
@@ -236,7 +237,7 @@ class RecommendationControllerTest {
   void getRecommendation_success() throws Exception {
     UUID channelId = UUID.randomUUID();
     given(recommendationService.findRecommendation(USER_ID, RESULT_ID))
-        .willReturn(List.of(new RecommendationItemResponse(channelId, "11번가 광고", 78,
+        .willReturn(List.of(new RecommendationItemResponse(channelId, "11번가 광고", null, 78,
             "쇼핑·커머스 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요", "20~40대 여성",
             new BigDecimal("120"), PricingModel.CPM, 3_000L,
             new CountRangeResponse(850_000, 1_150_000), new CountRangeResponse(21_250, 28_750),
