@@ -33,6 +33,7 @@ public interface RecommendationApiDocs {
           {
             "channelId": "550e8400-e29b-41d4-a716-446655440000",
             "channelName": "11번가 광고",
+            "wordmarkUrl": "https://assets.chaeso-zip.com/channels/550e8400-e29b-41d4-a716-446655440000/wordmark.png",
             "matchRate": 100,
             "recommendationReason": "쇼핑·커머스 업종, 설정한 광고 목적, 타깃 연령대에 적합하고 예산 내 집행이 가능해요",
             "primaryTarget": "20~40대 여성",
@@ -47,6 +48,7 @@ public interface RecommendationApiDocs {
           {
             "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
             "channelName": "당근마켓 광고",
+            "wordmarkUrl": "https://assets.chaeso-zip.com/channels/9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e/wordmark.png",
             "matchRate": 78,
             "recommendationReason": "쇼핑·커머스 업종, 설정한 광고 목적에 적합하지만 집행에는 5,000,000원이 더 필요해요",
             "primaryTarget": "전 연령 전 성별",
@@ -75,6 +77,7 @@ public interface RecommendationApiDocs {
             {
               "channelId": "9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e",
               "channelName": "11번가 광고",
+              "wordmarkUrl": "https://assets.chaeso-zip.com/channels/9c1e8c2a-3f4d-4a5b-9c6d-7e8f9a0b1c2e/wordmark.png",
               "matchRate": 100,
               "recommendationReason": "쇼핑·커머스 업종, 설정한 광고 목적, 타깃 연령대에 적합하고 예산 내 집행이 가능해요",
               "primaryTarget": "20~40대 여성",
