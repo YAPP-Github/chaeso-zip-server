@@ -118,7 +118,10 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
             FIRST_SORT_ORDER + index, snapshots.get(index)))
         .toList());
 
-    return SavedChannelComparisonResponse.of(comparison.getId(), snapshots);
+    List<ChannelComparisonItemResponse> items = snapshots.stream()
+        .map(ChannelComparisonItemResponse::from)
+        .toList();
+    return SavedChannelComparisonResponse.of(comparison.getId(), items);
   }
 
   /**
@@ -176,9 +179,11 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
     ChannelComparison comparison = channelComparisonRepository.findById(comparisonId)
         .filter(c -> c.getUserId().equals(userId))
         .orElseThrow(() -> new ChannelComparisonNotFoundException(comparisonId));
-    List<ChannelComparisonItem> items = channelComparisonItemRepository
-        .findByComparisonIdOrderBySortOrderAsc(comparison.getId());
-    return SavedChannelComparisonResponse.ofItems(comparison.getId(), items);
+    List<ChannelComparisonItemResponse> items = channelComparisonItemRepository
+        .findByComparisonIdOrderBySortOrderAsc(comparison.getId()).stream()
+        .map(ChannelComparisonItemResponse::from)
+        .toList();
+    return SavedChannelComparisonResponse.of(comparison.getId(), items);
   }
 
   /**

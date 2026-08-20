@@ -175,7 +175,7 @@ class ChannelComparisonControllerTest {
     ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
         ChannelComparisonSnapshot.catalogOnly(
             ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
-            List.of(), null, null, List.of()));
+            List.of(), List.of(), null, null, List.of()));
     given(channelComparisonService.compare(any(), any(), any()))
         .willReturn(ChannelComparisonResponse.of(List.of(item)));
 
@@ -205,7 +205,7 @@ class ChannelComparisonControllerTest {
     ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
         ChannelComparisonSnapshot.catalogOnly(
             ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
-            List.of(), null, null, List.of()));
+            List.of(), List.of(), null, null, List.of()));
     given(channelComparisonService.save(any(), any(), any(), any()))
         .willReturn(new SavedChannelComparisonResponse(comparisonId, List.of(item)));
 
@@ -280,7 +280,7 @@ class ChannelComparisonControllerTest {
     ChannelComparisonItemResponse item = ChannelComparisonItemResponse.from(
         ChannelComparisonSnapshot.catalogOnly(
             ChannelCatalogFixture.channel(UUID.randomUUID(), "11번가 광고"),
-            List.of(), null, null, List.of()));
+            List.of(), List.of(), null, null, List.of()));
     given(channelComparisonService.findComparison(USER_ID, comparisonId))
         .willReturn(new SavedChannelComparisonResponse(comparisonId, List.of(item)));
 
