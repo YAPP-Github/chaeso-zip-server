@@ -19,7 +19,6 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
-import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthProvider;
@@ -107,17 +106,18 @@ class AuthControllerTest {
   class Signup {
 
     @Test
-    @DisplayName("회원가입 요청이 성공하면 201과 회원 정보를 반환한다")
+    @DisplayName("회원가입 요청이 성공하면 201과 액세스/리프레시 토큰을 반환한다")
     void success() throws Exception {
       given(authService.signup(any(SignupCommand.class)))
-          .willReturn(new UserResponse(UUID.randomUUID(), "user@chaeso.zip", "채소러버"));
+          .willReturn(new TokenResponse("access", "refresh", 1800L, 1209600L));
 
       mockMvc.perform(post("/api/v1/auth/signup")
               .contentType(MediaType.APPLICATION_JSON)
               .content(objectMapper.writeValueAsString(validSignupRequest())))
           .andExpect(status().isCreated())
           .andExpect(jsonPath("$.success").value(true))
-          .andExpect(jsonPath("$.data.email").value("user@chaeso.zip"));
+          .andExpect(jsonPath("$.data.accessToken").value("access"))
+          .andExpect(jsonPath("$.data.refreshToken").value("refresh"));
     }
 
     @Test
