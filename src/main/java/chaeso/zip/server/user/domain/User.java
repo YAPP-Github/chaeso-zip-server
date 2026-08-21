@@ -113,7 +113,6 @@ public class User extends BaseEntity {
 
   /**
    * 탈퇴 후 유예기간 이내 재로그인이면 계정을 복구한다.
-   * 마케팅 수신 동의는 별도 동의 사항이므로 재동의 없이는 복구하지 않는다.
    *
    * @return 복구되었으면 true, 유예기간이 지났거나 탈퇴 상태가 아니면 false
    */
