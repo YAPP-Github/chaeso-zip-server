@@ -24,7 +24,6 @@ import chaeso.zip.server.simulation.domain.entity.BudgetSimulationItem;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationItemRepository;
 import chaeso.zip.server.simulation.domain.repository.BudgetSimulationRepository;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -189,13 +188,12 @@ public class SimulationServiceImpl implements SimulationService {
           allocation.allocationPct());
     }
 
-    Long minBudgetWon = minBudgetWonOf(products, representative.productId());
-    BigDecimal requiredWon = requiredWon(minBudgetWon, representative.pricing().value());
+    long minBudgetWon = minBudgetWonOf(products, representative);
 
     if (allocation.budgetWon() <= 0) {
+      // 배분한 예산이 없으므로 최소 집행 금액 전액이 부족 금액이다
       return SimulationItemResponse.notAllocated(channelId, channelName, iconUrl, representative.productId(),
-          allocation.allocationPct(), representative.pricing(), minBudgetWon,
-          shortfallWon(requiredWon, 0));
+          allocation.allocationPct(), representative.pricing(), minBudgetWon, minBudgetWon);
     }
 
     EstimationResult result = EstimationService.estimate(representative.product(),
@@ -205,28 +203,26 @@ public class SimulationServiceImpl implements SimulationService {
           allocation.allocationPct());
     }
 
-    boolean executable = BigDecimal.valueOf(allocation.budgetWon()).compareTo(requiredWon) >= 0;
-    Long shortfall = executable ? null : shortfallWon(requiredWon, allocation.budgetWon());
+    boolean executable = allocation.budgetWon() >= minBudgetWon;
+    Long shortfall = executable ? null : minBudgetWon - allocation.budgetWon();
     return SimulationItemResponse.estimated(channelId, channelName, iconUrl, representative.productId(),
         allocation.budgetWon(), allocation.allocationPct(), representative.pricing(), result,
         minBudgetWon, executable, shortfall);
   }
 
-  /** 대표 상품에 등록된 최소 집행 금액(원). 등록돼 있지 않으면 {@code null} */
-  private static Long minBudgetWonOf(List<ChannelProduct> products, UUID representativeId) {
-    return products.stream()
-        .filter(product -> representativeId.equals(product.getId()))
-        .findFirst()
-        .map(ChannelProduct::getMinBudgetWon)
-        .map(Integer::longValue)
-        .orElse(null);
-  }
-
   /**
-   * 집행 가능 판정의 기준 금액
+   * 집행 가능 판정의 기준이 되는 최소 집행 금액(원). 대표 상품에 등록된 값이 있으면 그 값을 쓰고,
+   * 없으면 대표 단가로 대신한다.
    */
-  private static BigDecimal requiredWon(Long minBudgetWon, BigDecimal price) {
-    return minBudgetWon == null ? price : BigDecimal.valueOf(minBudgetWon);
+  private static long minBudgetWonOf(List<ChannelProduct> products,
+      RepresentativeProduct representative) {
+    return products.stream()
+        .filter(product -> representative.productId().equals(product.getId()))
+        .map(ChannelProduct::getMinBudgetWon)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .map(Integer::longValue)
+        .orElseGet(() -> representative.pricing().minBudgetWon());
   }
 
   private Map<UUID, Channel> loadChannels(List<UUID> channelIds) {
@@ -280,13 +276,6 @@ public class SimulationServiceImpl implements SimulationService {
         .filter(Objects::nonNull)
         .mapToLong(CountRangeResponse::midpoint)
         .sum();
-  }
-
-  /** 집행에 부족한 금액 */
-  private static Long shortfallWon(BigDecimal requiredWon, long budgetWon) {
-    return requiredWon.subtract(BigDecimal.valueOf(budgetWon))
-        .setScale(0, RoundingMode.CEILING)
-        .longValue();
   }
 
   private static BudgetSimulationItem toSnapshot(UUID simulationId, int sortOrder,

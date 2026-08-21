@@ -44,8 +44,8 @@ public record SimulationItemResponse(
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     BigDecimal cpmWon,
     @Schema(description = """
-        대표 상품의 최소 집행 금액(원). \
-        null이면 대표 단가를 기준으로 판정한다""",
+        집행 가능 판정의 기준이 된 최소 집행 금액(원). 대표 상품에 등록된 값이 있으면 그 값, \
+        없으면 대표 단가다. 단가 정보가 없어 추정할 수 없는 매체만 null""",
         example = "1000000",
         requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
     Long minBudgetWon,
@@ -67,7 +67,7 @@ public record SimulationItemResponse(
   /** 사용자가 예산을 배분하지 않은 매체. 집행에 필요한 금액만 알려준다. */
   public static SimulationItemResponse notAllocated(UUID channelId, String channelName, String iconUrl,
       UUID channelProductId, BigDecimal allocationPct, EstimationPricing pricing,
-      Long minBudgetWon, Long shortfallWon) {
+      long minBudgetWon, long shortfallWon) {
     return new SimulationItemResponse(channelId, channelName, iconUrl, channelProductId, 0L, allocationPct,
         null, null, cpcWon(pricing, 0L, null), cpmWon(pricing), minBudgetWon, false, shortfallWon,
         BasisNote.notAllocated());
@@ -75,7 +75,7 @@ public record SimulationItemResponse(
 
   public static SimulationItemResponse estimated(UUID channelId, String channelName, String iconUrl,
       UUID channelProductId, long allocatedBudgetWon, BigDecimal allocationPct,
-      EstimationPricing pricing, EstimationResult result, Long minBudgetWon, boolean executable,
+      EstimationPricing pricing, EstimationResult result, long minBudgetWon, boolean executable,
       Long shortfallWon) {
     boolean hasImpressionData = result.impressions() != null;
     CountRangeResponse impressions =
