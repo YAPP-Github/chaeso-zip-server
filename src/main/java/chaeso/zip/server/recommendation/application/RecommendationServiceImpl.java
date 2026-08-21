@@ -32,7 +32,6 @@ import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResul
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationResultRepository;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -263,7 +262,7 @@ public class RecommendationServiceImpl implements RecommendationService {
       return quoteRequired(candidate, onboarding, pricingModels);
     }
 
-    long minBudgetWon = minBudgetWon(representative.pricing().value());
+    long minBudgetWon = representative.pricing().minBudgetWon();
     boolean executable = budgetWon >= minBudgetWon;
     Long shortfallWon = executable ? null : minBudgetWon - budgetWon;
     long estimationBudgetWon = executable ? budgetWon : minBudgetWon;
@@ -321,10 +320,6 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
     return channelPricingRepository.findByChannelProductIdIn(productIds).stream()
         .collect(Collectors.groupingBy(ChannelPricing::getChannelProductId));
-  }
-
-  private static long minBudgetWon(BigDecimal price) {
-    return price.setScale(0, RoundingMode.CEILING).longValue();
   }
 
   /** 적합도를 계산한 채널과 그 상품 목록. */

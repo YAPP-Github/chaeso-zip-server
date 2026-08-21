@@ -4,6 +4,7 @@ import chaeso.zip.server.channel.domain.entity.ChannelPricing;
 import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * 시뮬레이션 계산에 필요한 단가 정보만 추린 입력 값.
@@ -24,5 +25,12 @@ public record EstimationPricing(PricingModel pricingModel, PriceType priceType, 
         pricing.getValue(),
         pricing.getValueMax(),
         pricing.getUnitDays());
+  }
+
+  /**
+   * 이 단가로 한 번 집행하는 데 필요한 최소 금액(원). 원 단위 아래는 올림한다.
+   */
+  public long minBudgetWon() {
+    return value.setScale(0, RoundingMode.CEILING).longValue();
   }
 }
