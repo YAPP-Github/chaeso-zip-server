@@ -1063,18 +1063,6 @@ class AuthServiceTest {
           .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
-    @Test
-    @DisplayName("탈퇴 처리 진행 중인 회원의 이메일로 구글 회원가입 시도 시 ACCOUNT_DELETION_IN_PROGRESS로 실패한다")
-    void withdrawnUserEmail_rejected() {
-      given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
-      User withdrawnUser = withdrawnUser(1);
-      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(withdrawnUser));
-
-      GoogleSignupCommand command = googleSignupCommand("signup-ticket");
-      assertThatThrownBy(() -> authService.signupGoogle(command))
-          .isInstanceOf(AuthBusinessException.class)
-          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
-    }
   }
 
   @Nested

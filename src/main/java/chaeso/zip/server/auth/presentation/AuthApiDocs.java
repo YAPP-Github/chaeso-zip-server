@@ -287,12 +287,12 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "loginMethods", summary = "로그인 수단 조회",
       description = """
-          이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용. \
+          이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용.
           
           methods \
-          [LOCAL]: 비밀번호 입력창. \
-          [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼. \
-          [GOOGLE]: 구글로 가입된 계정 안내. \
+          [LOCAL]: 비밀번호 입력창.
+          [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼.
+          [GOOGLE]: 구글로 가입된 계정 안내.
           []: 미가입 -> 회원가입 화면.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,
@@ -339,10 +339,10 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "refresh", summary = "토큰 재발급",
       description = """
-          Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다. \
-          기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고 \
-          해당 세션(family) 전체를 폐기하므로, 동시에 여러 번 호출하지 말고 한 번만 보낸다. \
-          Access Token 이 만료된 상태에서 호출하므로 인증이 필요 없다. \
+          Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다.
+          기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고
+          해당 세션(family) 전체를 폐기하므로, 동시에 여러 번 호출하지 말고 한 번만 보낸다.
+          Access Token 이 만료된 상태에서 호출하므로 인증이 필요 없다.
           refreshTokenExpiresIn 은 로그인 후 90일에 가까워질수록 짧아진다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재발급 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
@@ -459,7 +459,8 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "GOOGLE_AUTH_FAILED", value = GOOGLE_AUTH_FAILED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "30일 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
+      description = "구글 미연결 상태로 탈퇴 후 유예기간 이내라 로그인이 필요한 휴면 계정(AUTH-014), "
+          + "또는 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "ACCOUNT_DORMANT", value = ACCOUNT_DORMANT_EXAMPLE),
