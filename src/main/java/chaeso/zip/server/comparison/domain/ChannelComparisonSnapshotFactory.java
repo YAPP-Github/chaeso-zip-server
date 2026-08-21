@@ -13,9 +13,12 @@ import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.estimation.domain.vo.ImpressionRange;
 import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.onboarding.domain.entity.Onboarding;
+import chaeso.zip.server.recommendation.domain.BudgetFit;
 import chaeso.zip.server.recommendation.domain.ChannelMatcher;
+import chaeso.zip.server.recommendation.domain.MatchAxis;
 import chaeso.zip.server.recommendation.domain.MatchScore;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,15 +77,31 @@ public final class ChannelComparisonSnapshotFactory {
       Channel channel, List<ChannelProduct> products,
       Map<UUID, List<ChannelPricing>> pricingsByProduct, long budgetWon, int periodDays,
       BigDecimal defaultCtrPercent) {
-    MatchScore score = ChannelMatcher.match(onboarding, channel, products);
     List<String> pricingModelsAll = pricingModelsAll(products, pricingsByProduct);
 
     CatalogPrice catalogPrice = selectCatalogPrice(products, pricingsByProduct, defaultCtrPercent);
     EstimatedPrice estimated = estimate(catalogPrice, budgetWon, periodDays);
+    MatchScore score = withBudgetFit(ChannelMatcher.match(onboarding, channel, products),
+        onboarding, catalogPrice);
 
     return ChannelComparisonSnapshot.matched(channel, score, tags(channel), advantages(channel),
         estimated.cpcWon(), estimated.cpmWon(), pricingModelsAll, estimated.executable(),
         estimated.impressions(), estimated.clicks());
+  }
+
+  /**
+   * 캠페인 조건 적합도에 예산 축을 붙인다. 추천 목록과 같은 산식을 써야 두 화면의 적합도가
+   * 어긋나지 않는다. 대표 단가가 없어 집행 금액을 모르면 예산 축을 근거 없음으로 둔다.
+   */
+  private static MatchScore withBudgetFit(MatchScore score, Onboarding onboarding,
+      CatalogPrice catalogPrice) {
+    if (catalogPrice == null) {
+      return score.withUnknown(MatchAxis.BUDGET);
+    }
+    long minBudgetWon = catalogPrice.representative().pricing().value()
+        .setScale(0, RoundingMode.CEILING).longValue();
+    return score.with(MatchAxis.BUDGET,
+        BudgetFit.of(onboarding.getBudgetMin(), onboarding.getBudgetMax(), minBudgetWon));
   }
 
   /**

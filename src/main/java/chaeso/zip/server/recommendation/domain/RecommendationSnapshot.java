@@ -78,7 +78,7 @@ public record RecommendationSnapshot(
   }
 
   public List<String> reasonTags() {
-    return matchedAxes.stream().map(MatchAxis::name).toList();
+    return matchedAxes.stream().filter(MatchAxis::isSubject).map(MatchAxis::name).toList();
   }
 
   public List<String> pricingModelNames() {

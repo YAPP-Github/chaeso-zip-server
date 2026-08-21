@@ -1,14 +1,36 @@
 package chaeso.zip.server.recommendation.domain;
 
 import chaeso.zip.server.channel.domain.vo.Category;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.StringJoiner;
 
+/**
+ * 추천 근거 문장.
+ *
+ * <p>가장 잘 맞은 단계의 축만 앞 문장의 주어로 내세우고, 그보다 덜 맞은 축은 뒤에 단서로 붙인다.
+ * 세 축이 "맞았다"로만 뭉뚱그려지면 적합도가 96%인 매체와 72%인 매체가 같은 문장을 받는다.
+ */
 public final class RecommendationReason {
 
   private static final String CATEGORY_SUBJECT = "%s 업종";
   private static final String OBJECTIVE_SUBJECT = "설정한 광고 목적";
   private static final String AGE_BAND_SUBJECT = "타깃 연령대";
+
+  /** 타깃 연령대를 남김없이 덮으면서 그 밖으로 새지 않는 매체에만 쓰는 주어 */
+  private static final String EXACT_AGE_BAND_SUBJECT = "타깃 연령대 전체";
+
+  /** 완전 일치로 볼 적합 정도. 조화평균의 소수점 오차를 감안한다. */
+  private static final double EXACT_FIT = 0.999;
+
+  /** 받침으로 끝나는 주어("업종", "목적")에 붙는 조사 */
+  private static final Particles CLOSED = new Particles("과", "은");
+
+  /** 받침 없이 끝나는 주어("연령대")에 붙는 조사 */
+  private static final Particles OPEN = new Particles("와", "는");
 
   /** 업종 코드에 이름이 없을 때. 코드값을 그대로 노출하지 않는다. */
   private static final String UNNAMED_CATEGORY_SUBJECT = "설정한 업종";
@@ -18,9 +40,22 @@ public final class RecommendationReason {
 
   private static final String SUBJECT_SEPARATOR = ", ";
 
-  private static final String EXECUTABLE = "에 적합하고 예산 내 집행이 가능해요";
-  private static final String SHORTFALL = "에 적합하지만 집행에는 %s원이 더 필요해요";
-  private static final String QUOTE_REQUIRED = "에 적합해요. 등록된 단가가 없어 집행 금액은 문의가 필요해요";
+  /** 강도별 서술. 예산 서술과 이어 붙일 어간과, 문장을 끝낼 종결형을 함께 둔다. */
+  private static final Map<FitTier, Predicate> PREDICATES = new EnumMap<>(Map.of(
+      FitTier.STRONG, new Predicate("에 적합하", "에 적합해요"),
+      FitTier.PARTIAL, new Predicate("에 대체로 맞", "에 대체로 맞아요"),
+      FitTier.WEAK, new Predicate("에 일부 맞", "에 일부 맞아요")));
+
+  private static final String EXECUTABLE = "고 예산 내 집행이 가능해요";
+  private static final String SHORTFALL = "지만 집행에는 %s원이 더 필요해요";
+  private static final String QUOTE_REQUIRED = ". 등록된 단가가 없어 집행 금액은 문의가 필요해요";
+
+  /** 앞 문장이 긍정으로 끝났을 때의 단서 도입부 */
+  private static final String CAVEAT_PREFIX = ". 다만 ";
+
+  /** 앞 문장이 이미 한계를 말했을 때의 단서 도입부. "다만"을 겹쳐 쓰지 않는다 */
+  private static final String PLAIN_CAVEAT_PREFIX = ". ";
+  private static final String PARTIAL_CAVEAT = "%s 일부만 맞아요";
 
   private RecommendationReason() {
   }
@@ -29,24 +64,61 @@ public final class RecommendationReason {
    * 추천 근거 문장.
    *
    * @param score        채널 적합도
-   * @param industry     온보딩 업종. 업종 축이 맞았을 때 문장에 쓴다
+   * @param industry     온보딩 업종. 업종 축을 말할 때 문장에 쓴다
    * @param shortfallWon 집행에 부족한 금액(원). 집행 가능하면 {@code null}
    * @param quoted       대표 단가를 알 수 있는지. 단가가 없으면 집행 가능 여부를 말하지 않는다
    */
   public static String of(MatchScore score, Category industry, Long shortfallWon, boolean quoted) {
-    return subjects(score, industry) + predicate(shortfallWon, quoted);
+    Map<FitTier, List<MatchAxis>> byTier = subjectAxesByTier(score);
+    FitTier lead = leadTier(byTier);
+    Predicate predicate = PREDICATES.get(lead);
+
+    return subjects(byTier.get(lead), industry, score)
+        + closing(predicate, shortfallWon, quoted)
+        + caveat(byTier, lead, industry, score, shortfallWon, quoted);
   }
 
-  private static String subjects(MatchScore score, Category industry) {
-    StringJoiner joiner = new StringJoiner(SUBJECT_SEPARATOR);
-    for (MatchAxis axis : score.matchedAxes()) {
-      joiner.add(switch (axis) {
-        case CATEGORY -> CATEGORY_SUBJECT.formatted(categoryName(industry));
-        case OBJECTIVE -> OBJECTIVE_SUBJECT;
-        case AGE_BAND -> AGE_BAND_SUBJECT;
-      });
+  /** 주어로 쓸 수 있는 축을 강도별로 모은다. 예산은 서술부가 따로 말하므로 뺀다. */
+  private static Map<FitTier, List<MatchAxis>> subjectAxesByTier(MatchScore score) {
+    Map<FitTier, List<MatchAxis>> byTier = new EnumMap<>(FitTier.class);
+    for (MatchAxis axis : score.appliedAxes()) {
+      if (axis.isSubject()) {
+        byTier.computeIfAbsent(score.tierOf(axis), tier -> new ArrayList<>()).add(axis);
+      }
     }
-    return score.isMatched() ? joiner.toString() : FALLBACK_SUBJECT;
+    return byTier;
+  }
+
+  /** 앞 문장의 주어가 될 단계. 가장 잘 맞은 축들만 근거로 내세운다. */
+  private static FitTier leadTier(Map<FitTier, List<MatchAxis>> byTier) {
+    for (FitTier tier : FitTier.values()) {
+      if (byTier.containsKey(tier)) {
+        return tier;
+      }
+    }
+    return FitTier.WEAK;
+  }
+
+  private static String subjects(List<MatchAxis> axes, Category industry, MatchScore score) {
+    if (axes == null || axes.isEmpty()) {
+      return FALLBACK_SUBJECT;
+    }
+    StringJoiner joiner = new StringJoiner(SUBJECT_SEPARATOR);
+    axes.forEach(axis -> joiner.add(subjectOf(axis, industry, score.fitOf(axis))));
+    return joiner.toString();
+  }
+
+  /**
+   * 축을 문장의 주어로 옮긴다. 연령은 완전히 겹칠 때와 대체로 겹칠 때를 갈라 말한다. 둘을 한
+   * 문구로 묶으면 오디언스가 정확히 포개지는 매체가 그렇지 않은 매체와 같은 문장을 받는다.
+   */
+  private static String subjectOf(MatchAxis axis, Category industry, double fit) {
+    return switch (axis) {
+      case CATEGORY -> CATEGORY_SUBJECT.formatted(categoryName(industry));
+      case OBJECTIVE -> OBJECTIVE_SUBJECT;
+      case AGE_BAND -> fit >= EXACT_FIT ? EXACT_AGE_BAND_SUBJECT : AGE_BAND_SUBJECT;
+      case BUDGET -> throw new IllegalStateException("예산은 주어로 쓰지 않습니다");
+    };
   }
 
   private static String categoryName(Category industry) {
@@ -56,13 +128,62 @@ public final class RecommendationReason {
     return industry.getDescription();
   }
 
-  private static String predicate(Long shortfallWon, boolean quoted) {
+  /** 앞 문장을 집행 가능 여부로 맺는다. */
+  private static String closing(Predicate predicate, Long shortfallWon, boolean quoted) {
     if (!quoted) {
-      return QUOTE_REQUIRED;
+      return predicate.terminal() + QUOTE_REQUIRED;
     }
     if (shortfallWon == null) {
-      return EXECUTABLE;
+      return predicate.connective() + EXECUTABLE;
     }
-    return SHORTFALL.formatted(String.format(Locale.KOREA, "%,d", shortfallWon));
+    return predicate.connective()
+        + SHORTFALL.formatted(String.format(Locale.KOREA, "%,d", shortfallWon));
+  }
+
+  /**
+   * 앞 문장에 쓰지 못한 축 가운데 일부만 맞은 축을 단서 한 절로 덧붙인다.
+   */
+  private static String caveat(Map<FitTier, List<MatchAxis>> byTier, FitTier lead,
+      Category industry, MatchScore score, Long shortfallWon, boolean quoted) {
+    List<MatchAxis> partial = lead == FitTier.PARTIAL ? List.of()
+        : byTier.getOrDefault(FitTier.PARTIAL, List.of());
+    if (partial.isEmpty() || !quoted) {
+      return "";
+    }
+    return (shortfallWon == null ? CAVEAT_PREFIX : PLAIN_CAVEAT_PREFIX)
+        + PARTIAL_CAVEAT.formatted(caveatSubjects(partial, industry, score));
+  }
+
+  /**
+   * 단서 절의 주어. 여럿이면 조사 "과/와"로 잇고 마지막에만 "은/는"을 붙인다.
+   */
+  private static String caveatSubjects(List<MatchAxis> axes, Category industry,
+      MatchScore score) {
+    StringJoiner joiner = new StringJoiner(" ");
+    for (int index = 0; index < axes.size(); index++) {
+      MatchAxis axis = axes.get(index);
+      boolean last = index == axes.size() - 1;
+      Particles particles = particlesOf(axis);
+      joiner.add(subjectOf(axis, industry, score.fitOf(axis))
+          + (last ? particles.topic() : particles.conjunctive()));
+    }
+    return joiner.toString();
+  }
+
+  /** 주어 문구가 고정이라 받침도 축마다 고정이다. */
+  private static Particles particlesOf(MatchAxis axis) {
+    return switch (axis) {
+      case CATEGORY, OBJECTIVE -> CLOSED;
+      case AGE_BAND -> OPEN;
+      case BUDGET -> throw new IllegalStateException("예산은 주어로 쓰지 않습니다");
+    };
+  }
+
+  /** 강도별 서술. {@code connective} 는 예산 서술로 이어지고 {@code terminal} 은 문장을 끝낸다. */
+  private record Predicate(String connective, String terminal) {
+  }
+
+  /** 주어 뒤에 붙는 조사. {@code conjunctive} 는 나열용, {@code topic} 은 마지막 주어용. */
+  private record Particles(String conjunctive, String topic) {
   }
 }

@@ -375,7 +375,7 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, userId)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.matchRate()).isEqualTo(94);
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       // 3,000,000 / 3,000 * 1000 = 1,000,000 노출, ±15%
       assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(850_000, 1_150_000));
@@ -404,7 +404,7 @@ class ChannelComparisonServiceImplTest {
 
       assertThat(item.cpcWon()).isEqualByComparingTo("500");
       assertThat(item.cpmWon()).isNull();
-      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.matchRate()).isEqualTo(94);
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
     }
@@ -427,7 +427,8 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, userId)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(100);
+      // 예산 상한으로도 집행할 수 없어 예산 축이 크게 깎인다
+      assertThat(item.matchRate()).isEqualTo(74);
       assertThat(item.tags()).containsExactly("빠른 배송", "쉬운 정산");
       assertThat(item.cpmWon()).isEqualByComparingTo("5000000");
       assertThat(item.cpcWon()).isNull();
@@ -453,7 +454,8 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, userId)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(100);
+      // 예산이 0이면 예산 축은 0 점이다
+      assertThat(item.matchRate()).isEqualTo(69);
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.cpcWon()).isNull();
       assertThat(item.estImpressions()).isNull();
@@ -478,7 +480,8 @@ class ChannelComparisonServiceImplTest {
           .compare(List.of(channel.getId()), onboardingId, userId)
           .items().getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(100);
+      // 예산이 0이면 예산 축은 0 점이다
+      assertThat(item.matchRate()).isEqualTo(69);
       assertThat(item.cpcWon()).isEqualByComparingTo("500");
       assertThat(item.cpmWon()).isNull();
       assertThat(item.estImpressions()).isNull();
@@ -507,7 +510,7 @@ class ChannelComparisonServiceImplTest {
             .compare(List.of(channel.getId()), onboardingId, userId)
             .items().getFirst();
 
-        assertThat(item.matchRate()).isEqualTo(100);
+        assertThat(item.matchRate()).isEqualTo(94);
         assertThat(item.cpmWon()).isEqualByComparingTo("3000");
         assertThat(item.cpcWon()).isNull();
         assertThat(item.estImpressions()).isNull();
@@ -532,8 +535,8 @@ class ChannelComparisonServiceImplTest {
           .items().getFirst();
 
       assertThat(item.minBudgetWon()).isEqualTo(1_000_000);
-      // 상품이 없으면 목적 축이 빠지고 업종·연령만 맞아 67%
-      assertThat(item.matchRate()).isEqualTo(67);
+      // 상품도 단가도 없어 목적·예산 축을 채점하지 못하고 신뢰도까지 낮아진다
+      assertThat(item.matchRate()).isEqualTo(66);
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
     }
@@ -554,7 +557,7 @@ class ChannelComparisonServiceImplTest {
       ChannelComparisonResponse response =
           comparisonService.compare(List.of(channel.getId()), onboardingId, userId);
 
-      assertThat(response.items().getFirst().matchRate()).isEqualTo(100);
+      assertThat(response.items().getFirst().matchRate()).isEqualTo(94);
       assertThat(response.items().getFirst().audienceSummary())
           .isEqualTo(channel.getAudienceSummary());
     }
@@ -579,12 +582,12 @@ class ChannelComparisonServiceImplTest {
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("세 축 채널", "두 축 채널");
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::matchRate)
-          .containsExactly(100, 78);
+          .containsExactly(94, 74);
     }
 
     @Test
-    @DisplayName("적합도가 같으면 집행 가능한 채널을 먼저, 그다음 매체명 순으로 정렬한다")
-    void breaksTiesByExecutabilityThenName() {
+    @DisplayName("예산을 넘겨 집행할 수 없는 채널은 예산 축에서 깎여 뒤로 밀린다")
+    void ranksChannelBeyondBudgetLast() {
       Channel expensive = matchingChannel("가매체", List.of(OTHER_AGE_BAND), "50대");
       Channel cheapEarlier = matchingChannel("다매체", List.of(OTHER_AGE_BAND), "50대");
       givenCatalog(
@@ -602,7 +605,7 @@ class ChannelComparisonServiceImplTest {
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::channelName)
           .containsExactly("다매체", "가매체");
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::matchRate)
-          .containsExactly(44, 44);
+          .containsExactly(49, 27);
     }
 
     @Test
@@ -807,7 +810,7 @@ class ChannelComparisonServiceImplTest {
       assertThat(itemsCaptor.getValue()).extracting(ChannelComparisonItem::getSortOrder)
           .containsExactly(1, 2);
       assertThat(itemsCaptor.getValue()).extracting(ChannelComparisonItem::getMatchRate)
-          .containsExactly(100, 78);
+          .containsExactly(94, 74);
     }
 
     @Test

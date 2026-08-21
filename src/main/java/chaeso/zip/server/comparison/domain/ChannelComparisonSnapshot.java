@@ -83,7 +83,7 @@ public record ChannelComparisonSnapshot(
         cpcWon,
         cpmWon,
         score.matchRate(),
-        score.score(),
+        (int) Math.round(score.score()),
         executable,
         impressions,
         clicks);
