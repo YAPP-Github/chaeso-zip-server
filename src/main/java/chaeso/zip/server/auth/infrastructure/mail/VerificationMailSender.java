@@ -1,7 +1,9 @@
 package chaeso.zip.server.auth.infrastructure.mail;
 
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationProperties;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -23,16 +25,18 @@ public class VerificationMailSender {
   private final EmailVerificationProperties properties;
 
   @Async
-  public void sendVerificationCode(String to, String code) {
+  public CompletableFuture<Void> sendVerificationCode(String to, String code) {
     try {
       MimeMessage message = mailSender.createMimeMessage();
       MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-      helper.setFrom(properties.from());
+      helper.setValidateAddresses(true);
+      helper.setFrom(properties.from(), "채소.zip");
       helper.setTo(to);
       helper.setSubject(SUBJECT);
       helper.setText(render(code), true);
       mailSender.send(message);
-    } catch (MessagingException exception) {
+      return CompletableFuture.completedFuture(null);
+    } catch (MessagingException | UnsupportedEncodingException exception) {
       throw new MailTemplateException("인증 이메일을 구성할 수 없습니다", exception);
     }
   }

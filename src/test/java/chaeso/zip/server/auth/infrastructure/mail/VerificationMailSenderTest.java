@@ -1,18 +1,23 @@
 package chaeso.zip.server.auth.infrastructure.mail;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import chaeso.zip.server.auth.infrastructure.verification.EmailVerificationProperties;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mail.javamail.JavaMailSender;
-import jakarta.mail.Session;
-import jakarta.mail.internet.MimeMessage;
 import org.springframework.scheduling.annotation.Async;
 
 class VerificationMailSenderTest {
@@ -34,7 +39,11 @@ class VerificationMailSenderTest {
     when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
     EmailVerificationProperties properties =
         new EmailVerificationProperties(
-            "no-reply@chaeso.zip", Duration.ofMinutes(5), Duration.ofMinutes(30), 5, Duration.ofMinutes(1));
+            "no-reply@chaeso-zip.com",
+            Duration.ofMinutes(5),
+            Duration.ofMinutes(30),
+            5,
+            Duration.ofMinutes(1));
     VerificationMailSender sender = new VerificationMailSender(mailSender, properties);
 
     sender.sendVerificationCode("user@chaeso.zip", "123456");
@@ -44,9 +53,33 @@ class VerificationMailSenderTest {
     MimeMessage message = captor.getValue();
     assertThat(message.getRecipients(MimeMessage.RecipientType.TO)[0].toString())
         .hasToString("user@chaeso.zip");
-    assertThat(message.getFrom()[0].toString()).contains("no-reply@chaeso.zip");
+    InternetAddress from = (InternetAddress) message.getFrom()[0];
+    assertThat(from.getAddress()).isEqualTo("no-reply@chaeso-zip.com");
+    assertThat(from.getPersonal()).isEqualTo("채소.zip");
     assertThat(message.getContent().toString())
         .contains("123456")
         .contains("5분");
+  }
+
+  @Test
+  @DisplayName("잘못된 수신자 주소면 메일 템플릿 예외로 변환한다")
+  void throwsMailTemplateExceptionWhenRecipientIsInvalid() {
+    JavaMailSender mailSender = mock(JavaMailSender.class);
+    MimeMessage mimeMessage = new MimeMessage((Session) null);
+    when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+    EmailVerificationProperties properties =
+        new EmailVerificationProperties(
+            "no-reply@chaeso-zip.com",
+            Duration.ofMinutes(5),
+            Duration.ofMinutes(30),
+            5,
+            Duration.ofMinutes(1));
+    VerificationMailSender sender = new VerificationMailSender(mailSender, properties);
+
+    assertThatThrownBy(() -> sender.sendVerificationCode("invalid-address", "123456"))
+        .isInstanceOf(MailTemplateException.class)
+        .hasMessage("인증 이메일을 구성할 수 없습니다")
+        .hasCauseInstanceOf(MessagingException.class);
+    verify(mailSender, never()).send(any(MimeMessage.class));
   }
 }

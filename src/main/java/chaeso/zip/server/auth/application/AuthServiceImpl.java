@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -97,7 +98,13 @@ public class AuthServiceImpl implements AuthService {
     String code = generateCode();
     verificationCodeStore.saveCode(normalized, code);
     try {
-      verificationMailSender.sendVerificationCode(normalized, code);
+      CompletableFuture<Void> sendFuture =
+          verificationMailSender.sendVerificationCode(normalized, code);
+      sendFuture.whenComplete((ignored, exception) -> {
+        if (exception != null) {
+          verificationCodeStore.releaseSendSlot(normalized);
+        }
+      });
     } catch (RuntimeException exception) {
       verificationCodeStore.releaseSendSlot(normalized);
       throw exception;
