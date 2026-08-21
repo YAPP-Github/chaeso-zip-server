@@ -99,7 +99,7 @@ public interface ChannelComparisonApiDocs {
               "tags": ["커머스 특화", "구매 전환"],
               "cpcWon": 120,
               "cpmWon": 3000,
-              "matchRate": 100,
+              "matchRate": 94,
               "estImpressions": { "min": 850000, "max": 1150000 },
               "estClicks": { "min": 21250, "max": 28750 }
             }
@@ -128,7 +128,7 @@ public interface ChannelComparisonApiDocs {
               "tags": ["커머스 특화", "구매 전환"],
               "cpcWon": 120,
               "cpmWon": 3000,
-              "matchRate": 100,
+              "matchRate": 94,
               "estImpressions": { "min": 850000, "max": 1150000 },
               "estClicks": { "min": 21250, "max": 28750 }
             }

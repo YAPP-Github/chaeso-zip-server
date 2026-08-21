@@ -290,6 +290,7 @@ class SimulationServiceImplTest {
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.estImpressions()).isNull();
       assertThat(item.estClicks()).isNull();
+      assertThat(item.minBudgetWon()).isEqualTo(5_000_000);
       assertThat(item.shortfallWon()).isEqualTo(4_000_000);
       assertThat(item.basisNote()).startsWith("집행 예산 부족");
       assertThat(response.totalEstImpressions()).isZero();
@@ -326,7 +327,7 @@ class SimulationServiceImplTest {
     }
 
     @Test
-    @DisplayName("최소 집행 금액이 없는 상품은 기준 삼을 값이 없어 대표 단가로 판정하고 금액은 비운다")
+    @DisplayName("최소 집행 금액이 없는 상품은 대표 단가로 판정하고 그 금액을 최소 집행 금액으로 알려준다")
     void fallsBackToPriceWithoutMinBudget() {
       givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
           pricing(PRODUCT_ID, PricingModel.CPM, "5000000"));
@@ -334,9 +335,24 @@ class SimulationServiceImplTest {
       SimulationItemResponse item = simulationService.estimate(
           command(1_000_000, CampaignPeriod.M1, allocation(1_000_000, "100"))).items().getFirst();
 
-      assertThat(item.minBudgetWon()).isNull();
+      // 판정 기준을 비워 두면 화면은 예산 부족만 알고 얼마가 필요한지 모른다
+      assertThat(item.minBudgetWon()).isEqualTo(5_000_000);
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.shortfallWon()).isEqualTo(4_000_000);   // 대표 단가 기준
+    }
+
+    @Test
+    @DisplayName("최소 집행 금액이 없는 상품의 대표 단가가 원 미만이면 올려서 판정 기준으로 쓴다")
+    void ceilsFractionalPriceAsMinBudget() {
+      givenCatalog(product(PRODUCT_ID, CHANNEL_ID),
+          pricing(PRODUCT_ID, PricingModel.CPM, "5000000.4"));
+
+      SimulationItemResponse item = simulationService.estimate(
+          command(5_000_000, CampaignPeriod.M1, allocation(5_000_000, "100"))).items().getFirst();
+
+      assertThat(item.minBudgetWon()).isEqualTo(5_000_001);
+      assertThat(item.isExecutable()).isFalse();
+      assertThat(item.shortfallWon()).isEqualTo(1);
     }
 
     @Test
@@ -381,6 +397,7 @@ class SimulationServiceImplTest {
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.allocatedBudgetWon()).isZero();
       assertThat(item.estImpressions()).isNull();
+      assertThat(item.minBudgetWon()).isEqualTo(3_000);      // 대표 단가로 대신한다
       assertThat(item.shortfallWon()).isEqualTo(3_000);
       assertThat(item.cpmWon()).isEqualByComparingTo("3000");
       assertThat(item.basisNote()).startsWith("미집행 (배분 예산 0원)");

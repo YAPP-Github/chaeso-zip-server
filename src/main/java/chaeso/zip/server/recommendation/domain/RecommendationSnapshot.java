@@ -78,7 +78,7 @@ public record RecommendationSnapshot(
   }
 
   public List<String> reasonTags() {
-    return matchedAxes.stream().map(MatchAxis::name).toList();
+    return matchedAxes.stream().filter(MatchAxis::isSubject).map(MatchAxis::name).toList();
   }
 
   public List<String> pricingModelNames() {
@@ -86,6 +86,6 @@ public record RecommendationSnapshot(
   }
 
   private static Long midpoint(ClickRange clicks) {
-    return clicks == null ? null : Math.round((clicks.min() + clicks.max()) / 2.0);
+    return clicks == null ? null : clicks.midpoint();
   }
 }

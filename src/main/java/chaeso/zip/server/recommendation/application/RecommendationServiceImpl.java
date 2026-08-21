@@ -10,6 +10,7 @@ import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.estimation.application.DefaultCtrProvider;
 import chaeso.zip.server.estimation.domain.EstimationService;
 import chaeso.zip.server.estimation.domain.RepresentativeProduct;
+import chaeso.zip.server.estimation.domain.vo.ClickRange;
 import chaeso.zip.server.estimation.domain.vo.EstimationResult;
 import chaeso.zip.server.estimation.domain.vo.PeriodDaysPolicy;
 import chaeso.zip.server.onboarding.domain.OnboardingBusinessException;
@@ -20,7 +21,9 @@ import chaeso.zip.server.onboarding.domain.repository.OnboardingRepository;
 import chaeso.zip.server.recommendation.application.dto.RecommendationItemResponse;
 import chaeso.zip.server.recommendation.application.dto.RecommendationSummaryResponse;
 import chaeso.zip.server.recommendation.application.dto.SavedRecommendationResponse;
+import chaeso.zip.server.recommendation.domain.BudgetFit;
 import chaeso.zip.server.recommendation.domain.ChannelMatcher;
+import chaeso.zip.server.recommendation.domain.MatchAxis;
 import chaeso.zip.server.recommendation.domain.MatchScore;
 import chaeso.zip.server.recommendation.domain.RecommendationNotFoundException;
 import chaeso.zip.server.recommendation.domain.RecommendationSnapshot;
@@ -29,7 +32,6 @@ import chaeso.zip.server.recommendation.domain.entity.ChannelRecommendationResul
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationRepository;
 import chaeso.zip.server.recommendation.domain.repository.ChannelRecommendationResultRepository;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +59,11 @@ public class RecommendationServiceImpl implements RecommendationService {
    * 추천 순서
    */
   private static final Comparator<Scored> BEST_FIRST = Comparator
-      .comparingInt((Scored scored) -> scored.score().score()).reversed()
+      .comparingDouble((Scored scored) -> scored.score().matchRateExact()).reversed()
       .thenComparing(scored -> scored.snapshot().isExecutable(), Comparator.reverseOrder())
+      .thenComparing(scored -> scored.snapshot().cpcWon(),
+          Comparator.nullsLast(Comparator.naturalOrder()))
+      .thenComparing(Scored::estimatedClicks, Comparator.nullsLast(Comparator.reverseOrder()))
       .thenComparing(scored -> scored.snapshot().channelName());
 
   private final OnboardingRepository onboardingRepository;
@@ -223,12 +228,10 @@ public class RecommendationServiceImpl implements RecommendationService {
     Map<UUID, List<ChannelPricing>> pricingsByProduct = pricingsByProduct(candidates);
     BigDecimal defaultCtrPercent = defaultCtrProvider.averageCtrPercent();
     int periodDays = PeriodDaysPolicy.daysOf(onboarding.getPeriod());
-    long budgetWon = onboarding.getBudgetMax();
 
     return candidates.stream()
         .map(candidate ->
-            evaluate(candidate, onboarding, pricingsByProduct, budgetWon, periodDays,
-                defaultCtrPercent))
+            evaluate(candidate, onboarding, pricingsByProduct, periodDays, defaultCtrPercent))
         .sorted(BEST_FIRST)
         .limit(MAX_ITEMS)
         .map(Scored::snapshot)
@@ -241,24 +244,25 @@ public class RecommendationServiceImpl implements RecommendationService {
   }
 
   /**
-   * 매칭된 채널 하나에 온보딩 예산·기간을 적용한다.
+   * 매칭된 채널 하나에 온보딩 예산·기간을 적용해 예산 축까지 채운 적합도를 낸다.
+   *
+   * <p>예산 축은 대표 단가를 알아야 채점할 수 있어 캠페인 조건 축과 따로 붙인다. 단가가 없어
+   * 집행 금액을 모르는 채널은 예산 축을 근거 없음으로 두고 적합도 신뢰도를 낮춘다.
    */
   private Scored evaluate(Candidate candidate, Onboarding onboarding,
-      Map<UUID, List<ChannelPricing>> pricingsByProduct, long budgetWon, int periodDays,
+      Map<UUID, List<ChannelPricing>> pricingsByProduct, int periodDays,
       BigDecimal defaultCtrPercent) {
-    Channel channel = candidate.channel();
-    MatchScore score = candidate.score();
     List<PricingModel> pricingModels = pricingModels(candidate, pricingsByProduct);
+    long budgetWon = onboarding.getBudgetMax();
 
     RepresentativeProduct representative = RepresentativeProduct
         .select(candidate.products(), pricingsByProduct, defaultCtrPercent)
         .orElse(null);
     if (representative == null) {
-      return new Scored(score, RecommendationSnapshot.quoteRequired(channel, score,
-          onboarding.getIndustry(), pricingModels));
+      return quoteRequired(candidate, onboarding, pricingModels);
     }
 
-    long minBudgetWon = minBudgetWon(representative.pricing().value());
+    long minBudgetWon = representative.pricing().minBudgetWon();
     boolean executable = budgetWon >= minBudgetWon;
     Long shortfallWon = executable ? null : minBudgetWon - budgetWon;
     long estimationBudgetWon = executable ? budgetWon : minBudgetWon;
@@ -266,13 +270,22 @@ public class RecommendationServiceImpl implements RecommendationService {
     EstimationResult result =
         EstimationService.estimate(representative.product(), estimationBudgetWon, periodDays);
     if (result == null) {
-      return new Scored(score, RecommendationSnapshot.quoteRequired(channel, score,
-          onboarding.getIndustry(), pricingModels));
+      return quoteRequired(candidate, onboarding, pricingModels);
     }
 
-    return new Scored(score, RecommendationSnapshot.estimated(channel, score,
+    MatchScore score = candidate.score().with(MatchAxis.BUDGET,
+        BudgetFit.of(onboarding.getBudgetMin(), budgetWon, minBudgetWon));
+    return new Scored(score, RecommendationSnapshot.estimated(candidate.channel(), score,
         onboarding.getIndustry(), representative.pricing(), pricingModels, result, minBudgetWon,
         executable, shortfallWon, estimationBudgetWon));
+  }
+
+  /** 집행 금액을 알 수 없는 채널. 예산 축을 채점하지 못한 만큼 적합도 신뢰도가 낮아진다. */
+  private Scored quoteRequired(Candidate candidate, Onboarding onboarding,
+      List<PricingModel> pricingModels) {
+    MatchScore score = candidate.score().withUnknown(MatchAxis.BUDGET);
+    return new Scored(score, RecommendationSnapshot.quoteRequired(candidate.channel(), score,
+        onboarding.getIndustry(), pricingModels));
   }
 
   /**
@@ -309,14 +322,16 @@ public class RecommendationServiceImpl implements RecommendationService {
         .collect(Collectors.groupingBy(ChannelPricing::getChannelProductId));
   }
 
-  private static long minBudgetWon(BigDecimal price) {
-    return price.setScale(0, RoundingMode.CEILING).longValue();
-  }
-
   /** 적합도를 계산한 채널과 그 상품 목록. */
   private record Candidate(Channel channel, List<ChannelProduct> products, MatchScore score) {
   }
 
   private record Scored(MatchScore score, RecommendationSnapshot snapshot) {
+
+    /** 정렬에 쓰는 예상 클릭 중앙값. 클릭을 추정할 수 없으면 {@code null} */
+    private Long estimatedClicks() {
+      ClickRange clicks = snapshot.clicks();
+      return clicks == null ? null : clicks.midpoint();
+    }
   }
 }
