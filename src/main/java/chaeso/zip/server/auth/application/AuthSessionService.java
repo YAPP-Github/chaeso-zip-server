@@ -28,15 +28,24 @@ public class AuthSessionService {
   private final RefreshTokenStore refreshTokenStore;
   private final Clock clock;
 
-  /** 비밀번호 검증을 마친 로컬 사용자를 잠근 뒤 탈퇴 여부를 확인하고 세션을 발급한다. */
+  /** 비밀번호 검증을 마친 로컬 사용자를 잠근 뒤 탈퇴 여부를 확인하고(유예기간 이내면 복구) 세션을 발급한다. */
   @Transactional
   public TokenResponse openLocalSession(UUID authenticatedUserId) {
     User user = userRepository.findByIdForUpdate(authenticatedUserId)
         .orElseThrow(() -> new AuthBusinessException(AuthErrorCode.INVALID_CREDENTIALS));
-    if (user.getDeletedAt() != null) {
+    restoreIfPossible(user);
+    return openSession(user, AuthProvider.LOCAL);
+  }
+
+  /** 탈퇴 유예기간 이내면 계정을 복구하고, 지났다면 탈퇴 처리 예외를 던진다. */
+  public void restoreIfPossible(User user) {
+    if (user.getDeletedAt() == null) {
+      return;
+    }
+    boolean restored = user.restoreIfWithinGracePeriod(LocalDateTime.now(clock));
+    if (!restored) {
       throw new AuthBusinessException(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
     }
-    return openSession(user, AuthProvider.LOCAL);
   }
 
   /** 새 refresh family를 열고 토큰 쌍을 발급한다. */
