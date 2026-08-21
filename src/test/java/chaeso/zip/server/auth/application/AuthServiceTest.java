@@ -19,7 +19,6 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
-import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
@@ -342,17 +341,27 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("인증된 미가입 이메일이면 비밀번호를 인코딩해 회원과 로컬 인증 정보를 저장한다")
+    @DisplayName("인증된 미가입 이메일이면 비밀번호를 인코딩해 회원과 로컬 인증 정보를 저장하고 토큰을 발급한다")
     void success() {
       given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
       given(userRepository.existsByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(false);
       given(userRepository.saveAndFlush(any(User.class))).willAnswer(invocation -> invocation.getArgument(0));
       given(passwordEncoder.encode("P@ssw0rd!")).willReturn("ENCODED");
+      given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+      given(jwtTokenProvider.createAccessToken(any(), anyInt())).willReturn("access");
+      given(jwtTokenProvider.createRefreshToken(any(), anyInt(), anyString(), anyString()))
+          .willReturn("refresh");
 
-      UserResponse response = authService.signup(command("user@chaeso.zip"));
+      TokenResponse response = authService.signup(command("user@chaeso.zip"));
 
-      assertThat(response.email()).isEqualTo("user@chaeso.zip");
-      assertThat(response.nickname()).isEqualTo("채소러버");
+      assertThat(response.accessToken()).isEqualTo("access");
+      assertThat(response.refreshToken()).isEqualTo("refresh");
+
+      ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+      verify(userRepository).saveAndFlush(userCaptor.capture());
+      assertThat(userCaptor.getValue().getEmail()).isEqualTo("user@chaeso.zip");
+      assertThat(userCaptor.getValue().getNickname()).isEqualTo("채소러버");
+      assertThat(userCaptor.getValue().getLastLoginProvider()).isEqualTo(AuthProvider.LOCAL);
 
       ArgumentCaptor<AuthIdentity> captor = ArgumentCaptor.forClass(AuthIdentity.class);
       verify(authIdentityRepository).save(captor.capture());
@@ -1073,8 +1082,7 @@ class AuthServiceTest {
     @DisplayName("로컬과 구글이 모두 연동된 계정은 LOCAL, GOOGLE 순으로 돌려준다")
     void localAndGoogle_ordered() {
       User user = UserFixture.user("user@chaeso.zip");
-      given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
-          .willReturn(Optional.of(user));
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
       given(authIdentityRepository.findAllByUserId(user.getId()))
           .willReturn(List.of(
               AuthIdentity.createGoogle(user.getId(), "google-sub-1"),
@@ -1087,10 +1095,9 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("가입 이력이 없거나 탈퇴한 계정은 빈 목록을 돌려준다")
+    @DisplayName("가입 이력이 없으면 빈 목록을 돌려준다")
     void notFound_returnsEmpty() {
-      given(userRepository.findByEmailAndDeletedAtIsNull("ghost@chaeso.zip"))
-          .willReturn(Optional.empty());
+      given(userRepository.findByEmail("ghost@chaeso.zip")).willReturn(Optional.empty());
       given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
 
       LoginMethodsResponse response = authService.findLoginMethods("ghost@chaeso.zip", "203.0.113.7");
@@ -1099,11 +1106,24 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 계정도 가입 이력이 있으면 로그인 수단을 그대로 돌려준다")
+    void withdrawnAccount_stillReturnsMethods() {
+      User user = withdrawnUser(1);
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+      given(authIdentityRepository.findAllByUserId(user.getId()))
+          .willReturn(List.of(AuthIdentity.createLocal(user.getId(), "hashed")));
+      given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
+
+      LoginMethodsResponse response = authService.findLoginMethods("user@chaeso.zip", "203.0.113.7");
+
+      assertThat(response.methods()).containsExactly(AuthProvider.LOCAL);
+    }
+
+    @Test
     @DisplayName("대소문자와 공백이 달라도 같은 계정으로 조회한다")
     void normalizesEmail() {
       User user = UserFixture.user("user@chaeso.zip");
-      given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip"))
-          .willReturn(Optional.of(user));
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
       given(authIdentityRepository.findAllByUserId(user.getId()))
           .willReturn(List.of(AuthIdentity.createLocal(user.getId(), "hashed")));
       given(loginMethodLookupLimiter.tryAcquire(anyString())).willReturn(true);
@@ -1123,7 +1143,7 @@ class AuthServiceTest {
           .isInstanceOf(AuthBusinessException.class)
           .extracting("errorCode").isEqualTo(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
 
-      verify(userRepository, never()).findByEmailAndDeletedAtIsNull(anyString());
+      verify(userRepository, never()).findByEmail(anyString());
     }
   }
 

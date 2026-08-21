@@ -6,7 +6,6 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
-import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.domain.AuthBusinessException;
 import chaeso.zip.server.auth.domain.AuthErrorCode;
 import chaeso.zip.server.auth.domain.AuthIdentity;
@@ -126,7 +125,7 @@ public class AuthServiceImpl implements AuthService {
 
   @Override
   @Transactional
-  public UserResponse signup(SignupCommand command) {
+  public TokenResponse signup(SignupCommand command) {
     String email = normalizeEmail(command.email());
     if (!verificationCodeStore.isVerified(email)) {
       throw new AuthBusinessException(AuthErrorCode.EMAIL_NOT_VERIFIED);
@@ -140,7 +139,7 @@ public class AuthServiceImpl implements AuthService {
     authIdentityRepository.save(
         AuthIdentity.createLocal(user.getId(), passwordEncoder.encode(command.rawPassword())));
     verificationCodeStore.clearVerified(email);
-    return UserResponse.from(user);
+    return authSessionService.openSession(user, AuthProvider.LOCAL);
   }
 
   @Override
@@ -167,13 +166,19 @@ public class AuthServiceImpl implements AuthService {
     return authSessionService.openLocalSession(user.getId());
   }
 
+  /**
+   * 탈퇴 여부와 무관하게 가입 이력이 있으면 로그인 수단을 내려준다.
+   *
+   * 탈퇴 후 30일 이내(휴면)면 로그인 시 자동 복구
+   * 가입 시도는 AUTH-014로 로그인을 안내
+   */
   @Override
   @Transactional(readOnly = true)
   public LoginMethodsResponse findLoginMethods(String email, String clientIp) {
     if (!loginMethodLookupLimiter.tryAcquire(clientIp)) {
       throw new AuthBusinessException(AuthErrorCode.LOGIN_METHOD_LOOKUP_COOLDOWN);
     }
-    return userRepository.findByEmailAndDeletedAtIsNull(normalizeEmail(email))
+    return userRepository.findByEmail(normalizeEmail(email))
         .map(user -> authIdentityRepository.findAllByUserId(user.getId()).stream()
             .map(AuthIdentity::getProvider)
             .sorted(Comparator.naturalOrder())
