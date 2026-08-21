@@ -24,7 +24,7 @@ public record ChannelComparisonSnapshot(
     BigDecimal cpcWon,
     BigDecimal cpmWon,
     Integer matchRate,
-    int score,
+    double matchRateExact,
     boolean executable,
     ImpressionRange impressions,
     ClickRange clicks) {
@@ -59,7 +59,7 @@ public record ChannelComparisonSnapshot(
         0,
         false,
         impressions,
-        clicks);
+        clicks);   // 온보딩이 없으면 적합도를 매기지 않으므로 정렬 대상도 아니다
   }
 
   /** 온보딩 조건을 반영한 스냅샷. 적합도와 예상 노출, 클릭 포함 */
@@ -83,10 +83,15 @@ public record ChannelComparisonSnapshot(
         cpcWon,
         cpmWon,
         score.matchRate(),
-        score.score(),
+        score.matchRateExact(),
         executable,
         impressions,
         clicks);
+  }
+
+  /** 정렬에 쓰는 예상 클릭 중앙값. 클릭을 추정할 수 없으면 {@code null} */
+  public Long estimatedClicks() {
+    return clicks == null ? null : clicks.midpoint();
   }
 
   private static String executionTypeName(Channel channel) {

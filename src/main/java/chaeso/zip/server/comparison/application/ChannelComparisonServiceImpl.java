@@ -54,10 +54,20 @@ public class ChannelComparisonServiceImpl implements ChannelComparisonService {
   /** 저장된 비교의 순서 시작 번호 */
   private static final int FIRST_SORT_ORDER = 1;
 
-  /** 추천과 같은 비교 순서. 고른 채널에만 적용한다. */
+  /**
+   * 추천과 같은 비교 순서. 고른 채널에만 적용한다.
+   *
+   * <p>정규화 전 배점 합이 아니라 화면에 보이는 적합도로 정렬한다. 적용된 축 구성이 서로 다르면
+   * (예: 대표 단가가 없어 예산 축을 채점하지 못한 채널) 배점 합의 순서와 적합도(%)의 순서가
+   * 어긋나, 위에 놓인 채널이 더 낮은 %를 달고 나오게 된다.
+   */
   private static final Comparator<ChannelComparisonSnapshot> BEST_FIRST = Comparator
-      .comparingInt(ChannelComparisonSnapshot::score).reversed()
+      .comparingDouble(ChannelComparisonSnapshot::matchRateExact).reversed()
       .thenComparing(ChannelComparisonSnapshot::executable, Comparator.reverseOrder())
+      .thenComparing(ChannelComparisonSnapshot::cpcWon,
+          Comparator.nullsLast(Comparator.naturalOrder()))
+      .thenComparing(ChannelComparisonSnapshot::estimatedClicks,
+          Comparator.nullsLast(Comparator.reverseOrder()))
       .thenComparing(ChannelComparisonSnapshot::channelName);
 
   private final ChannelRepository channelRepository;

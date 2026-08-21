@@ -59,6 +59,14 @@ public final class ChannelCatalogFixture {
     return channel;
   }
 
+  /** 대표 업종까지 지정한 채널. 적합 업종 목록에만 든 매체와 구분할 때 쓴다. */
+  public static Channel channel(UUID id, String name, Category primaryCategory,
+      List<Category> suitableCategories, List<AgeBand> ageBandCodes) {
+    Channel channel = channel(id, name, suitableCategories, ageBandCodes, "30대", Gender.FEMALE);
+    set(channel, "primaryCategory", primaryCategory);
+    return channel;
+  }
+
   /** 상품이 지원하는 광고 목적을 지정한다. */
   public static ChannelProduct withObjectives(ChannelProduct product,
       CampaignObjective... objectives) {

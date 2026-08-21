@@ -140,29 +140,63 @@ class RecommendationServiceImplTest {
 
       assertThat(items).extracting(RecommendationItemResponse::channelName)
           .containsExactly("세 축 채널", "두 축 채널", "한 축 채널");
+      // 업종 30 · 목적 25 · 연령 20 · 예산 25 만점 기준. 적합 업종 목록에만 든 매체는 업종 만점을
+      // 받지 못하므로 세 축이 다 맞아도 100% 가 아니다
       assertThat(items).extracting(RecommendationItemResponse::matchRate)
-          .containsExactly(100, 78, 22);
+          .containsExactly(94, 74, 45);
     }
 
     @Test
-    @DisplayName("적합도가 같으면 집행 가능한 채널을 먼저, 그다음 매체명 순으로 정렬한다")
-    void breaksTiesByExecutabilityThenName() {
-      // 세 채널 모두 업종만 맞아 적합도가 같다
-      Channel expensive = matchingChannel("가매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
-      Channel cheapLater = matchingChannel("나매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
-      Channel cheapEarlier = matchingChannel("다매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+    @DisplayName("예산이 모자란 채널은 예산 축에서 깎여 적합도까지 낮아지고 뒤로 밀린다")
+    void discountsChannelBeyondBudget() {
+      // 두 채널 모두 업종만 맞고 예산 축에서만 갈린다
+      Channel affordable = matchingChannel("나매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+      Channel beyondBudget = matchingChannel("가매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
 
       givenCatalog(
-          entry(expensive, CampaignObjective.CONVERSION, PricingModel.CPM, "9000000"),
-          entry(cheapLater, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"),
-          entry(cheapEarlier, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"));
+          entry(affordable, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"),
+          entry(beyondBudget, CampaignObjective.CONVERSION, PricingModel.CPM, "9000000"));
+
+      List<RecommendationItemResponse> items = recommend(onboarding());
+
+      // 이름순이면 "가매체" 가 앞이지만 예산을 넘겨 적합도가 낮다
+      assertThat(items).extracting(RecommendationItemResponse::channelName,
+              RecommendationItemResponse::matchRate, RecommendationItemResponse::isExecutable)
+          .containsExactly(tuple("나매체", 49, true), tuple("가매체", 27, false));
+    }
+
+    @Test
+    @DisplayName("적합도가 같으면 클릭당 비용이 싼 채널을 먼저 준다")
+    void breaksTiesByClickCost() {
+      Channel cheap = matchingChannel("나매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+      Channel pricey = matchingChannel("가매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+
+      // 둘 다 예산 하한으로 집행 가능해 예산 축까지 같고, 클릭당 비용만 다르다
+      givenCatalog(
+          entry(cheap, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"),
+          entry(pricey, CampaignObjective.CONVERSION, PricingModel.CPM, "30000"));
 
       List<RecommendationItemResponse> items = recommend(onboarding());
 
       assertThat(items).extracting(RecommendationItemResponse::channelName)
-          .containsExactly("나매체", "다매체", "가매체");   // 집행 불가인 "가매체" 가 뒤로
-      assertThat(items).extracting(RecommendationItemResponse::matchRate)
-          .containsOnly(44);
+          .containsExactly("나매체", "가매체");
+      assertThat(items).extracting(RecommendationItemResponse::matchRate).containsOnly(49);
+    }
+
+    @Test
+    @DisplayName("적합도도 단가도 같을 때에만 매체명 순으로 정렬한다")
+    void breaksRemainingTiesByName() {
+      Channel later = matchingChannel("나매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+      Channel earlier = matchingChannel("가매체", List.of(INDUSTRY), List.of(OTHER_AGE_BAND));
+
+      givenCatalog(
+          entry(later, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"),
+          entry(earlier, CampaignObjective.CONVERSION, PricingModel.CPM, "3000"));
+
+      List<RecommendationItemResponse> items = recommend(onboarding());
+
+      assertThat(items).extracting(RecommendationItemResponse::channelName)
+          .containsExactly("가매체", "나매체");
     }
 
     @Test
@@ -223,7 +257,7 @@ class RecommendationServiceImplTest {
       List<RecommendationItemResponse> items = recommend(undecidedAgeOnboarding());
 
       assertThat(items).extracting(RecommendationItemResponse::matchRate)
-          .containsExactly(100, 57);
+          .containsExactly(93, 61);
       assertThat(items).extracting(RecommendationItemResponse::recommendationReason)
           .allSatisfy(reason -> assertThat(reason).doesNotContain("연령"));
     }
@@ -260,7 +294,7 @@ class RecommendationServiceImplTest {
       RecommendationItemResponse item = recommend(onboarding()).getFirst();
 
       assertThat(item.channelId()).isEqualTo(channel.getId());
-      assertThat(item.matchRate()).isEqualTo(100);
+      assertThat(item.matchRate()).isEqualTo(94);   // 적합 업종 목록에만 들어 다 채우지 못한다
       assertThat(item.isExecutable()).isTrue();
       assertThat(item.shortfallWon()).isNull();
       assertThat(item.minBudgetWon()).isEqualTo(3_000);
@@ -273,7 +307,7 @@ class RecommendationServiceImplTest {
       // 3,000,000 / 25,000 클릭(중앙값) = 120 원
       assertThat(item.cpcWon()).isEqualByComparingTo("120");
       assertThat(item.recommendationReason())
-          .isEqualTo("의료·헬스케어 업종, 설정한 광고 목적, 타깃 연령대에 적합하고 예산 내 집행이 가능해요");
+          .isEqualTo("의료·헬스케어 업종, 설정한 광고 목적, 타깃 연령대 전체에 적합하고 예산 내 집행이 가능해요");
     }
 
     @Test
@@ -298,7 +332,7 @@ class RecommendationServiceImplTest {
       // 환산 기준도 최소 집행 예산: 5,000,000 / 20,000 클릭 = 250 원
       assertThat(item.cpcWon()).isEqualByComparingTo("250");
       assertThat(item.recommendationReason()).isEqualTo(
-          "의료·헬스케어 업종, 설정한 광고 목적, 타깃 연령대에 적합하지만 집행에는 2,000,000원이 더 필요해요");
+          "의료·헬스케어 업종, 설정한 광고 목적, 타깃 연령대 전체에 적합하지만 집행에는 2,000,000원이 더 필요해요");
     }
 
     @Test
@@ -351,7 +385,8 @@ class RecommendationServiceImplTest {
 
       RecommendationItemResponse item = recommend(onboarding()).getFirst();
 
-      assertThat(item.matchRate()).isEqualTo(100);
+      // 예산 축을 채점할 근거가 없어 만점에서 빼고 신뢰도 0.875 를 곱한다
+      assertThat(item.matchRate()).isEqualTo(81);
       assertThat(item.isExecutable()).isFalse();
       assertThat(item.minBudgetWon()).isNull();
       assertThat(item.shortfallWon()).isNull();
