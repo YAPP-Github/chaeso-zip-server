@@ -51,6 +51,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -138,6 +139,8 @@ class AuthServiceTest {
             userRepository.findByEmailAndDeletedAtIsNull(invocation.getArgument(0)));
     lenient().when(userRepository.findByIdAndDeletedAtIsNull(any()))
         .thenReturn(Optional.of(UserFixture.user()));
+    lenient().when(verificationMailSender.sendVerificationCode(anyString(), anyString()))
+        .thenReturn(CompletableFuture.completedFuture(null));
   }
 
   private static LoginCommand loginCommand() {
@@ -206,11 +209,10 @@ class AuthServiceTest {
     void mailFailureReleasesCooldown() {
       given(userRepository.findByEmailAndDeletedAtIsNull("user@chaeso.zip")).willReturn(Optional.empty());
       given(verificationCodeStore.tryAcquireSendSlot("user@chaeso.zip")).willReturn(true);
-      willThrow(new MailSendException("smtp down"))
-          .given(verificationMailSender).sendVerificationCode(eq("user@chaeso.zip"), anyString());
+      given(verificationMailSender.sendVerificationCode(eq("user@chaeso.zip"), anyString()))
+          .willReturn(CompletableFuture.failedFuture(new MailSendException("smtp down")));
 
-      assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
-          .isInstanceOf(MailSendException.class);
+      assertThat(authService.sendSignupVerificationCode("user@chaeso.zip")).isNull();
       verify(verificationCodeStore).releaseSendSlot("user@chaeso.zip");
     }
 
