@@ -63,16 +63,17 @@ class RecommendationReasonTest {
   }
 
   @Nested
-  @DisplayName("덜 맞은 축은 단서로 덧붙인다")
-  class Caveat {
+  @DisplayName("덜 맞은 축은 문장에 넣지 않는다")
+  class LessFitAxes {
 
     @Test
-    @DisplayName("일부만 맞은 축을 단서로 밝힌다")
-    void reportsPartialAxisAsCaveat() {
+    @DisplayName("일부만 맞은 축은 주어에서 빼고 단서로도 남기지 않는다")
+    void omitsPartialAxis() {
       String reason = of(fits(STRONG, STRONG, PARTIAL), null, true);
 
-      assertThat(reason).isEqualTo(
-          "의료·헬스케어 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요. 다만 타깃 연령대는 일부만 맞아요");
+      assertThat(reason)
+          .isEqualTo("의료·헬스케어 업종, 설정한 광고 목적에 적합하고 예산 내 집행이 가능해요")
+          .doesNotContain("연령대");
     }
 
     @Test
@@ -86,41 +87,31 @@ class RecommendationReasonTest {
     }
 
     @Test
-    @DisplayName("맞지 않는 축이 섞여 있어도 단서는 일부만 맞은 축 한 절로 끝난다")
-    void keepsCaveatToSingleClause() {
-      String reason = of(fits(PARTIAL, STRONG, WEAK), null, true);
-
-      assertThat(reason).isEqualTo(
-          "설정한 광고 목적에 적합하고 예산 내 집행이 가능해요. 다만 의료·헬스케어 업종은 일부만 맞아요");
+    @DisplayName("가장 잘 맞은 단계의 축만 주어로 남긴다")
+    void keepsOnlyLeadTierAxes() {
+      assertThat(of(fits(PARTIAL, STRONG, WEAK), null, true))
+          .isEqualTo("설정한 광고 목적에 적합하고 예산 내 집행이 가능해요");
+      assertThat(of(fits(PARTIAL, PARTIAL, STRONG), null, true))
+          .isEqualTo("타깃 연령대에 적합하고 예산 내 집행이 가능해요");
     }
 
     @Test
-    @DisplayName("같은 단계의 축이 여럿이면 조사로 이어 붙인다")
-    void joinsSameTierCaveatsWithParticle() {
-      String reason = of(fits(PARTIAL, PARTIAL, STRONG), null, true);
+    @DisplayName("어떤 조합에서도 근거를 뒤집는 단서를 붙이지 않는다")
+    void neverAppendsAdversativeCaveat() {
+      List<Double> levels = List.of(EXACT, STRONG, PARTIAL, WEAK);
+      for (Double category : levels) {
+        for (Double objective : levels) {
+          for (Double ageBand : levels) {
+            String reason = of(fits(category, objective, ageBand), null, true);
 
-      assertThat(reason).isEqualTo(
-          "타깃 연령대에 적합하고 예산 내 집행이 가능해요. 다만 의료·헬스케어 업종과 설정한 광고 목적은 일부만 맞아요");
+            assertThat(reason).doesNotContain("다만", "일부만 맞아요");
+          }
+        }
+      }
     }
 
     @Test
-    @DisplayName("모든 축이 잘 맞으면 단서를 붙이지 않는다")
-    void omitsCaveatWhenEveryAxisIsStrong() {
-      String reason = of(fits(STRONG, STRONG, STRONG), null, true);
-
-      assertThat(reason).doesNotContain("다만");
-    }
-
-    @Test
-    @DisplayName("주어로 쓴 단계는 단서로 되풀이하지 않는다")
-    void neverRepeatsLeadTierInCaveat() {
-      String reason = of(fits(PARTIAL, PARTIAL, PARTIAL), null, true);
-
-      assertThat(reason).doesNotContain("다만");
-    }
-
-    @Test
-    @DisplayName("판정하지 못한 축은 주어로도 단서로도 쓰지 않는다")
+    @DisplayName("판정하지 못한 축은 문장에 쓰지 않는다")
     void ignoresAxesWithoutBasis() {
       String reason = of(fits(STRONG, null, null), null, true);
 
@@ -151,18 +142,17 @@ class RecommendationReasonTest {
     }
 
     @Test
-    @DisplayName("앞 문장이 이미 한계를 말했으면 단서에 \"다만\"을 겹쳐 쓰지 않는다")
-    void neverRepeatsAdversative() {
-      assertThat(of(fits(PARTIAL, STRONG, null), 500_000L, true)).isEqualTo(
-          "설정한 광고 목적에 적합하지만 집행에는 500,000원이 더 필요해요. 의료·헬스케어 업종은 일부만 맞아요");
-      // 단가 문의 안내가 이미 한 문장을 쓰므로 축 단서는 붙이지 않는다
-      assertThat(of(fits(PARTIAL, STRONG, null), null, false)).isEqualTo(
-          "설정한 광고 목적에 적합해요. 등록된 단가가 없어 집행 금액은 문의가 필요해요");
+    @DisplayName("집행 부족액을 알려도 덜 맞은 축을 덧붙이지 않는다")
+    void keepsSingleSentenceOnShortfall() {
+      assertThat(of(fits(PARTIAL, STRONG, null), 500_000L, true))
+          .isEqualTo("설정한 광고 목적에 적합하지만 집행에는 500,000원이 더 필요해요");
+      assertThat(of(fits(PARTIAL, STRONG, null), null, false))
+          .isEqualTo("설정한 광고 목적에 적합해요. 등록된 단가가 없어 집행 금액은 문의가 필요해요");
     }
 
     @Test
-    @DisplayName("어떤 조합에서도 단서는 한 절을 넘지 않는다")
-    void neverExceedsOneCaveatClause() {
+    @DisplayName("어떤 조합에서도 단가 문의 안내를 빼면 한 문장으로 끝난다")
+    void neverExceedsTwoSentences() {
       List<Double> levels = List.of(EXACT, STRONG, PARTIAL, WEAK);
       for (Double category : levels) {
         for (Double objective : levels) {
@@ -171,10 +161,9 @@ class RecommendationReasonTest {
               for (boolean quoted : List.of(true, false)) {
                 String reason = of(fits(category, objective, ageBand), shortfall, quoted);
 
-                assertThat(reason.split("다만", -1)).hasSizeLessThanOrEqualTo(2);
                 assertThat(reason).doesNotContain("잘 맞지 않아요");
-                // 문장은 둘을 넘지 않는다
-                assertThat(reason.split("\\. ", -1)).hasSizeLessThanOrEqualTo(2);
+                // 단가 문의 안내가 붙는 경우에만 두 문장이 된다
+                assertThat(reason.split("\\. ", -1)).hasSize(quoted ? 1 : 2);
               }
             }
           }

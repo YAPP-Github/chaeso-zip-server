@@ -11,8 +11,8 @@ import java.util.StringJoiner;
 /**
  * 추천 근거 문장.
  *
- * <p>가장 잘 맞은 단계의 축만 앞 문장의 주어로 내세우고, 그보다 덜 맞은 축은 뒤에 단서로 붙인다.
- * 세 축이 "맞았다"로만 뭉뚱그려지면 적합도가 96%인 매체와 72%인 매체가 같은 문장을 받는다.
+ * <p>가장 잘 맞은 단계의 축만 주어로 내세우고, 그보다 덜 맞은 축은 말하지 않는다. 세 축이
+ * "맞았다"로만 뭉뚱그려지면 적합도가 96%인 매체와 72%인 매체가 같은 문장을 받는다.
  */
 public final class RecommendationReason {
 
@@ -25,12 +25,6 @@ public final class RecommendationReason {
 
   /** 완전 일치로 볼 적합 정도. 조화평균의 소수점 오차를 감안한다. */
   private static final double EXACT_FIT = 0.999;
-
-  /** 받침으로 끝나는 주어("업종", "목적")에 붙는 조사 */
-  private static final Particles CLOSED = new Particles("과", "은");
-
-  /** 받침 없이 끝나는 주어("연령대")에 붙는 조사 */
-  private static final Particles OPEN = new Particles("와", "는");
 
   /** 업종 코드에 이름이 없을 때. 코드값을 그대로 노출하지 않는다. */
   private static final String UNNAMED_CATEGORY_SUBJECT = "설정한 업종";
@@ -50,13 +44,6 @@ public final class RecommendationReason {
   private static final String SHORTFALL = "지만 집행에는 %s원이 더 필요해요";
   private static final String QUOTE_REQUIRED = ". 등록된 단가가 없어 집행 금액은 문의가 필요해요";
 
-  /** 앞 문장이 긍정으로 끝났을 때의 단서 도입부 */
-  private static final String CAVEAT_PREFIX = ". 다만 ";
-
-  /** 앞 문장이 이미 한계를 말했을 때의 단서 도입부. "다만"을 겹쳐 쓰지 않는다 */
-  private static final String PLAIN_CAVEAT_PREFIX = ". ";
-  private static final String PARTIAL_CAVEAT = "%s 일부만 맞아요";
-
   private RecommendationReason() {
   }
 
@@ -74,8 +61,7 @@ public final class RecommendationReason {
     Predicate predicate = PREDICATES.get(lead);
 
     return subjects(byTier.get(lead), industry, score)
-        + closing(predicate, shortfallWon, quoted)
-        + caveat(byTier, lead, industry, score, shortfallWon, quoted);
+        + closing(predicate, shortfallWon, quoted);
   }
 
   /** 주어로 쓸 수 있는 축을 강도별로 모은다. 예산은 서술부가 따로 말하므로 뺀다. */
@@ -140,50 +126,7 @@ public final class RecommendationReason {
         + SHORTFALL.formatted(String.format(Locale.KOREA, "%,d", shortfallWon));
   }
 
-  /**
-   * 앞 문장에 쓰지 못한 축 가운데 일부만 맞은 축을 단서 한 절로 덧붙인다.
-   */
-  private static String caveat(Map<FitTier, List<MatchAxis>> byTier, FitTier lead,
-      Category industry, MatchScore score, Long shortfallWon, boolean quoted) {
-    List<MatchAxis> partial = lead == FitTier.PARTIAL ? List.of()
-        : byTier.getOrDefault(FitTier.PARTIAL, List.of());
-    if (partial.isEmpty() || !quoted) {
-      return "";
-    }
-    return (shortfallWon == null ? CAVEAT_PREFIX : PLAIN_CAVEAT_PREFIX)
-        + PARTIAL_CAVEAT.formatted(caveatSubjects(partial, industry, score));
-  }
-
-  /**
-   * 단서 절의 주어. 여럿이면 조사 "과/와"로 잇고 마지막에만 "은/는"을 붙인다.
-   */
-  private static String caveatSubjects(List<MatchAxis> axes, Category industry,
-      MatchScore score) {
-    StringJoiner joiner = new StringJoiner(" ");
-    for (int index = 0; index < axes.size(); index++) {
-      MatchAxis axis = axes.get(index);
-      boolean last = index == axes.size() - 1;
-      Particles particles = particlesOf(axis);
-      joiner.add(subjectOf(axis, industry, score.fitOf(axis))
-          + (last ? particles.topic() : particles.conjunctive()));
-    }
-    return joiner.toString();
-  }
-
-  /** 주어 문구가 고정이라 받침도 축마다 고정이다. */
-  private static Particles particlesOf(MatchAxis axis) {
-    return switch (axis) {
-      case CATEGORY, OBJECTIVE -> CLOSED;
-      case AGE_BAND -> OPEN;
-      case BUDGET -> throw new IllegalStateException("예산은 주어로 쓰지 않습니다");
-    };
-  }
-
   /** 강도별 서술. {@code connective} 는 예산 서술로 이어지고 {@code terminal} 은 문장을 끝낸다. */
   private record Predicate(String connective, String terminal) {
-  }
-
-  /** 주어 뒤에 붙는 조사. {@code conjunctive} 는 나열용, {@code topic} 은 마지막 주어용. */
-  private record Particles(String conjunctive, String topic) {
   }
 }
