@@ -289,7 +289,7 @@ public interface AuthApiDocs {
       description = """
           이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용.
           
-          methods \
+          methods
           [LOCAL]: 비밀번호 입력창.
           [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼.
           [GOOGLE]: 구글로 가입된 계정 안내.
