@@ -226,15 +226,16 @@ public class AuthServiceImpl implements AuthService {
     if (user == null) {
       return GoogleAuthResponse.signupRequired(googleSignupStore.save(info), email, info.name());
     }
-    rejectWithdrawn(user);
 
     Optional<AuthIdentity> googleIdentity = findGoogleIdentity(user);
     if (googleIdentity.isPresent()) {
       if (!googleIdentity.get().getProviderUid().equals(info.sub())) {
         throw new AuthBusinessException(AuthErrorCode.GOOGLE_AUTH_FAILED);
       }
+      authSessionService.restoreIfPossible(user);
       return GoogleAuthResponse.login(authSessionService.openSession(user, AuthProvider.GOOGLE));
     }
+    rejectWithdrawn(user);
     return GoogleAuthResponse.linkRequired(email);
   }
 
@@ -349,10 +350,16 @@ public class AuthServiceImpl implements AuthService {
     }
   }
 
-  /** 탈퇴한 회원이면 ACCOUNT_DELETION_IN_PROGRESS 에러로 거절한다. */
+  /**
+   * 탈퇴한 회원이면 거절한다. 유예기간(30일) 이내면 로그인을 유도하는 ACCOUNT_DORMANT로,
+   * 유예기간이 지났다면 ACCOUNT_DELETION_IN_PROGRESS로 구분해 응답한다.
+   */
   private void rejectWithdrawn(User user) {
     if (user.getDeletedAt() == null) {
       return;
+    }
+    if (user.isWithinWithdrawalGracePeriod(LocalDateTime.now(clock))) {
+      throw new AuthBusinessException(AuthErrorCode.ACCOUNT_DORMANT);
     }
     throw new AuthBusinessException(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
   }

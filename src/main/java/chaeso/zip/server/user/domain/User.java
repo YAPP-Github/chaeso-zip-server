@@ -21,6 +21,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends BaseEntity {
 
+  /** 탈퇴 후 재로그인 시 계정을 복구해주는 유예기간(일). */
+  public static final long WITHDRAWAL_GRACE_PERIOD_DAYS = 30;
+
   @Column(nullable = false)
   private String email;
 
@@ -106,6 +109,24 @@ public class User extends BaseEntity {
     marketingAgreed = false;
     marketingAgreedAt = null;
     sessionVersion++;
+  }
+
+  /**
+   * 탈퇴 후 유예기간 이내 재로그인이면 계정을 복구한다.
+   *
+   * @return 복구되었으면 true, 유예기간이 지났거나 탈퇴 상태가 아니면 false
+   */
+  public boolean restoreIfWithinGracePeriod(LocalDateTime now) {
+    if (!isWithinWithdrawalGracePeriod(now)) {
+      return false;
+    }
+    deletedAt = null;
+    return true;
+  }
+
+  /** 탈퇴 상태이면서 유예기간(복구 가능 기간) 이내인지 확인한다. 상태를 변경하지 않는다. */
+  public boolean isWithinWithdrawalGracePeriod(LocalDateTime now) {
+    return deletedAt != null && !deletedAt.plusDays(WITHDRAWAL_GRACE_PERIOD_DAYS).isBefore(now);
   }
 
   /** 사용자의 직군/회사명을 수정한다 */

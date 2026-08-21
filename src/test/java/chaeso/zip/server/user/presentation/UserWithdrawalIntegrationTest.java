@@ -1,5 +1,6 @@
 package chaeso.zip.server.user.presentation;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -81,8 +82,8 @@ class UserWithdrawalIntegrationTest {
   }
 
   @Test
-  @DisplayName("탈퇴한 계정은 같은 비밀번호로도 다시 로그인할 수 없다")
-  void withdrawnAccountCannotLogInAgain() throws Exception {
+  @DisplayName("탈퇴 후 유예기간(30일) 이내면 같은 비밀번호로 재로그인 시 계정이 자동 복구된다")
+  void withdrawnAccountWithinGracePeriodCanLogInAgain() throws Exception {
     User user = userRepository.save(UserFixture.user("withdrawn@chaeso.zip"));
     authIdentityRepository.save(
         AuthIdentity.createLocal(user.getId(), passwordEncoder.encode("P@ssw0rd!")));
@@ -94,6 +95,28 @@ class UserWithdrawalIntegrationTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"email": "withdrawn@chaeso.zip", "password": "P@ssw0rd!"}
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.accessToken").exists());
+
+    User restored = userRepository.findByEmailAndDeletedAtIsNull("withdrawn@chaeso.zip").orElseThrow();
+    assertThat(restored.getDeletedAt()).isNull();
+  }
+
+  @Test
+  @DisplayName("탈퇴 후 유예기간(30일)이 지나면 같은 비밀번호로도 다시 로그인할 수 없다")
+  void withdrawnAccountPastGracePeriodCannotLogInAgain() throws Exception {
+    User user = userRepository.save(UserFixture.user("withdrawn-old@chaeso.zip"));
+    authIdentityRepository.save(
+        AuthIdentity.createLocal(user.getId(), passwordEncoder.encode("P@ssw0rd!")));
+    authService.login(new LoginCommand("withdrawn-old@chaeso.zip", "P@ssw0rd!"));
+    user.withdraw(LocalDateTime.now(ZoneOffset.UTC).minusDays(31));
+    userRepository.saveAndFlush(user);
+
+    mockMvc.perform(post("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {"email": "withdrawn-old@chaeso.zip", "password": "P@ssw0rd!"}
                 """))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("AUTH-013"));
