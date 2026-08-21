@@ -50,4 +50,63 @@ class UserTest {
     assertThat(user.getLastLoginAt()).isEqualTo(loggedInAt);
     assertThat(user.getLastLoginProvider()).isEqualTo(AuthProvider.LOCAL);
   }
+
+  @Test
+  @DisplayName("탈퇴 유예기간(30일) 이내면 복구되어 탈퇴 시각이 지워진다")
+  void restoreIfWithinGracePeriod_withinPeriod_restores() {
+    User user = UserFixture.user(false);
+    user.withdraw(WITHDRAWN_AT);
+
+    boolean restored = user.restoreIfWithinGracePeriod(WITHDRAWN_AT.plusDays(29));
+
+    assertThat(restored).isTrue();
+    assertThat(user.getDeletedAt()).isNull();
+  }
+
+  @Test
+  @DisplayName("탈퇴 유예기간(30일) 경계 시각까지는 복구된다")
+  void restoreIfWithinGracePeriod_atBoundary_restores() {
+    User user = UserFixture.user(false);
+    user.withdraw(WITHDRAWN_AT);
+
+    boolean restored = user.restoreIfWithinGracePeriod(WITHDRAWN_AT.plusDays(30));
+
+    assertThat(restored).isTrue();
+    assertThat(user.getDeletedAt()).isNull();
+  }
+
+  @Test
+  @DisplayName("탈퇴 유예기간(30일)이 지나면 복구하지 않고 탈퇴 상태를 유지한다")
+  void restoreIfWithinGracePeriod_pastPeriod_doesNotRestore() {
+    User user = UserFixture.user(false);
+    user.withdraw(WITHDRAWN_AT);
+
+    boolean restored = user.restoreIfWithinGracePeriod(WITHDRAWN_AT.plusDays(31));
+
+    assertThat(restored).isFalse();
+    assertThat(user.getDeletedAt()).isEqualTo(WITHDRAWN_AT);
+  }
+
+  @Test
+  @DisplayName("탈퇴하지 않은 회원은 복구 시도해도 아무 일도 일어나지 않는다")
+  void restoreIfWithinGracePeriod_notWithdrawn_doesNothing() {
+    User user = UserFixture.user(false);
+
+    boolean restored = user.restoreIfWithinGracePeriod(WITHDRAWN_AT);
+
+    assertThat(restored).isFalse();
+    assertThat(user.getDeletedAt()).isNull();
+  }
+
+  @Test
+  @DisplayName("탈퇴 유예기간 이내인지 확인해도 상태를 바꾸지 않는다")
+  void isWithinWithdrawalGracePeriod_doesNotMutateState() {
+    User user = UserFixture.user(false);
+    user.withdraw(WITHDRAWN_AT);
+
+    boolean within = user.isWithinWithdrawalGracePeriod(WITHDRAWN_AT.plusDays(1));
+
+    assertThat(within).isTrue();
+    assertThat(user.getDeletedAt()).isEqualTo(WITHDRAWN_AT);
+  }
 }

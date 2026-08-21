@@ -75,6 +75,19 @@ public interface AuthApiDocs {
       }
       """;
 
+  String ACCOUNT_DORMANT_EXAMPLE = """
+      {
+        "success": false,
+        "data": null,
+        "error": {
+          "code": "AUTH-014",
+          "message": "휴면 처리된 계정입니다. 로그인해 주세요.",
+          "fieldErrors": []
+        },
+        "code": null
+      }
+      """;
+
   String VERIFICATION_CODE_SEND_COOLDOWN_EXAMPLE = """
       {
         "success": false,
@@ -99,9 +112,11 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "sendSignupCode", summary = "회원가입 이메일 인증코드 발송",
       description = """
-          가입할 이메일로 6자리 인증코드를 발송한다. \
-          로컬로 이미 가입된 이메일: 409. \
-          구글로만 가입된 이메일: 발송하지 않고 200 과 code: EMAIL_ALREADY_USED_WITH_GOOGLE. \
+          가입할 이메일로 6자리 인증코드를 발송한다.
+          로컬로 이미 가입된 이메일: 409.
+          탈퇴 후 30일 이내(휴면) 이메일: 발송하지 않고 409(AUTH-014), 로그인을 안내한다.
+          탈퇴 후 30일이 지난 이메일: 409(AUTH-013).
+          구글로만 가입된 이메일: 발송하지 않고 200 과 code: EMAIL_ALREADY_USED_WITH_GOOGLE.
           그 외: 발송 후 200.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "발송 성공. 구글로만 가입된 이메일이면 발송 없이 안내 코드만 실린다",
@@ -113,10 +128,12 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
+      description = "이미 사용 중인 이메일(AUTH-002), 탈퇴 후 유예기간 이내라 로그인이 필요한 휴면 계정(AUTH-014), "
+          + "또는 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DORMANT", value = ACCOUNT_DORMANT_EXAMPLE),
               @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
                   value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
           }))
@@ -162,7 +179,9 @@ public interface AuthApiDocs {
       """;
 
   @Operation(operationId = "signup", summary = "회원가입 최종 제출",
-      description = "이메일 인증 완료 후 로컬 계정을 생성한다. 인증 미완료 시 400, 이메일 중복 시 409.")
+      description = """
+          이메일 인증 완료 후 로컬 계정을 생성한다. 인증 미완료 시 400, 이메일 중복 시 409.
+          탈퇴 후 30일 이내(휴면) 이메일이면 가입 대신 409(AUTH-014)로 로그인을 안내한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "가입 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 또는 이메일 미인증",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
@@ -171,10 +190,12 @@ public interface AuthApiDocs {
               @ExampleObject(name = "EMAIL_NOT_VERIFIED", value = EMAIL_NOT_VERIFIED_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
+      description = "이미 사용 중인 이메일(AUTH-002), 탈퇴 후 유예기간 이내라 로그인이 필요한 휴면 계정(AUTH-014), "
+          + "또는 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DORMANT", value = ACCOUNT_DORMANT_EXAMPLE),
               @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
                   value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
           }))
@@ -208,9 +229,11 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "login", summary = "로컬 로그인",
       description = """
-          이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401. \
-          구글로만 가입되어 로컬 인증정보가 없는 이메일이면 AUTH-010 으로 별도 응답한다.""")
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그인 성공")
+          이메일/비밀번호로 로그인하고 access/refresh 토큰을 발급한다. 자격증명이 올바르지 않으면 401.
+          구글로만 가입되어 로컬 인증정보가 없는 이메일이면 AUTH-010 으로 별도 응답한다.
+          탈퇴 후 30일 이내(휴면) 계정이 이메일/비번이 맞으면 자동으로 복구한 뒤 로그인 처리.""")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+      description = "로그인 성공(탈퇴 후 30일 이내 자동 복구)")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "VALIDATION_ERROR", value = VALIDATION_ERROR_EXAMPLE)))
@@ -223,7 +246,7 @@ public interface AuthApiDocs {
                   value = ACCOUNT_REGISTERED_WITH_GOOGLE_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "탈퇴 처리된 계정(AUTH-013)",
+      description = "탈퇴 후 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
               value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))
@@ -264,12 +287,12 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "loginMethods", summary = "로그인 수단 조회",
       description = """
-          이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용. \
+          이메일로 사용 가능한 로그인 수단을 조회한다. 비밀번호 입력 전 화면 분기용.
           
-          methods \
-          [LOCAL]: 비밀번호 입력창. \
-          [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼. \
-          [GOOGLE]: 구글로 가입된 계정 안내. \
+          methods
+          [LOCAL]: 비밀번호 입력창.
+          [LOCAL, GOOGLE]: 비밀번호 입력창과 구글 버튼.
+          [GOOGLE]: 구글로 가입된 계정 안내.
           []: 미가입 -> 회원가입 화면.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
       useReturnTypeSchema = true,
@@ -316,10 +339,10 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "refresh", summary = "토큰 재발급",
       description = """
-          Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다. \
-          기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고 \
-          해당 세션(family) 전체를 폐기하므로, 동시에 여러 번 호출하지 말고 한 번만 보낸다. \
-          Access Token 이 만료된 상태에서 호출하므로 인증이 필요 없다. \
+          Refresh Token 을 회전시켜 새 access/refresh 토큰 쌍을 발급한다.
+          기존 Refresh Token 은 즉시 폐기된다. 이미 회전된 토큰을 다시 제출하면 재사용으로 보고
+          해당 세션(family) 전체를 폐기하므로, 동시에 여러 번 호출하지 말고 한 번만 보낸다.
+          Access Token 이 만료된 상태에서 호출하므로 인증이 필요 없다.
           refreshTokenExpiresIn 은 로그인 후 90일에 가까워질수록 짧아진다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재발급 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",
@@ -411,14 +434,16 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "googleAuth", summary = "구글 인증 진입",
       description = """
-          구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다. \
-          탈퇴 처리된 계정인 경우 가입 수단과 관계없이 409(AUTH-013) 예외를 반환한다. \
-          
-          LOGIN: 토큰 발급. \
-          LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출. \
+          구글 idToken 을 검증하고 계정 상태에 따라 status 로 분기한다.
+          이미 구글이 연결된 계정이 탈퇴 후 30일 이내(휴면)라면 자동으로 복구한 뒤 LOGIN 으로 응답한다.
+          아직 구글이 연결되지 않은 탈퇴 계정(LINK_REQUIRED 대상)이거나 유예기간이 지난 탈퇴 계정이면
+          409 예외(AUTH-014 또는 AUTH-013)를 반환한다.
+
+          LOGIN: 토큰 발급.
+          LINK_REQUIRED: linkRequired 와 email 을 내려주며, 사용자 확인 후 POST /auth/google/link 호출.
           SIGNUP_REQUIRED: signupRequired 와 일회성 signupToken, 프리필 값을 내려준다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
-      description = "로그인 성공 / 연결 확인 필요 / 가입 필요",
+      description = "로그인 성공(탈퇴 후 30일 이내 자동 복구) / 연결 확인 필요 / 가입 필요",
       useReturnTypeSchema = true,
       content = @Content(
           examples = {
@@ -434,10 +459,14 @@ public interface AuthApiDocs {
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = @ExampleObject(name = "GOOGLE_AUTH_FAILED", value = GOOGLE_AUTH_FAILED_EXAMPLE)))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "탈퇴 처리된 계정(AUTH-013)",
+      description = "구글 미연결 상태로 탈퇴 후 유예기간 이내라 로그인이 필요한 휴면 계정(AUTH-014), "
+          + "또는 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
-          examples = @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
-              value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)))
+          examples = {
+              @ExampleObject(name = "ACCOUNT_DORMANT", value = ACCOUNT_DORMANT_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
+                  value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
+          }))
   ApiResponse<GoogleAuthResponse> googleAuth(@Valid @RequestBody GoogleAuthRequest request);
 
   String GOOGLE_ACCOUNT_LINKED = "GOOGLE_ACCOUNT_LINKED";
@@ -457,8 +486,8 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "linkGoogle", summary = "구글 계정 연결 확인",
       description = """
-          linkRequired:true 응답을 받고 사용자가 '예'를 선택했을 때만 호출한다. \
-          진입 때 보낸 idToken 을 재전송하면 재검증 후 같은 이메일의 로컬 계정에 구글 로그인을 \
+          linkRequired:true 응답을 받고 사용자가 '예'를 선택했을 때만 호출한다.
+          진입 때 보낸 idToken 을 재전송하면 재검증 후 같은 이메일의 로컬 계정에 구글 로그인을
           연결하고 토큰을 발급한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
       description = "연결 완료(code: GOOGLE_ACCOUNT_LINKED) 및 토큰 발급",
@@ -501,9 +530,10 @@ public interface AuthApiDocs {
 
   @Operation(operationId = "signupGoogle", summary = "구글 최종 회원가입",
       description = """
-          POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로 \
-          신규 회원가입을 완료하고 토큰을 발급한다. \
-          가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.""")
+          POST /auth/google 이 내려준 signupToken 과 추가 프로필(닉네임/회사명/직무/약관 동의)로
+          신규 회원가입을 완료하고 토큰을 발급한다.
+          가입에 성공하면 signupToken 은 즉시 폐기되어 재사용 불가능.
+          탈퇴 후 30일 이내(휴면) 이메일이면 가입 대신 409(AUTH-014)로 로그인을 안내한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "가입 성공, 토큰 발급",
       useReturnTypeSchema = true,
       content = @Content(
@@ -517,10 +547,12 @@ public interface AuthApiDocs {
                   value = GOOGLE_SIGNUP_SESSION_INVALID_EXAMPLE)
           }))
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-      description = "이미 사용 중이거나 탈퇴 처리 중인 이메일",
+      description = "이미 사용 중인 이메일(AUTH-002), 탈퇴 후 유예기간 이내라 로그인이 필요한 휴면 계정(AUTH-014), "
+          + "또는 유예기간이 지나 탈퇴 처리 중인 계정(AUTH-013)",
       content = @Content(schema = @Schema(implementation = ApiResponse.class),
           examples = {
               @ExampleObject(name = "EMAIL_ALREADY_EXISTS", value = EMAIL_ALREADY_EXISTS_EXAMPLE),
+              @ExampleObject(name = "ACCOUNT_DORMANT", value = ACCOUNT_DORMANT_EXAMPLE),
               @ExampleObject(name = "ACCOUNT_DELETION_IN_PROGRESS",
                   value = ACCOUNT_DELETION_IN_PROGRESS_EXAMPLE)
           }))
@@ -533,7 +565,7 @@ public interface AuthApiDocs {
   @SecurityRequirement(name = "bearerAuth")
   @Operation(operationId = "logout", summary = "로그아웃",
       description = """
-          제출한 Refresh Token 의 세션(family)을 폐기한다. 인증된 사용자만 호출할 수 있고, \
+          제출한 Refresh Token 의 세션(family)을 폐기한다. 인증된 사용자만 호출할 수 있고,
           토큰 소유자가 인증 사용자와 다르면 401. 이미 폐기된 세션이어도 200 을 반환한다.""")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "로그아웃 성공")
   @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패(C-001)",

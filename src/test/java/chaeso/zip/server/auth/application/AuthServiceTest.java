@@ -1063,18 +1063,6 @@ class AuthServiceTest {
           .extracting("errorCode").isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
-    @Test
-    @DisplayName("탈퇴 처리 진행 중인 회원의 이메일로 구글 회원가입 시도 시 ACCOUNT_DELETION_IN_PROGRESS로 실패한다")
-    void withdrawnUserEmail_rejected() {
-      given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
-      User withdrawnUser = withdrawnUser(1);
-      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(withdrawnUser));
-
-      GoogleSignupCommand command = googleSignupCommand("signup-ticket");
-      assertThatThrownBy(() -> authService.signupGoogle(command))
-          .isInstanceOf(AuthBusinessException.class)
-          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DELETION_IN_PROGRESS);
-    }
   }
 
   @Nested
@@ -1144,9 +1132,9 @@ class AuthServiceTest {
   class WithdrawnAccount {
 
     @Test
-    @DisplayName("탈퇴한 LOCAL 계정은 비밀번호가 맞아도 로그인을 거절한다")
-    void localLoginRejectsWithdrawnAccount() {
-      User user = withdrawnUser(1);
+    @DisplayName("탈퇴 유예기간(30일)이 지난 LOCAL 계정은 비밀번호가 맞아도 로그인을 거절한다")
+    void localLoginRejectsWithdrawnAccountPastGracePeriod() {
+      User user = withdrawnUser(31);
       doReturn(Optional.of(user)).when(userRepository).findByEmail("user@chaeso.zip");
       given(userRepository.findByIdForUpdate(user.getId())).willReturn(Optional.of(user));
       given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
@@ -1160,9 +1148,29 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴 유예기간(30일) 이내의 LOCAL 계정은 로그인 시 자동으로 복구되어 토큰을 발급한다")
+    void localLoginRestoresWithdrawnAccountWithinGracePeriod() {
+      User user = withdrawnUser(1);
+      doReturn(Optional.of(user)).when(userRepository).findByEmail("user@chaeso.zip");
+      given(userRepository.findByIdForUpdate(user.getId())).willReturn(Optional.of(user));
+      given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
+          .willReturn(Optional.of(AuthIdentity.createLocal(user.getId(), "ENCODED")));
+      given(passwordEncoder.matches("P@ssw0rd!", "ENCODED")).willReturn(true);
+      given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+      given(jwtTokenProvider.createAccessToken(any(), anyInt())).willReturn("access");
+      given(jwtTokenProvider.createRefreshToken(any(), anyInt(), anyString(), anyString()))
+          .willReturn("refresh");
+
+      TokenResponse response = authService.login(loginCommand());
+
+      assertThat(response.accessToken()).isEqualTo("access");
+      assertThat(user.getDeletedAt()).isNull();
+    }
+
+    @Test
     @DisplayName("탈퇴한 계정(로컬 identity 없음)으로 로컬 로그인 시도 시 ACCOUNT_DELETION_IN_PROGRESS로 실패한다")
     void withdrawnAccountWithoutLocalIdentity_rejectionHasPriority() {
-      User user = withdrawnUser(1);
+      User user = withdrawnUser(31);
       doReturn(Optional.of(user)).when(userRepository).findByEmail("user@chaeso.zip");
       given(authIdentityRepository.findByUserIdAndProvider(user.getId(), AuthProvider.LOCAL))
           .willReturn(Optional.empty());
@@ -1174,10 +1182,10 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 계정 이메일로 Google 인증 진입 시 가입 수단과 관계없이 AUTH-013을 반환한다")
-    void googleAuthRejectsWithdrawnAccount() {
+    @DisplayName("탈퇴 유예기간(30일)이 지난 계정 이메일로 Google 인증 진입 시 AUTH-013을 반환한다")
+    void googleAuthRejectsWithdrawnAccountPastGracePeriod() {
       givenVerifiedGoogleToken();
-      User user = withdrawnUser(1);
+      User user = withdrawnUser(31);
       given(userRepository.findByEmailForUpdate("user@chaeso.zip")).willReturn(Optional.of(user));
 
       assertThatThrownBy(() -> authService.googleAuth("id-token"))
@@ -1186,9 +1194,54 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 이메일로 신규 가입하면 AUTH-013을 반환한다")
-    void signupRejectsWithdrawnAccount() {
+    @DisplayName("탈퇴 유예기간(30일) 이내에 연결된 Google 계정으로 인증하면 자동 복구되어 로그인 처리된다")
+    void googleAuthRestoresWithdrawnAccountWithinGracePeriod() {
+      givenVerifiedGoogleToken();
       User user = withdrawnUser(1);
+      given(userRepository.findByEmailForUpdate("user@chaeso.zip")).willReturn(Optional.of(user));
+      givenGoogleIdentity(user, true);
+      given(refreshTokenStore.save(any(), anyString(), anyString())).willReturn(Duration.ofDays(14));
+      given(jwtTokenProvider.createAccessToken(any(), anyInt())).willReturn("access");
+      given(jwtTokenProvider.createRefreshToken(any(), anyInt(), anyString(), anyString()))
+          .willReturn("refresh");
+
+      GoogleAuthResponse response = authService.googleAuth("id-token");
+
+      assertThat(response.accessToken()).isEqualTo("access");
+      assertThat(user.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예기간(30일) 이내에 아직 연결되지 않은 계정이면 복구하지 않고 linkRequired로 안내한다")
+    void googleAuthDoesNotRestoreWhenLinkRequired() {
+      givenVerifiedGoogleToken();
+      User user = withdrawnUser(1);
+      given(userRepository.findByEmailForUpdate("user@chaeso.zip")).willReturn(Optional.of(user));
+      givenGoogleIdentity(user, false);
+
+      assertThatThrownBy(() -> authService.googleAuth("id-token"))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DORMANT);
+      assertThat(user.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예기간(30일) 이내의 이메일로 신규 가입하면 로그인을 유도하는 AUTH-014를 반환한다")
+    void signupRejectsDormantAccountWithinGracePeriod() {
+      User user = withdrawnUser(1);
+      given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+
+      SignupCommand signupCmd = command("user@chaeso.zip");
+      assertThatThrownBy(() -> authService.signup(signupCmd))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DORMANT);
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예기간(30일)이 지난 이메일로 신규 가입하면 AUTH-013을 반환한다")
+    void signupRejectsWithdrawnAccountPastGracePeriod() {
+      User user = withdrawnUser(31);
       given(verificationCodeStore.isVerified("user@chaeso.zip")).willReturn(true);
       given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
 
@@ -1199,9 +1252,21 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴한 이메일에는 신규 가입 인증 코드를 보내지 않는다")
-    void verificationCodeRejectsWithdrawnAccount() {
+    @DisplayName("탈퇴 유예기간(30일) 이내의 이메일에는 로그인을 유도하며 신규 가입 인증 코드를 보내지 않는다")
+    void verificationCodeRejectsDormantAccountWithinGracePeriod() {
       User user = withdrawnUser(1);
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+
+      assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DORMANT);
+      verify(verificationMailSender, never()).sendVerificationCode(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예기간(30일)이 지난 이메일에는 신규 가입 인증 코드를 보내지 않는다")
+    void verificationCodeRejectsWithdrawnAccountPastGracePeriod() {
+      User user = withdrawnUser(31);
       given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
 
       assertThatThrownBy(() -> authService.sendSignupVerificationCode("user@chaeso.zip"))
@@ -1211,9 +1276,23 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴 계정 이메일의 Google 가입 티켓으로도 새 회원을 만들지 않는다")
-    void googleSignupRejectsWithdrawnAccount() {
+    @DisplayName("탈퇴 유예기간(30일) 이내의 Google 가입 티켓으로도 새 회원을 만들지 않고 AUTH-014를 반환한다")
+    void googleSignupRejectsDormantAccountWithinGracePeriod() {
       User user = withdrawnUser(1);
+      given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
+      given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
+
+      GoogleSignupCommand googleSignupCmd = googleSignupCommand("signup-ticket");
+      assertThatThrownBy(() -> authService.signupGoogle(googleSignupCmd))
+          .isInstanceOf(AuthBusinessException.class)
+          .extracting("errorCode").isEqualTo(AuthErrorCode.ACCOUNT_DORMANT);
+      verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예기간(30일)이 지난 Google 가입 티켓으로도 새 회원을 만들지 않는다")
+    void googleSignupRejectsWithdrawnAccountPastGracePeriod() {
+      User user = withdrawnUser(31);
       given(googleSignupStore.find("signup-ticket")).willReturn(Optional.of(GOOGLE_INFO));
       given(userRepository.findByEmail("user@chaeso.zip")).willReturn(Optional.of(user));
 
