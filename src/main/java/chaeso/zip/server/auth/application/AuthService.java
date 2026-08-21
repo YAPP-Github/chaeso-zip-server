@@ -6,7 +6,6 @@ import chaeso.zip.server.auth.application.dto.LoginCommand;
 import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.application.dto.SignupCommand;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
-import chaeso.zip.server.auth.application.dto.UserResponse;
 import java.util.UUID;
 
 /**
@@ -25,15 +24,15 @@ public interface AuthService {
   /** 인증코드를 검증하고 인증완료 상태로 전환한다. 불일치/만료면 예외. */
   void verifySignupCode(String email, String code);
 
-  /** 이메일 인증 완료를 전제로 로컬 계정을 생성한다. */
-  UserResponse signup(SignupCommand command);
+  /** 이메일 인증 완료를 전제로 로컬 계정을 생성하고 액세스/리프레시 토큰을 발급한다. */
+  TokenResponse signup(SignupCommand command);
 
   /** 이메일/비밀번호로 로컬 로그인하고 액세스/리프레시 토큰을 발급한다. 실패 시 예외. */
   TokenResponse login(LoginCommand command);
 
   /**
-   * 이메일로 그 계정의 로그인 수단을 조회한다. 미가입이거나 탈퇴한 계정이면 빈 목록,
-   * {@code clientIp} 단위 조회 한도를 넘으면 예외.
+   * 휴먼 여부와 상관없이 이메일로 그 계정의 로그인 수단을 조회한다.
+   * 미가입이면 빈 목록, {@code clientIp} 단위 조회 한도를 넘으면 예외.
    */
   LoginMethodsResponse findLoginMethods(String email, String clientIp);
 

@@ -3,7 +3,6 @@ package chaeso.zip.server.auth.presentation;
 import chaeso.zip.server.auth.application.AuthService;
 import chaeso.zip.server.auth.application.UserPrincipal;
 import chaeso.zip.server.auth.application.dto.TokenResponse;
-import chaeso.zip.server.auth.application.dto.UserResponse;
 import chaeso.zip.server.auth.application.dto.GoogleAuthResponse;
 import chaeso.zip.server.auth.application.dto.LoginMethodsResponse;
 import chaeso.zip.server.auth.presentation.dto.GoogleAuthRequest;
@@ -53,7 +52,7 @@ public class AuthController implements AuthApiDocs {
   @Override
   @PostMapping("/signup")
   @ResponseStatus(HttpStatus.CREATED)
-  public ApiResponse<UserResponse> signup(@Valid @RequestBody SignupRequest request) {
+  public ApiResponse<TokenResponse> signup(@Valid @RequestBody SignupRequest request) {
     return ApiResponse.success(authService.signup(request.toCommand()));
   }
 
