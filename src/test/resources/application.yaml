@@ -51,7 +51,7 @@ app:
   consent:
     terms-version: v1.0
   email-verification:
-    from: no-reply@test.com
+    from: no-reply@chaeso-zip.com
     code-ttl: PT5M
     verified-ttl: PT30M
     max-verify-attempts: 5
