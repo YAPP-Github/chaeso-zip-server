@@ -6,6 +6,7 @@ import static chaeso.zip.server.support.ChannelCatalogFixture.product;
 import static chaeso.zip.server.support.ChannelCatalogFixture.withObjectives;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -29,6 +30,7 @@ import chaeso.zip.server.channel.domain.vo.AgeBand;
 import chaeso.zip.server.channel.domain.vo.CampaignObjective;
 import chaeso.zip.server.channel.domain.vo.Category;
 import chaeso.zip.server.channel.domain.vo.Gender;
+import chaeso.zip.server.channel.domain.vo.PriceType;
 import chaeso.zip.server.channel.domain.vo.PricingModel;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonItemResponse;
 import chaeso.zip.server.comparison.application.dto.ChannelComparisonResponse;
@@ -583,6 +585,40 @@ class ChannelComparisonServiceImplTest {
           .containsExactly("세 축 채널", "두 축 채널");
       assertThat(response.items()).extracting(ChannelComparisonItemResponse::matchRate)
           .containsExactly(94, 74);
+    }
+
+    @Test
+    @DisplayName("적용된 축 구성이 서로 달라도 화면에 보이는 적합도 순서와 정렬이 어긋나지 않는다")
+    void ordersByDisplayedMatchRateAcrossDifferentAppliedAxes() {
+      // 배점 합만 보면 "가매체"(54점)가 "나매체"(30점)보다 앞이지만, 적합도는 54% 대 65% 로 뒤집힌다.
+      // "나매체"는 목적·연령·예산을 판정할 근거가 없어 만점 자체가 30점으로 작기 때문이다.
+      Channel lowerRate = channel(UUID.randomUUID(), "가매체", null,
+          List.of(MATCHED_INDUSTRY, Category.GAME, Category.EDUCATION, Category.LIFESTYLE,
+              Category.SPORTS, Category.OTHERS),
+          List.of(AgeBand.AGE_10S, AgeBand.AGE_20S, AgeBand.AGE_30S, AgeBand.AGE_40S,
+              AgeBand.AGE_50S_PLUS));
+      Channel higherRate = channel(UUID.randomUUID(), "나매체", MATCHED_INDUSTRY, List.of(),
+          List.of());
+
+      // 근거가 없는 축을 만들려면 지원 목적을 밝히지 않은 상품과 값 없는 단가가 필요하다
+      ChannelProduct unpriced = product(UUID.randomUUID(), higherRate.getId());
+      givenCatalog(
+          entry(lowerRate, CampaignObjective.VIDEO_VIEW, "3000"),
+          new CatalogEntry(higherRate, unpriced,
+              pricing(unpriced.getId(), PricingModel.CPM, PriceType.LIST, null, null, null)));
+
+      UUID userId = UUID.randomUUID();
+      UUID onboardingId = UUID.randomUUID();
+      given(onboardingRepository.findById(onboardingId))
+          .willReturn(Optional.of(matchedOnboarding(userId)));
+
+      ChannelComparisonResponse response = comparisonService.compare(
+          List.of(lowerRate.getId(), higherRate.getId()), onboardingId, userId);
+
+      assertThat(response.items())
+          .extracting(ChannelComparisonItemResponse::channelName,
+              ChannelComparisonItemResponse::matchRate)
+          .containsExactly(tuple("나매체", 65), tuple("가매체", 54));
     }
 
     @Test

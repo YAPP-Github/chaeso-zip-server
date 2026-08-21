@@ -336,7 +336,7 @@ public class RecommendationServiceImpl implements RecommendationService {
     /** 정렬에 쓰는 예상 클릭 중앙값. 클릭을 추정할 수 없으면 {@code null} */
     private Long estimatedClicks() {
       ClickRange clicks = snapshot.clicks();
-      return clicks == null ? null : Math.round((clicks.min() + clicks.max()) / 2.0);
+      return clicks == null ? null : clicks.midpoint();
     }
   }
 }

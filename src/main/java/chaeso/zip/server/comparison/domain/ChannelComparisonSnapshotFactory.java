@@ -187,7 +187,7 @@ public final class ChannelComparisonSnapshotFactory {
    * 예상 클릭 범위의 중앙값을 클릭당 비용 환산 기준으로 사용.
    */
   private static Long midpoint(ClickRange clicks) {
-    return clicks == null ? null : Math.round((clicks.min() + clicks.max()) / 2.0);
+    return clicks == null ? null : clicks.midpoint();
   }
 
   /** 대표 상품과 그 카탈로그 단가(CPC/CPM). */
