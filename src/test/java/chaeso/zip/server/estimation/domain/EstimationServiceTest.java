@@ -106,11 +106,11 @@ class EstimationServiceTest {
   }
 
   @Nested
-  @DisplayName("구좌형(SLOT/FLAT/PACKAGE) 노출 계산")
+  @DisplayName("단위형(SLOT/FLAT/PACKAGE/CPP) 노출 계산")
   class SlotBased {
 
     @ParameterizedTest
-    @EnumSource(value = PricingModel.class, names = {"SLOT", "FLAT", "PACKAGE"})
+    @EnumSource(value = PricingModel.class, names = {"SLOT", "FLAT", "PACKAGE", "CPP"})
     @DisplayName("기간이 예산보다 빡세면 기간 기준으로 구좌 수가 제한된다")
     void limitsSlotsByPeriod(PricingModel pricingModel) {
       // 기간 14일 / 구좌 7일 = 2구좌, 예산 5,000,000 / 500,000 = 10구좌 → 2구좌 채택
@@ -133,6 +133,20 @@ class EstimationServiceTest {
       EstimationResult result = EstimationService.estimate(product, 1_500_000L, 70);
 
       assertThat(result.impressions()).isEqualTo(new ImpressionRange(255_000, 345_000));
+    }
+
+    @Test
+    @DisplayName("일 단위 기간형(CPP) 상품도 기대 노출로 추정한다")
+    void estimatesDailyPeriodPricing() {
+      // 기간 7일 / 단위 1일 = 7단위, 예산 720,000 / 140,000 = 5.142...단위 → 예산 기준 채택
+      EstimationProduct product = product(null, 86_000L, "1일",
+          pricing(PricingModel.CPP, PriceType.DISCOUNT, "140000", null, "1"));
+
+      EstimationResult result = EstimationService.estimate(product, 720_000L, 7);
+
+      assertThat(result.isExecutable()).isTrue();
+      assertThat(result.impressions()).isEqualTo(new ImpressionRange(375_943, 508_629));
+      assertThat(result.clicks()).isEqualTo(new ClickRange(7_519, 10_173));   // 기본 2%
     }
 
     @Test
@@ -342,8 +356,8 @@ class EstimationServiceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PricingModel.class, names = {"SLOT", "FLAT", "PACKAGE"})
-    @DisplayName("구좌형은 기대 노출이 있을 때만 노출을 낼 수 있다")
+    @EnumSource(value = PricingModel.class, names = {"SLOT", "FLAT", "PACKAGE", "CPP"})
+    @DisplayName("단위형은 기대 노출이 있을 때만 노출을 낼 수 있다")
     void slotBasedNeedsExpectedImpressions(PricingModel pricingModel) {
       EstimationPricing pricing = pricing(pricingModel, PriceType.LIST, "500000", null, "7");
 
