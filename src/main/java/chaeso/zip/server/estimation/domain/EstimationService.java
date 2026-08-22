@@ -39,9 +39,12 @@ public final class EstimationService {
   private static final BigDecimal DAYS_PER_WEEK = new BigDecimal("7");
   private static final BigDecimal DAYS_PER_MONTH = new BigDecimal("30");
 
-  /** 노출을 구좌 수 기준으로 계산하는 과금 모델. */
-  private static final Set<PricingModel> SLOT_BASED_MODELS =
-      Set.of(PricingModel.SLOT, PricingModel.FLAT, PricingModel.PACKAGE);
+  /**
+   * 단위 하나를 사서 그 단위의 기대 노출을 얻는 과금 모델. 예산·기간을 단위 수로 환산해 노출을 낸다.
+   * CPP(기간당 과금)도 단가에 단위 일수가 붙으므로 구좌형과 계산이 같다.
+   */
+  private static final Set<PricingModel> UNIT_BASED_MODELS =
+      Set.of(PricingModel.SLOT, PricingModel.FLAT, PricingModel.PACKAGE, PricingModel.CPP);
 
   private static final MathContext MC = new MathContext(20, RoundingMode.HALF_UP);
   private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
@@ -188,7 +191,7 @@ public final class EstimationService {
     if (pricing.pricingModel() == PricingModel.CPM) {
       return true;   // 예산과 단가만으로 노출을 환산할 수 있다
     }
-    return SLOT_BASED_MODELS.contains(pricing.pricingModel())
+    return UNIT_BASED_MODELS.contains(pricing.pricingModel())
         && product.expectedImpressions() != null;
   }
 

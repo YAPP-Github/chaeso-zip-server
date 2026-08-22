@@ -486,6 +486,24 @@ class SimulationServiceImplTest {
     }
 
     @Test
+    @DisplayName("일 단위 기간형(CPP) 매체도 노출·클릭과 클릭당 비용을 낸다")
+    void estimatesDailyPeriodPricingChannel() {
+      givenCatalog(product(PRODUCT_ID, CHANNEL_ID, null, 86_000L, "1일"),
+          pricing(PRODUCT_ID, PricingModel.CPP, PriceType.DISCOUNT, "140000", null, "1"));
+
+      // 기간 7일 / 단위 1일 = 7단위, 예산 720,000 / 140,000 = 5.142...단위 → 예산 기준
+      SimulationItemResponse item = simulationService.estimate(
+          command(720_000, CampaignPeriod.LE_1W, allocation(720_000, "100"))).items().getFirst();
+
+      assertThat(item.isExecutable()).isTrue();
+      assertThat(item.minBudgetWon()).isEqualTo(140_000);
+      assertThat(item.estImpressions()).isEqualTo(new CountRangeResponse(375_943, 508_629));
+      assertThat(item.estClicks()).isEqualTo(new CountRangeResponse(9_399, 12_716));   // 평균 2.5%
+      assertThat(item.cpcWon()).isEqualByComparingTo("65");   // 720,000 / 11,058 클릭(중앙값)
+      assertThat(item.basisNote()).doesNotContain("노출 정보 미제공");
+    }
+
+    @Test
     @DisplayName("여러 매체의 합계는 집행 가능한 매체만 더한다")
     void totalsCountExecutableChannelsOnly() {
       UUID otherChannelId = UUID.randomUUID();
